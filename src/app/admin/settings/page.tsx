@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  Settings, Save, ArrowLeft, CheckCircle, AlertCircle,
+  Settings, Save, CheckCircle, AlertCircle,
   ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2,
   FileText, Shield, HelpCircle, Info, Image, ArrowUp, ArrowDown
 } from 'lucide-react'
@@ -197,7 +197,7 @@ export default function AdminSettingsPage() {
           banners: Array.isArray(data.data.banners) ? data.data.banners : defaultSettings.banners,
         })
       }
-    } catch (error) {
+    } catch (_error) {
       console.error('获取配置失败:', error)
       setMessage({ type: 'error', text: '加载配置失败，使用默认值' })
     } finally {
@@ -226,7 +226,7 @@ export default function AdminSettingsPage() {
       } else {
         setMessage({ type: 'error', text: data.error || '保存失败' })
       }
-    } catch (error) {
+    } catch (_error) {
       setMessage({ type: 'error', text: '网络错误，保存失败' })
     } finally {
       setSaving(false)

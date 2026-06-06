@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  FileText, Search, Loader2, ChevronLeft, ChevronRight, Filter
+  FileText, Loader2, ChevronLeft, ChevronRight, Filter
 } from 'lucide-react'
 
 // ---- 类型定义 ----
@@ -122,7 +122,7 @@ export default function OperationLogsPage() {
   const handleReset = () => {
     setFilterModule('')
     setFilterAction('')
-    filterUserId && setFilterUserId('')
+    if (filterUserId) setFilterUserId('')
     setFilterStartDate('')
     setFilterEndDate('')
     setPage(1)
