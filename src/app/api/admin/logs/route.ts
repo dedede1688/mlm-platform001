@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '20')))
-    const module = searchParams.get('module')?.trim() || ''
+    const logModule = searchParams.get('module')?.trim() || ''
     const action = searchParams.get('action')?.trim() || ''
     const userId = searchParams.get('userId')?.trim() || ''
     const startDate = searchParams.get('startDate')?.trim() || ''
@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
     // 构建查询条件
     const where: Record<string, unknown> = {}
 
-    if (module) {
-      where.module = module
+    if (logModule) {
+      where.module = logModule
     }
 
     if (action) {
