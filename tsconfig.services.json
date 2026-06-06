@@ -1,0 +1,19 @@
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "declaration": true,
+    "noEmit": false,
+    "module": "commonjs",
+    "target": "ES2017"
+  },
+  "include": [
+    "src/lib/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "src/app",
+    "src/components",
+    "src/pages"
+  ]
+}
