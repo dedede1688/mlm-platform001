@@ -353,7 +353,7 @@ export default function OperationLogsPage() {
                     <span className="text-gray-900 text-xs break-all">{detailLog.userAgent}</span>
                   </div>
                 )}
-                {detailLog.oldValue && (
+                {!!detailLog.oldValue && (
                   <div>
                     <span className="text-gray-500">变更前：</span>
                     <pre className="mt-1 bg-red-50 border border-red-100 rounded-lg p-3 text-xs overflow-x-auto">
@@ -361,7 +361,7 @@ export default function OperationLogsPage() {
                     </pre>
                   </div>
                 )}
-                {detailLog.newValue && (
+                {!!detailLog.newValue && (
                   <div>
                     <span className="text-gray-500">变更后：</span>
                     <pre className="mt-1 bg-green-50 border border-green-100 rounded-lg p-3 text-xs overflow-x-auto">
