@@ -1,3 +1,19 @@
+-- Drop existing tables (reverse dependency order)
+DROP TABLE IF EXISTS "operation_logs" CASCADE;
+DROP TABLE IF EXISTS "manual_rewards" CASCADE;
+DROP TABLE IF EXISTS "carts" CASCADE;
+DROP TABLE IF EXISTS "points_unlock_schedules" CASCADE;
+DROP TABLE IF EXISTS "level_snapshots" CASCADE;
+DROP TABLE IF EXISTS "system_configs" CASCADE;
+DROP TABLE IF EXISTS "withdrawals" CASCADE;
+DROP TABLE IF EXISTS "dividends" CASCADE;
+DROP TABLE IF EXISTS "rewards" CASCADE;
+DROP TABLE IF EXISTS "points_records" CASCADE;
+DROP TABLE IF EXISTS "order_items" CASCADE;
+DROP TABLE IF EXISTS "orders" CASCADE;
+DROP TABLE IF EXISTS "products" CASCADE;
+DROP TABLE IF EXISTS "users" CASCADE;
+
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 

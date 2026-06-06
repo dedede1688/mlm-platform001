@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import { generateToken } from '@/lib/utils/auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,11 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 生成 JWT
-    const token = jwt.sign(
-      { userId: user.id, phone: user.phone, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    )
+    const token = generateToken(user.id, user.phone, user.role)
 
     return NextResponse.json({
       success: true,
