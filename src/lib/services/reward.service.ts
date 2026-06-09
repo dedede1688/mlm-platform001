@@ -99,7 +99,7 @@ export class RewardService {
   }
 
   // 检查订单导致的升级
-  static async checkUpgradeFromOrder(userId: string, order: { items: Array<{ product: { isUpgradeProduct: boolean }; quantity: number }> }) {
+  static async checkUpgradeFromOrder(userId: string, order: { items: Array<{ product: { isUpgradeProduct: boolean }; quantity: number }>; payAmount: number }) {
     // 检查是否购买了升级产品
     const hasUpgradeProduct = order.items.some(
       (item) => item.product.isUpgradeProduct
