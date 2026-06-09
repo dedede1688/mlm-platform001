@@ -1,4 +1,10 @@
+import type { InputJsonValue } from '@prisma/client/runtime/library'
 import { prisma } from '@/lib/prisma'
+
+function toJsonValue(value: unknown): InputJsonValue | undefined {
+  if (value === undefined) return undefined
+  return JSON.parse(JSON.stringify(value)) as InputJsonValue
+}
 
 export type LogAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT'
 export type LogModule = 'product' | 'order' | 'user' | 'finance' | 'setting'
@@ -26,8 +32,8 @@ export async function logOperation(params: LogOperationParams): Promise<void> {
         action: params.action,
         module: params.module,
         targetId: params.targetId || null,
-        oldValue: params.oldValue || undefined,
-        newValue: params.newValue || undefined,
+        oldValue: toJsonValue(params.oldValue),
+        newValue: toJsonValue(params.newValue),
         ip: params.ip || null,
         userAgent: params.userAgent || null,
       },
