@@ -198,7 +198,7 @@ export default function AdminSettingsPage() {
         })
       }
     } catch (_error) {
-      console.error('获取配置失败:', error)
+      console.error('获取配置失败:', _error)
       setMessage({ type: 'error', text: '加载配置失败，使用默认值' })
     } finally {
       setLoading(false)
