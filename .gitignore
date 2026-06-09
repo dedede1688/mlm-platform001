@@ -13,6 +13,7 @@
 
 # production
 /build
+dist/
 
 # misc
 .DS_Store
@@ -26,6 +27,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.backup
 
 # vercel
 .vercel
@@ -44,3 +46,5 @@ prisma/*.db-journal
 
 # temp scripts
 _update_*.sql
+*.bak
+~*
