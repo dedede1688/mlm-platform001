@@ -10,6 +10,7 @@ interface PublicSettings {
   contactPhone: string
   serviceTime: string
   companyName: string
+  companyAddress: string  // 新增：从后台读取
   icp: string
   copyright: string
 }
@@ -20,6 +21,7 @@ const defaultSettings: PublicSettings = {
   contactPhone: '18566793066',
   serviceTime: '周一至周日 9:00-21:00',
   companyName: '广州敏维生物科技有限公司',
+  companyAddress: '广州市花都区金谷南路9号',  // 新增
   icp: '粤ICP备XXXXXXXX号',
   copyright: '2026',
 }
@@ -58,7 +60,7 @@ export default function Footer() {
             <div className="space-y-2 text-sm text-gray-400">
               <p className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 flex-shrink-0" />
-                广州市花都区金谷南路9号
+                {loading ? <span className="inline-block h-4 w-36 bg-gray-700 rounded animate-pulse" /> : s.companyAddress}
               </p>
               <p className="flex items-center gap-2">
                 <Phone className="w-4 h-4 flex-shrink-0" />
