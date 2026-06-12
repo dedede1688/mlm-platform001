@@ -7,6 +7,8 @@ import {
   Users, TrendingUp, Coins, ShoppingBag, Star, Flame
 } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 // ---- 类型 ----
 
 interface BannerItem {
