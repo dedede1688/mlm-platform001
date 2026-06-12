@@ -20,7 +20,7 @@ const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'goods_admin', 'goods_manager',
 
 const defaultSettings: PublicSettings = {
   siteName: '敏维生物·健康商城',
-  logoUrl: '/logo.png',
+  logoUrl: '/logo.svg',  // 兜底使用 svg（项目中已有）
   contactPhone: '18566793066',
   serviceTime: '周一至周日 9:00-21:00',
   companyName: '广州敏维生物科技有限公司',
@@ -80,10 +80,11 @@ export default function Header() {
             <div className="h-8 w-40 bg-gray-200 rounded animate-pulse" />
           ) : (
             <>
-              {s.logoUrl && !logoError ? (
+              {!logoError && (
                 <div className="relative h-8 w-auto min-w-[100px]">
                   <Image
-                    src={s.logoUrl}
+                    // 优先用管理员配置的 logo，没有就用 svg 兜底
+                    src={s.logoUrl || '/logo.svg'}
                     alt={s.siteName}
                     fill
                     className="object-contain"
@@ -91,7 +92,7 @@ export default function Header() {
                     onError={() => setLogoError(true)}
                   />
                 </div>
-              ) : null}
+              )}
               <span>{s.siteName}</span>
             </>
           )}

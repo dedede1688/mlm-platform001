@@ -20,12 +20,12 @@ export async function GET() {
     }))
 
     if (!config) {
-      // 返回默认值
+      // 返回默认值（注意：logoUrl 为空字符串，前端会用 logo.svg 兜底）
       return NextResponse.json({
         success: true,
         data: {
           siteName: '敏维生物·健康商城',
-          logoUrl: '/logo.png',
+          logoUrl: '',
           contactPhone: '18566793066',
           serviceTime: '周一至周日 9:00-21:00',
           companyName: '广州敏维生物科技有限公司',
@@ -49,7 +49,8 @@ export async function GET() {
       success: true,
       data: {
         siteName: config.siteName ?? '敏维生物·健康商城',
-        logoUrl: config.logoUrl ?? '/logo.png',
+        // logoUrl 为空时前端会用 logo.svg 兜底
+        logoUrl: config.logoUrl ?? '',
         contactPhone: config.contactPhone ?? '18566793066',
         serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
         companyName: config.companyName ?? '广州敏维生物科技有限公司',

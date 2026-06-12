@@ -16,7 +16,7 @@ interface PublicSettings {
 
 const defaultSettings: PublicSettings = {
   siteName: '敏维生物·健康商城',
-  logoUrl: '/logo.png',
+  logoUrl: '/logo.svg',
   contactPhone: '18566793066',
   serviceTime: '周一至周日 9:00-21:00',
   companyName: '广州敏维生物科技有限公司',
