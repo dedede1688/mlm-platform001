@@ -5,7 +5,7 @@ const prisma = new PrismaClient()
 
 async function main() {
   const phone = '13800138000'
-  const plainPassword = '123456'
+  const plainPassword = 'dedede778843'
 
   const user = await prisma.user.findUnique({ where: { phone } })
   if (!user) {
