@@ -341,6 +341,32 @@ export default function AdminProductsPage() {
     }
   }
 
+  // 切换商品状态（上架/下架）
+  const toggleStatus = async (product: Product) => {
+    if (!token) return
+    const newStatus = product.status === 'active' ? 'inactive' : 'active'
+    const actionText = newStatus === 'active' ? '上架' : '下架'
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', `商品已${actionText}`)
+        fetchProducts(token, pagination.page)
+      } else {
+        showMessage('error', data.message || `${actionText}失败`)
+      }
+    } catch {
+      showMessage('error', '网络错误，请重试')
+    }
+  }
+
   // benefits 操作
   // ---- 规格操作 ----
   const addSpecGroup = () => {
@@ -613,10 +639,21 @@ export default function AdminProductsPage() {
                       </td>
                       {/* 操作 */}
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => toggleStatus(product)}
+                            className={`inline-flex items-center gap-1 px-2 py-1.5 text-sm rounded-lg transition-colors font-medium ${
+                              product.status === 'active'
+                                ? 'text-gray-600 hover:bg-gray-50'
+                                : 'text-green-600 hover:bg-green-50'
+                            }`}
+                            title={product.status === 'active' ? '点击下架' : '点击上架'}
+                          >
+                            {product.status === 'active' ? '下架' : '上架'}
+                          </button>
                           <button
                             onClick={() => handleEdit(product)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600
+                            className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-blue-600
                               hover:bg-blue-50 rounded-lg transition-colors font-medium"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -624,7 +661,7 @@ export default function AdminProductsPage() {
                           </button>
                           <button
                             onClick={() => setDeleteId(product.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600
+                            className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-red-600
                               hover:bg-red-50 rounded-lg transition-colors font-medium"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
