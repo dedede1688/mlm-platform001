@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
 import { ORDER_STATUS } from '@/lib/constants'
+import { sendEmail } from '@/lib/notification/sendEmail'
+import { sendSms } from '@/lib/notification/sendSms'
+import { logger } from '@/lib/logger'
 
 export class OrderService {
   // 创建订单（一单一品一件）
@@ -34,7 +37,7 @@ export class OrderService {
 
     // 计算订单金额
     let totalAmount = 0
-    const orderItems = []
+    const orderItems: Array<{ productId: string; quantity: number; unitPrice: number; totalPrice: number }> = []
 
     for (const item of items) {
       const product = products.find(p => p.id === item.productId)
@@ -74,73 +77,109 @@ export class OrderService {
     // 生成订单号
     const orderNo = `ORD${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`
 
-    // 创建订单
-    const order = await prisma.order.create({
-      data: {
-        userId,
-        orderNo,
-        totalAmount,
-        pointsUsed: actualPointsUsed,
-        pointsDiscount,
-        payAmount,
-        status: ORDER_STATUS.PENDING,
-        items: {
-          create: orderItems,
-        },
-      },
-      include: {
-        items: true,
-      },
-    })
-
-    // 扣减库存
-    for (const item of items) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: {
-            decrement: item.quantity,
-          },
-        },
+    // 使用事务保证原子性：创建订单 + 扣减库存 + 扣减积分
+    const order = await prisma.$transaction(async (tx) => {
+      // 事务内重新检查库存（防并发超卖）
+      const freshProducts = await tx.product.findMany({
+        where: { id: { in: productIds } },
       })
-    }
+      for (const item of items) {
+        const freshProduct = freshProducts.find(p => p.id === item.productId)
+        if (!freshProduct) throw new Error(`商品 ${item.productId} 不存在`)
+        if (freshProduct.stock < item.quantity) {
+          throw new Error(`商品 ${freshProduct.name} 库存不足`)
+        }
+      }
 
-    // 如果使用积分，扣减积分
-    if (actualPointsUsed > 0) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          unlockedPoints: {
-            decrement: actualPointsUsed,
-          },
-        },
-      })
+      // 事务内重新检查积分余额（防并发透支）
+      const freshUser = await tx.user.findUnique({ where: { id: userId } })
+      if (!freshUser) throw new Error('用户不存在')
+      if (actualPointsUsed > 0 && freshUser.unlockedPoints < actualPointsUsed) {
+        throw new Error('可用积分不足')
+      }
 
-      await prisma.pointsRecord.create({
+      // 创建订单
+      const createdOrder = await tx.order.create({
         data: {
           userId,
-          type: 'use',
-          amount: -actualPointsUsed,
-          totalPoints: user.totalPoints,
-          unlockedPoints: user.unlockedPoints - actualPointsUsed,
-          lockedPoints: user.lockedPoints,
-          sourceId: order.id,
-          description: `订单 ${orderNo} 积分抵扣`,
+          orderNo,
+          totalAmount,
+          pointsUsed: actualPointsUsed,
+          pointsDiscount,
+          payAmount,
+          status: ORDER_STATUS.PENDING,
+          items: {
+            create: orderItems,
+          },
+        },
+        include: {
+          items: true,
         },
       })
-    }
+
+      // 原子扣减库存（防并发超卖）
+      for (const item of items) {
+        const result = await tx.$queryRaw<{ count: number }[]>`
+          UPDATE "Product"
+          SET stock = stock - ${item.quantity}
+          WHERE id = ${item.productId}::uuid AND stock >= ${item.quantity}
+          RETURNING 1 as count
+        `
+        if (result.length === 0) {
+          throw new Error(`商品 ${item.productId} 库存不足，请刷新页面重试`)
+        }
+      }
+
+      // 如果使用积分，原子扣减积分（防并发透支）
+      if (actualPointsUsed > 0) {
+        const result = await tx.$queryRaw<{ count: number }[]>`
+          UPDATE "User"
+          SET "unlockedPoints" = "unlockedPoints" - ${actualPointsUsed}
+          WHERE id = ${userId}::uuid AND "unlockedPoints" >= ${actualPointsUsed}
+          RETURNING 1 as count
+        `
+        if (result.length === 0) {
+          throw new Error('可用积分不足，请刷新页面重试')
+        }
+
+        await tx.pointsRecord.create({
+          data: {
+            userId,
+            type: 'use',
+            amount: -actualPointsUsed,
+            totalPoints: freshUser.totalPoints,
+            unlockedPoints: freshUser.unlockedPoints - actualPointsUsed,
+            lockedPoints: freshUser.lockedPoints,
+            sourceId: createdOrder.id,
+            description: `订单 ${orderNo} 积分抵扣`,
+          },
+        })
+      }
+
+      return createdOrder
+    })
 
     return order
   }
 
   // 支付订单（模拟支付）
   static async payOrder(orderId: string) {
-    const order = await prisma.order.update({
-      where: { id: orderId },
+    // 使用原子更新防并发：仅当状态为 pending 时才更新
+    const order = await prisma.order.updateMany({
+      where: { id: orderId, status: ORDER_STATUS.PENDING },
       data: {
         status: ORDER_STATUS.PAID,
         paidAt: new Date(),
       },
+    })
+
+    if (order.count === 0) {
+      throw new Error('订单不存在或状态已变更')
+    }
+
+    // 重新查询完整订单数据
+    const paidOrder = await prisma.order.findUnique({
+      where: { id: orderId },
       include: {
         user: true,
         items: {
@@ -149,21 +188,65 @@ export class OrderService {
       },
     })
 
+    if (!paidOrder) throw new Error('订单不存在')
+
     // 处理奖励
     await RewardService.processOrderRewards(orderId)
 
-    return order
+    // 预留：发送订单支付成功通知
+    const userEmail = paidOrder.user.email
+    const userPhone = paidOrder.user.phone
+    const notifyVars = {
+      orderNo: paidOrder.orderNo,
+      orderAmount: paidOrder.totalAmount.toFixed(2),
+      payAmount: paidOrder.payAmount.toFixed(2),
+      userName: paidOrder.user.nickname ?? paidOrder.user.phone,
+    }
+    if (userEmail) {
+      sendEmail({ to: userEmail, templateType: 'order_paid', variables: notifyVars }).catch((err) => {
+        logger.error('发送订单支付成功邮件失败', { error: err instanceof Error ? err.message : String(err) })
+      })
+    }
+    if (userPhone) {
+      sendSms({ to: userPhone, templateType: 'order_paid', variables: notifyVars }).catch((err) => {
+        logger.error('发送订单支付成功短信失败', { error: err instanceof Error ? err.message : String(err) })
+      })
+    }
+
+    return paidOrder
   }
 
   // 发货
   static async shipOrder(orderId: string, _trackingNo?: string) {
-    return prisma.order.update({
+    const order = await prisma.order.update({
       where: { id: orderId },
       data: {
         status: ORDER_STATUS.SHIPPED,
         shippedAt: new Date(),
       },
+      include: { user: true },
     })
+
+    // 预留：发送订单发货通知
+    const userEmail = order.user.email
+    const userPhone = order.user.phone
+    const notifyVars = {
+      orderNo: order.orderNo,
+      trackingNumber: order.trackingNumber ?? '',
+      userName: order.user.nickname ?? order.user.phone,
+    }
+    if (userEmail) {
+      sendEmail({ to: userEmail, templateType: 'order_shipped', variables: notifyVars }).catch((err) => {
+        logger.error('发送订单发货邮件失败', { error: err instanceof Error ? err.message : String(err) })
+      })
+    }
+    if (userPhone) {
+      sendSms({ to: userPhone, templateType: 'order_shipped', variables: notifyVars }).catch((err) => {
+        logger.error('发送订单发货短信失败', { error: err instanceof Error ? err.message : String(err) })
+      })
+    }
+
+    return order
   }
 
   // 确认收货
@@ -210,52 +293,61 @@ export class OrderService {
       throw new Error('订单状态不允许退款')
     }
 
-    // 退回库存
-    for (const item of order.items) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: {
-            increment: item.quantity,
+    // 使用事务保证原子性
+    await prisma.$transaction(async (tx) => {
+      // 退回库存
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: {
+              increment: item.quantity,
+            },
           },
-        },
-      })
-    }
+        })
+      }
 
-    // 如果使用了积分，退回积分
-    if (order.pointsUsed > 0) {
-      await prisma.user.update({
-        where: { id: order.userId },
+      // 如果使用了积分，退回积分
+      if (order.pointsUsed > 0) {
+        const user = await tx.user.findUnique({ where: { id: order.userId } })
+        if (user) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: {
+              unlockedPoints: {
+                increment: order.pointsUsed,
+              },
+            },
+          })
+
+          await tx.pointsRecord.create({
+            data: {
+              userId: order.userId,
+              type: 'earn',
+              amount: order.pointsUsed,
+              totalPoints: user.totalPoints,
+              unlockedPoints: user.unlockedPoints + order.pointsUsed,
+              lockedPoints: user.lockedPoints,
+              sourceId: order.id,
+              description: `订单 ${order.orderNo} 退款积分退回`,
+            },
+          })
+        }
+      }
+
+      // 扣除已发放的奖励
+      await RewardService.processRefund(orderId)
+
+      // 更新订单状态
+      await tx.order.update({
+        where: { id: orderId },
         data: {
-          unlockedPoints: {
-            increment: order.pointsUsed,
-          },
+          status: ORDER_STATUS.REFUNDED,
         },
       })
-
-      await prisma.pointsRecord.create({
-        data: {
-          userId: order.userId,
-          type: 'earn',
-          amount: order.pointsUsed,
-          totalPoints: 0,
-          unlockedPoints: 0,
-          lockedPoints: 0,
-          sourceId: order.id,
-          description: `订单 ${order.orderNo} 退款积分退回`,
-        },
-      })
-    }
-
-    // 扣除已发放的奖励
-    await RewardService.processRefund(orderId)
-
-    return prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: ORDER_STATUS.REFUNDED,
-      },
     })
+
+    return prisma.order.findUnique({ where: { id: orderId } })
   }
 
   // 取消订单
@@ -270,52 +362,92 @@ export class OrderService {
       throw new Error('订单状态不允许取消')
     }
 
-    // 退回库存
-    for (const item of order.items) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: {
-            increment: item.quantity,
+    // 使用事务保证原子性
+    await prisma.$transaction(async (tx) => {
+      // 退回库存
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: {
+              increment: item.quantity,
+            },
           },
+        })
+      }
+
+      // 如果使用了积分，退回积分
+      if (order.pointsUsed > 0) {
+        const user = await tx.user.findUnique({ where: { id: order.userId } })
+        if (user) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: {
+              unlockedPoints: {
+                increment: order.pointsUsed,
+              },
+            },
+          })
+
+          // 创建积分退回记录
+          await tx.pointsRecord.create({
+            data: {
+              userId: order.userId,
+              type: 'earn',
+              amount: order.pointsUsed,
+              totalPoints: user.totalPoints,
+              unlockedPoints: user.unlockedPoints + order.pointsUsed,
+              lockedPoints: user.lockedPoints,
+              sourceId: order.id,
+              description: `订单 ${order.orderNo} 取消积分退回`,
+            },
+          })
+        }
+      }
+
+      // 更新订单状态
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: ORDER_STATUS.CANCELLED,
         },
       })
-    }
-
-    // 如果使用了积分，退回积分
-    if (order.pointsUsed > 0) {
-      await prisma.user.update({
-        where: { id: order.userId },
-        data: {
-          unlockedPoints: {
-            increment: order.pointsUsed,
-          },
-        },
-      })
-    }
-
-    return prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: ORDER_STATUS.CANCELLED,
-      },
     })
+
+    return prisma.order.findUnique({ where: { id: orderId } })
   }
 
   // 获取用户的订单列表
-  static async getUserOrders(userId: string, status?: string) {
+  static async getUserOrders(userId: string, status?: string, page: number = 1, limit: number = 20) {
     const where: Record<string, unknown> = { userId }
     if (status) where.status = status
 
-    return prisma.order.findMany({
-      where,
-      include: {
-        items: {
-          include: { product: true },
+    const skip = (page - 1) * limit
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          items: {
+            include: { product: true },
+          },
         },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.order.count({ where }),
+    ])
+
+    return {
+      orders,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: { createdAt: 'desc' },
-    })
+    }
   }
 
   // 获取订单详情
@@ -328,6 +460,9 @@ export class OrderService {
           include: { product: true },
         },
         rewards: true,
+        refundRequests: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     })
   }

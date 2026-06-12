@@ -1,29 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DividendService } from '@/lib/services/dividend.service'
-import { verifyToken } from '@/lib/utils/auth'
-import { prisma } from '@/lib/prisma'
+import { verifyPermission } from '@/lib/utils/admin-auth'
 
 export async function POST(request: NextRequest) {
   try {
-    // 验证管理员权限
-    const user = await verifyToken(request)
-    if (!user) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
-    }
-
-    // 检查是否为管理员（董事级别）
-    const userInfo = await prisma.user.findUnique({
-      where: { id: user.userId },
-    })
-
-    if (!userInfo || userInfo.level < 7) {
-      return NextResponse.json(
-        { error: '权限不足，需要董事级别' },
-        { status: 403 }
-      )
+    // 验证管理员权限（仅 super_admin 和 finance_admin）
+    const { user, error } = await verifyPermission(request, ['super_admin', 'finance_admin'])
+    if (error || !user) {
+      return error
     }
 
     // 调用分红服务执行结算
@@ -36,7 +20,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('分红结算失败:', error)
     return NextResponse.json(
-      { success: false, error: error.message || '分红结算失败' },
+      { success: false, error: '分红结算失败' },
       { status: 500 }
     )
   }
@@ -45,25 +29,10 @@ export async function POST(request: NextRequest) {
 // 获取今日分红摘要
 export async function GET(request: NextRequest) {
   try {
-    // 验证管理员权限
-    const user = await verifyToken(request)
-    if (!user) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
-    }
-
-    // 检查是否为管理员（董事级别）
-    const userInfo = await prisma.user.findUnique({
-      where: { id: user.userId },
-    })
-
-    if (!userInfo || userInfo.level < 7) {
-      return NextResponse.json(
-        { error: '权限不足，需要董事级别' },
-        { status: 403 }
-      )
+    // 验证管理员权限（仅 super_admin、finance_admin 和 auditor）
+    const { user, error } = await verifyPermission(request, ['super_admin', 'finance_admin', 'auditor'])
+    if (error || !user) {
+      return error
     }
 
     // 获取今日分红摘要
@@ -76,7 +45,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('获取分红摘要失败:', error)
     return NextResponse.json(
-      { success: false, error: error.message || '获取分红摘要失败' },
+      { success: false, error: '获取分红摘要失败' },
       { status: 500 }
     )
   }

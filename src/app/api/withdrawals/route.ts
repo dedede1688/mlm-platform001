@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Create withdrawal error:', error)
     return NextResponse.json(
-      { error: error.message || '创建提现申请失败' },
+      { error: '创建提现申请失败' },
       { status: 500 }
     )
   }

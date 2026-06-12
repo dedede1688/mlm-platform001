@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('积分转赠失败:', error)
     return NextResponse.json(
-      { error: error.message || '积分转赠失败' },
+      { error: '积分转赠失败' },
       { status: 500 }
     )
   }

@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation'
 import {
   UserPlus, BadgeCheck, PiggyBank, TrendingUp,
   ArrowLeft, ChevronLeft, ChevronRight, Package,
-  Calendar, Coins
+  Calendar, Coins, Users
 } from 'lucide-react'
+import { formatMoney } from '@/lib/utils/format'
 
 // ---- 类型 ----
 
@@ -30,27 +31,35 @@ interface RewardStats {
   totalAmount: number
   referralTotal: number
   brandBonusTotal: number
+  teamTotal: number
   dividendTotal: number
   totalCount: number
 }
 
 // ---- 奖励类型配置 ----
 
-type RewardTypeKey = 'all' | 'referral' | 'brand_bonus' | 'dividend'
+type RewardTypeKey = 'all' | 'referral' | 'team' | 'brand_bonus' | 'dividend'
 
 const TYPE_TABS: { key: RewardTypeKey; label: string; icon: React.ReactNode }[] = [
   { key: 'all', label: '全部', icon: <TrendingUp className="w-4 h-4" /> },
-  { key: 'referral', label: '推荐奖', icon: <UserPlus className="w-4 h-4" /> },
+  { key: 'referral', label: '直推奖', icon: <UserPlus className="w-4 h-4" /> },
+  { key: 'team', label: '团队奖', icon: <Users className="w-4 h-4" /> },
   { key: 'brand_bonus', label: '品牌管理奖', icon: <BadgeCheck className="w-4 h-4" /> },
   { key: 'dividend', label: '分红奖', icon: <PiggyBank className="w-4 h-4" /> },
 ]
 
 const TYPE_CONFIG: Record<string, { name: string; iconBg: string; iconColor: string; icon: React.ReactNode }> = {
   referral: {
-    name: '推荐奖',
+    name: '直推奖',
     iconBg: 'bg-blue-100',
     iconColor: 'text-blue-600',
     icon: <UserPlus className="w-5 h-5" />,
+  },
+  team: {
+    name: '团队奖',
+    iconBg: 'bg-indigo-100',
+    iconColor: 'text-indigo-600',
+    icon: <Users className="w-5 h-5" />,
   },
   brand_bonus: {
     name: '品牌管理奖',
@@ -142,8 +151,6 @@ export default function RewardsPage() {
     setActiveTab(tab)
     setPage(1)
   }
-
-  const formatMoney = (n: number) => n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   const formatRelativeTime = (s: string) => {
     const diff = Date.now() - new Date(s).getTime()
@@ -339,7 +346,7 @@ function RewardCard({
             )}
           </div>
           <p className="text-sm text-gray-400 mt-0.5">
-            {reward.type === 'dividend' ? '分红结算' : reward.type === 'referral' ? '来自直推会员的购买' : `来自第${reward.level || '?'}层下级的购买`}
+            {reward.type === 'dividend' ? '分红结算' : reward.type === 'referral' ? '来自直推会员的购买' : reward.type === 'team' ? `来自第${reward.level || 1}层团队的购买` : `来自第${reward.level || '?'}层下级的购买`}
           </p>
           <p className="text-xs text-gray-300 mt-1">{formatRelativeTime(reward.createdAt)}</p>
         </div>

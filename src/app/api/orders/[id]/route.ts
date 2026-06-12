@@ -87,7 +87,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Pay order error:', error)
     return NextResponse.json(
-      { error: error.message || '支付失败' },
+      { error: '支付失败' },
       { status: 500 }
     )
   }
@@ -133,7 +133,7 @@ export async function PUT(
   } catch (error: any) {
     console.error('Complete order error:', error)
     return NextResponse.json(
-      { error: error.message || '确认收货失败' },
+      { error: '确认收货失败' },
       { status: 500 }
     )
   }
@@ -179,7 +179,7 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Cancel order error:', error)
     return NextResponse.json(
-      { error: error.message || '取消订单失败' },
+      { error: '取消订单失败' },
       { status: 500 }
     )
   }

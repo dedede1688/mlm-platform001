@@ -1,97 +1,139 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  BarChart3, Package, ClipboardList, Users, Wallet,
-  Settings, LogOut, Menu, X, ChevronRight, Loader2,
+  LogOut, Menu, X, ChevronRight, Loader2,
   FileText, ShieldAlert
 } from 'lucide-react'
+import { MENU_ITEMS, ROLE_MENUS } from '@/lib/admin-menu'
 
-// ---- 所有管理员角色 ----
-const ALL_ADMIN_ROLES = ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor']
+// ---- 所有管理员角色（用于权限验证） ----
+const ALL_ADMIN_ROLES = Object.keys(ROLE_MENUS)
 
-// ---- 侧边栏导航配置 ----
+// ---- 侧边栏导航（从 admin-menu.ts 动态构建） ----
 
 interface NavItem {
+  id: string
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  allowedRoles: string[]
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { href: '/admin/dashboard', label: '数据仪表盘', icon: BarChart3, allowedRoles: ALL_ADMIN_ROLES },
-  { href: '/admin/products', label: '商品管理', icon: Package, allowedRoles: ['super_admin', 'goods_admin'] },
-  { href: '/admin/orders', label: '订单管理', icon: ClipboardList, allowedRoles: ['super_admin', 'goods_admin'] },
-  { href: '/admin/users', label: '会员管理', icon: Users, allowedRoles: ['super_admin', 'support_admin'] },
-  { href: '/admin/finance', label: '财务管理', icon: Wallet, allowedRoles: ['super_admin', 'finance_admin'] },
-  { href: '/admin/settings', label: '系统设置', icon: Settings, allowedRoles: ['super_admin'] },
-  { href: '/admin/logs', label: '操作日志', icon: FileText, allowedRoles: ['super_admin', 'auditor'] },
-]
+const NAV_ITEMS: NavItem[] = MENU_ITEMS.map(item => ({
+  id: item.id,
+  href: item.path,
+  label: item.name,
+  icon: item.icon,
+})).concat([
+  { id: 'logs', href: '/admin/logs', label: '操作日志', icon: FileText },
+])
 
-// ---- 面包屑映射 ----
+// ---- 面包屑映射（从 MENU_ITEMS 动态构建） ----
 
-const BREADCRUMB_MAP: Record<string, string> = {
-  '/admin/dashboard': '数据仪表盘',
-  '/admin/products': '商品管理',
-  '/admin/orders': '订单管理',
-  '/admin/users': '会员管理',
-  '/admin/finance': '财务管理',
-  '/admin/settings': '系统设置',
-  '/admin/logs': '操作日志',
-}
+const BREADCRUMB_MAP: Record<string, string> = Object.fromEntries(
+  MENU_ITEMS.map(item => [item.path, item.name]).concat([['/admin/logs', '操作日志']])
+)
 
 // ---- 布局组件 ----
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const pathnameRef = useRef(pathname)
+  pathnameRef.current = pathname
   const [adminName, setAdminName] = useState('')
   const [userRole, setUserRole] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authed, setAuthed] = useState(false)
   const [noPermission, setNoPermission] = useState(false)
 
-  // 权限验证
+  // 从 JWT token 解析角色（降级方案：localStorage 中无 user 时使用）
+  const parseRoleFromToken = (token: string): string | null => {
+    try {
+      const payload = token.split('.')[1]
+      const decoded = JSON.parse(atob(payload))
+      return decoded.role || null
+    } catch {
+      return null
+    }
+  }
+
+  // 权限验证（仅在挂载时执行一次）
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) {
-      router.push('/login')
+      router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
       return
     }
+
+    let role: string = ''
+    let displayName: string = '管理员'
+
     try {
       const userStr = localStorage.getItem('user')
       if (userStr) {
         const user = JSON.parse(userStr)
-        // 基于角色权限验证
-        const role = user.role || ''
-        if (!ALL_ADMIN_ROLES.includes(role)) {
-          setNoPermission(true)
+        role = user.role || ''
+        displayName = user.nickname || user.phone || '管理员'
+      } else {
+        // 降级：从 token 中解析角色
+        const tokenRole = parseRoleFromToken(token)
+        if (tokenRole) {
+          role = tokenRole
+        } else {
+          router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
           return
         }
-        setAdminName(user.nickname || user.phone || '管理员')
-        setUserRole(role)
-      } else {
-        router.push('/login')
-        return
       }
     } catch {
-      router.push('/login')
+      // JSON.parse 失败，尝试从 token 降级
+      const tokenRole = parseRoleFromToken(token)
+      if (tokenRole) {
+        role = tokenRole
+      } else {
+        router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
+        return
+      }
+    }
+
+    if (!ALL_ADMIN_ROLES.includes(role)) {
+      setNoPermission(true)
       return
     }
-    setAuthed(true)
-  }, [router])
 
-  // 根据角色过滤菜单
-  const visibleNavItems = NAV_ITEMS.filter(item => item.allowedRoles.includes(userRole))
+    setAdminName(displayName)
+    setUserRole(role)
+
+    // 如果 localStorage 缺少 user 对象，从 API 补充并存回
+    if (!localStorage.getItem('user')) {
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            localStorage.setItem('user', JSON.stringify(data.data))
+            setAdminName(data.data.nickname || data.data.phone || '管理员')
+          }
+        })
+        .catch(() => {/* 补充失败不影响已通过的权限验证 */})
+    }
+
+    setAuthed(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 根据角色过滤菜单（使用 ROLE_MENUS 映射）
+  const allowedMenuIds = ROLE_MENUS[userRole] || []
+  const visibleNavItems = NAV_ITEMS.filter(item => allowedMenuIds.includes(item.id))
 
   // 退出登录
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    router.push('/login')
+    router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
   }
 
   // 判断高亮：pathname 以 nav.href 开头

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 interface BannerItem {
   imageUrl: string
@@ -52,10 +53,12 @@ export default function BannerSlider({ banners }: { banners: BannerItem[] }) {
   const currentBanner = banners[currentIndex]
 
   const imageElement = (
-    <img
+    <Image
       src={currentBanner.imageUrl}
       alt={currentBanner.title || `轮播图 ${currentIndex + 1}`}
-      className={`w-full h-full object-cover transition-opacity duration-300 ${
+      fill
+      priority={currentIndex === 0}
+      className={`object-cover transition-opacity duration-300 ${
         isTransitioning ? 'opacity-0' : 'opacity-100'
       }`}
     />

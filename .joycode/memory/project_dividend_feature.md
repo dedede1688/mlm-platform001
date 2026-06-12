@@ -4,25 +4,35 @@ description: 分红奖功能实现和升级逻辑修复
 type: project
 ---
 
-## 分红奖功能
+## 分红模块完善（已完成）
 
-- 分红结算 API: `src/app/api/admin/settle-dividends/route.ts` (POST)
-- 分红查询 API: `src/app/api/dividends/route.ts` (GET)
-- 每日任务脚本: `scripts/daily-tasks.js`
-- 自动化测试: `test_dividend_auto.js`
+### 奖励比例体系
+- 直推奖（referral）：10%（从20%改为10%）
+- 团队奖（team）：3级递减 —— 第1级5%、第2级3%、第2级2%
+- 品牌管理奖（brand_bonus）：20%（不变）
+- 分红奖（dividend）：5%分红池，按等级权重分配
 
-### 分红分配算法（累加式）
-- 分红池 = 当日所有已支付订单总额 * 5%
-- 参与条件: 等级 >= 3（主任）
-- 主任每人分红 = 分红池 / (所有参与人数)
-- 经理每人分红 = 主任分红 + 分红池 / (经理及以上人数)
-- 总监每人分红 = 经理分红 + 分红池 / (总监及以上人数)
-- 以此类推（高级别叠加低级别份额）
+### 团队奖逻辑
+- 从购买者的推荐人开始，向上遍历最多3级
+- 每级推荐人必须是经销商（level>=2）及以上才可获得
+- 不符合条件的级跳过，继续向上
+- Set<string> 防止循环依赖
 
-### 关键修复
-- **升级逻辑**: 用户等级检查不再限制在"经销商及以上"才能检查主任升级，低等级用户满足直推条件也可直接升级
-- **直推经销商计数**: 升级跨越经销商等级时也正确增加推荐人的 directDistributorCount
-- **Dividends API 认证**: 从不存在的 `getUserFromToken` 改为 `verifyToken`
+### 分红奖逻辑
+- 从购买者向上遍历推荐链，找所有总监（level>=5）及以上的上级
+- 5%订单金额作为分红池
+- 按等级权重分配：总监=1、总裁=2、董事=3
+- 使用 Dividend 模型记录（含 userLevel/totalPool）
+- loopGuard 上限50防止意外无限循环
 
-### Why: 用户A作为会员(1)有3个直推经销商但无法升级为主任(3)
-### How to apply: 升级检查应遍历所有等级条件，不受当前等级限制
+### 关键文件
+- `src/lib/constants.ts` — REWARD_RATES + TEAM_REWARD_LEVELS
+- `src/lib/services/reward.service.ts` — 核心计算服务
+- `src/app/api/admin/rewards/route.ts` — 管理API（含汇总统计）
+- `src/app/admin/finance/page.tsx` — 后台财务管理（统计卡片+团队奖筛选）
+- `src/app/dashboard/rewards/page.tsx` — 前台奖励页面（团队奖tab+展示）
+
+### 技术要点
+- 所有奖励发放使用 prisma.$transaction 保证一致性
+- processRefund 同时扣回 Reward 和 Dividend
+- getUserRewardStats 返回 teamTotal 新增字段

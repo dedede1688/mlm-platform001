@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectUrl = searchParams.get('redirect') || ''
   const [formData, setFormData] = useState({
     phone: '',
     password: '',
@@ -55,7 +57,16 @@ export default function LoginPage() {
           localStorage.removeItem('savedPhone')
         }
         
-        router.push('/dashboard')
+        // 跳转：优先 redirect 参数，否则管理员跳 /admin，普通用户跳 /dashboard
+        const userRole = data.data.user?.role || ''
+        const adminRoles = ['super_admin', 'admin', 'goods_manager', 'order_manager', 'user_manager', 'finance_viewer']
+        if (redirectUrl) {
+          router.push(redirectUrl)
+        } else if (adminRoles.includes(userRole)) {
+          router.push('/admin')
+        } else {
+          router.push('/dashboard')
+        }
       } else {
         setError(data.error || '登录失败')
       }
@@ -174,5 +185,13 @@ export default function LoginPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-gray-500">加载中...</div></div>}>
+      <LoginForm />
+    </Suspense>
   )
 }

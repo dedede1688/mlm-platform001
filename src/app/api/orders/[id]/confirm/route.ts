@@ -41,7 +41,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Confirm order error:', error)
     return NextResponse.json(
-      { error: error.message || '确认收货失败' },
+      { error: '确认收货失败' },
       { status: 500 }
     )
   }

@@ -6,33 +6,29 @@ export class WithdrawalService {
   static async createWithdrawal(userId: string, amount: number) {
     if (amount <= 0) throw new Error('提现金额必须大于0')
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    })
+    // 使用事务保证原子性：原子扣减余额 + 创建提现记录
+    const withdrawal = await prisma.$transaction(async (tx) => {
+      // 原子扣减余额并增加冻结金额（防并发透支）
+      const result = await tx.$queryRaw<{ count: number }[]>`
+        UPDATE "User"
+        SET balance = balance - ${amount},
+            "frozenBalance" = "frozenBalance" + ${amount}
+        WHERE id = ${userId}::uuid AND balance >= ${amount}
+        RETURNING 1 as count
+      `
+      
+      if (result.length === 0) {
+        throw new Error('余额不足')
+      }
 
-    if (!user) throw new Error('用户不存在')
-    if (user.balance < amount) throw new Error('余额不足')
-
-    // 冻结金额
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        balance: {
-          decrement: amount,
+      // 创建提现记录
+      return tx.withdrawal.create({
+        data: {
+          userId,
+          amount,
+          status: WITHDRAWAL_STATUS.PENDING,
         },
-        frozenBalance: {
-          increment: amount,
-        },
-      },
-    })
-
-    // 创建提现记录
-    const withdrawal = await prisma.withdrawal.create({
-      data: {
-        userId,
-        amount,
-        status: WITHDRAWAL_STATUS.PENDING,
-      },
+      })
     })
 
     return withdrawal
@@ -40,57 +36,61 @@ export class WithdrawalService {
 
   // 审核提现
   static async reviewWithdrawal(withdrawalId: string, approved: boolean, rejectReason?: string) {
-    const withdrawal = await prisma.withdrawal.findUnique({
-      where: { id: withdrawalId },
+    // 使用事务保证原子性
+    return prisma.$transaction(async (tx) => {
+      // 事务内查询并加锁检查状态
+      const withdrawal = await tx.withdrawal.findUnique({
+        where: { id: withdrawalId },
+      })
+
+      if (!withdrawal) throw new Error('提现记录不存在')
+      if (withdrawal.status !== WITHDRAWAL_STATUS.PENDING) {
+        throw new Error('提现记录已处理')
+      }
+
+      if (approved) {
+        // 通过：解冻并扣除
+        await tx.user.update({
+          where: { id: withdrawal.userId },
+          data: {
+            frozenBalance: {
+              decrement: withdrawal.amount,
+            },
+          },
+        })
+
+        return tx.withdrawal.update({
+          where: { id: withdrawalId },
+          data: {
+            status: WITHDRAWAL_STATUS.APPROVED,
+            reviewedAt: new Date(),
+            paidAt: new Date(),
+          },
+        })
+      } else {
+        // 拒绝：解冻并退回余额
+        await tx.user.update({
+          where: { id: withdrawal.userId },
+          data: {
+            balance: {
+              increment: withdrawal.amount,
+            },
+            frozenBalance: {
+              decrement: withdrawal.amount,
+            },
+          },
+        })
+
+        return tx.withdrawal.update({
+          where: { id: withdrawalId },
+          data: {
+            status: WITHDRAWAL_STATUS.REJECTED,
+            rejectReason,
+            reviewedAt: new Date(),
+          },
+        })
+      }
     })
-
-    if (!withdrawal) throw new Error('提现记录不存在')
-    if (withdrawal.status !== WITHDRAWAL_STATUS.PENDING) {
-      throw new Error('提现记录已处理')
-    }
-
-    if (approved) {
-      // 通过：解冻并扣除
-      await prisma.user.update({
-        where: { id: withdrawal.userId },
-        data: {
-          frozenBalance: {
-            decrement: withdrawal.amount,
-          },
-        },
-      })
-
-      return prisma.withdrawal.update({
-        where: { id: withdrawalId },
-        data: {
-          status: WITHDRAWAL_STATUS.APPROVED,
-          reviewedAt: new Date(),
-          paidAt: new Date(),
-        },
-      })
-    } else {
-      // 拒绝：解冻并退回余额
-      await prisma.user.update({
-        where: { id: withdrawal.userId },
-        data: {
-          balance: {
-            increment: withdrawal.amount,
-          },
-          frozenBalance: {
-            decrement: withdrawal.amount,
-          },
-        },
-      })
-
-      return prisma.withdrawal.update({
-        where: { id: withdrawalId },
-        data: {
-          status: WITHDRAWAL_STATUS.REJECTED,
-          rejectReason,
-          reviewedAt: new Date(),
-        },
-      })
-    }
   }
 
   // 获取用户的提现记录

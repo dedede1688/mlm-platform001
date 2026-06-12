@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   ShoppingBag, Package, CreditCard, Truck, CheckCircle2,
   XCircle, RotateCcw, ChevronLeft, ChevronRight, ArrowLeft,
   ImageOff
 } from 'lucide-react'
+import { toast } from '@/components/ToastProvider'
+import { formatMoney } from '@/lib/utils/format'
 
 // ---- 类型 ----
 
@@ -106,10 +109,10 @@ export default function OrdersPage() {
         await fetchOrders(token)
       } else {
         const err = await res.json()
-        alert(err.error || '支付失败')
+        toast.error(err.error || '支付失败')
       }
     } catch {
-      alert('支付请求失败')
+      toast.error('支付请求失败')
     } finally {
       setActionLoading(null)
     }
@@ -128,10 +131,10 @@ export default function OrdersPage() {
         await fetchOrders(token)
       } else {
         const err = await res.json()
-        alert(err.error || '确认收货失败')
+        toast.error(err.error || '确认收货失败')
       }
     } catch {
-      alert('确认收货请求失败')
+      toast.error('确认收货请求失败')
     } finally {
       setActionLoading(null)
     }
@@ -152,8 +155,6 @@ export default function OrdersPage() {
     const d = new Date(s)
     return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
-
-  const formatMoney = (n: number) => n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   // ---- 加载态 ----
   if (loading) {
@@ -310,9 +311,9 @@ function OrderCard({
       <Link href={`/dashboard/orders/${order.id}`} className="block px-5 py-4 hover:bg-primary-50/30 transition-colors">
         <div className="flex gap-4">
           {/* 商品图片 */}
-          <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+          <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative flex items-center justify-center">
             {item?.productImage ? (
-              <img src={item.productImage} alt={item.productName} className="w-full h-full object-cover" />
+              <Image src={item.productImage} alt={item.productName} fill className="object-cover" />
             ) : (
               <ImageOff className="w-6 h-6 text-gray-300" />
             )}

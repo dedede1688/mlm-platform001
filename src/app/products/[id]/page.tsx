@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   ChevronLeft, Package, ShoppingCart, Zap, Tag, Shield,
   X, Loader2, FlaskConical
 } from 'lucide-react'
+import { toast } from '@/components/ToastProvider'
 
 // ---- 类型 ----
 
@@ -45,14 +47,13 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
-    if (!storedToken) {
-      router.push('/login')
-      return
+    if (storedToken) {
+      setToken(storedToken)
+      fetchUser(storedToken)
     }
-    setToken(storedToken)
-    fetchUser(storedToken)
+    // 无论是否登录都获取商品信息
     fetchProduct(storedToken)
-  }, [id, router])
+  }, [id])
 
   const fetchUser = async (authToken: string) => {
     try {
@@ -62,21 +63,19 @@ export default function ProductDetailPage() {
       if (res.ok) {
         const data = await res.json()
         setUser(data.data)
-      } else {
-        localStorage.removeItem('token')
-        router.push('/login')
       }
-    } catch {
-      localStorage.removeItem('token')
-      router.push('/login')
+    } catch (err) {
+      console.error('获取用户信息失败:', err)
     }
   }
 
-  const fetchProduct = async (authToken: string) => {
+  const fetchProduct = async (authToken: string | null) => {
     try {
-      const res = await fetch(`/api/products/${id}`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      })
+      const headers: Record<string, string> = {}
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`
+      }
+      const res = await fetch(`/api/products/${id}`, { headers })
       if (res.ok) {
         const data = await res.json()
         setProduct(data.data)
@@ -123,10 +122,10 @@ export default function ProductDetailPage() {
         router.push('/dashboard/orders')
       } else {
         const data = await res.json()
-        alert(data.error || '创建订单失败')
+        toast.error(data.error || '创建订单失败')
       }
     } catch {
-      alert('网络错误，请重试')
+      toast.error('网络错误，请重试')
     } finally {
       setBuying(false)
     }
@@ -147,15 +146,15 @@ export default function ProductDetailPage() {
         body: JSON.stringify({ productId: product.id }),
       })
       if (res.ok) {
-        alert('已加入购物车')
+        toast.success('已加入购物车')
       } else if (res.status === 409) {
-        alert('商品已在购物车中')
+        toast.warning('商品已在购物车中')
       } else {
         const data = await res.json()
-        alert(data.error || '添加购物车失败')
+        toast.error(data.error || '添加购物车失败')
       }
     } catch {
-      alert('网络错误，请重试')
+      toast.error('网络错误，请重试')
     } finally {
       setAddingToCart(false)
     }
@@ -220,16 +219,18 @@ export default function ProductDetailPage() {
         <div className="card-base overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
             {/* 左侧图片 */}
-            <div className="p-6 lg:p-8">
+            <div className="p-3 sm:p-6 lg:p-8">
               <div
                 className="relative w-full aspect-square max-w-[400px] mx-auto bg-gray-100 rounded-xl overflow-hidden cursor-zoom-in"
                 onClick={() => product.imageUrl && setImageModal(true)}
               >
                 {product.imageUrl ? (
-                  <img
+                  <Image
                     src={product.imageUrl}
                     alt={product.name}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 400px"
+                    className="object-cover hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center">
@@ -247,15 +248,15 @@ export default function ProductDetailPage() {
             </div>
 
             {/* 右侧信息 */}
-            <div className="p-6 lg:p-8 lg:border-l border-gray-100">
+            <div className="p-3 sm:p-6 lg:p-8 lg:border-l border-gray-100">
               {/* 名称 */}
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">{product.name}</h1>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 sm:mb-3">{product.name}</h1>
 
               {/* 功效标签 */}
               {(() => { const benefits = Array.isArray(product.benefits) ? product.benefits : []; return benefits.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
                   {benefits.map((tag, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 text-xs bg-primary-50 text-primary px-2.5 py-1 rounded-full">
+                    <span key={i} className="inline-flex items-center gap-1 text-[10px] sm:text-xs bg-primary-50 text-primary px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full">
                       <Tag className="w-3 h-3" />
                       {tag}
                     </span>
@@ -264,10 +265,10 @@ export default function ProductDetailPage() {
               ) })()}
 
               {/* 价格区域 */}
-              <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-5 mb-5">
-                <div className="flex items-baseline gap-3 mb-1">
-                  <span className="text-3xl font-bold text-primary">¥{product.memberPrice}</span>
-                  <span className="text-gray-400 line-through text-base">¥{product.retailPrice}</span>
+              <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-3 sm:p-5 mb-3 sm:mb-5">
+                <div className="flex items-baseline gap-2 sm:gap-3 mb-1">
+                  <span className="text-2xl sm:text-3xl font-bold text-primary">¥{product.memberPrice}</span>
+                  <span className="text-gray-400 line-through text-sm sm:text-base">¥{product.retailPrice}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-xs bg-secondary/10 text-secondary-700 px-2 py-0.5 rounded-full font-medium">
@@ -282,28 +283,28 @@ export default function ProductDetailPage() {
               </div>
 
               {/* 库存 */}
-              <div className="flex items-center gap-2 mb-5">
+              <div className="flex items-center gap-2 mb-3 sm:mb-5">
                 <Shield className={`w-4 h-4 ${stockLabel.color}`} />
-                <span className={`text-sm font-medium ${stockLabel.color}`}>{stockLabel.text}</span>
+                <span className={`text-xs sm:text-sm font-medium ${stockLabel.color}`}>{stockLabel.text}</span>
               </div>
 
               {/* 购买数量 */}
-              <div className="mb-4">
-                <span className="text-sm text-gray-500">购买数量</span>
-                <span className="ml-3 px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">1 件</span>
-                <span className="ml-2 text-xs text-gray-400">限购1件</span>
+              <div className="mb-3 sm:mb-4">
+                <span className="text-xs sm:text-sm text-gray-500">购买数量</span>
+                <span className="ml-2 sm:ml-3 px-2 sm:px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-xs sm:text-sm font-medium">1 件</span>
+                <span className="ml-1 sm:ml-2 text-[10px] sm:text-xs text-gray-400">限购1件</span>
               </div>
 
               {/* 积分抵扣 */}
               {user && product.maxPointsRatio > 0 && user.unlockedPoints > 0 && (
-                <div className="mb-5 bg-gray-50 rounded-xl p-4">
+                <div className="mb-3 sm:mb-5 bg-gray-50 rounded-xl p-3 sm:p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-gray-700">使用积分抵扣</label>
-                    <span className="text-xs text-gray-400">
+                    <label className="text-xs sm:text-sm font-medium text-gray-700">使用积分抵扣</label>
+                    <span className="text-[10px] sm:text-xs text-gray-400">
                       可用 {user.unlockedPoints} 积分，最多用 {maxPoints} 积分
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <input
                       type="number"
                       min={0}
@@ -313,18 +314,18 @@ export default function ProductDetailPage() {
                         const v = parseInt(e.target.value) || 0
                         setPointsToUse(Math.max(0, Math.min(maxPoints, v)))
                       }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                      className="flex-1 min-w-0 px-3 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
                       placeholder="输入积分数量"
                     />
                     <button
                       onClick={() => setPointsToUse(maxPoints)}
-                      className="text-xs text-primary hover:text-primary-600 font-medium whitespace-nowrap transition-colors"
+                      className="text-xs text-primary hover:text-primary-600 font-medium whitespace-nowrap transition-colors px-2 py-2.5 sm:py-2"
                     >
                       全部使用
                     </button>
                   </div>
                   {pointsToUse > 0 && (
-                    <p className="mt-2 text-xs text-gray-500">
+                    <p className="mt-2 text-[10px] sm:text-xs text-gray-500">
                       抵扣 ¥{pointsDiscount.toFixed(2)}，实付 <span className="text-primary font-bold">¥{finalPrice.toFixed(2)}</span>
                     </p>
                   )}
@@ -333,18 +334,18 @@ export default function ProductDetailPage() {
 
               {/* 升级产品提示 */}
               {product.isUpgradeProduct && (
-                <div className="mb-5 flex items-start gap-2 bg-blue-50 text-blue-700 rounded-xl p-4 text-sm">
+                <div className="mb-3 sm:mb-5 flex items-start gap-2 bg-blue-50 text-blue-700 rounded-xl p-3 sm:p-4 text-xs sm:text-sm">
                   <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>购买此产品可累计升级经销商资格</span>
                 </div>
               )}
 
-              {/* 操作按钮 */}
-              <div className="flex gap-3">
+              {/* 操作按钮 - 移动端sticky底部 */}
+              <div className="flex gap-2 sm:gap-3 sticky bottom-0 bg-white/80 backdrop-blur-sm py-3 -mx-3 px-3 sm:mx-0 sm:px-0 sm:relative sm:bg-transparent sm:backdrop-blur-none sm:py-0 sm:mt-0">
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock === 0 || addingToCart}
-                  className="flex-1 py-3 px-4 rounded-xl font-medium border-2 border-primary text-primary hover:bg-primary-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-3 sm:px-4 rounded-xl font-medium border-2 border-primary text-primary hover:bg-primary-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                 >
                   <ShoppingCart className="w-4 h-4" />
                   {addingToCart ? '添加中...' : '加入购物车'}
@@ -352,7 +353,7 @@ export default function ProductDetailPage() {
                 <button
                   onClick={handleBuyNow}
                   disabled={product.stock === 0 || buying}
-                  className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-primary hover:bg-primary-600 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-3 sm:px-4 rounded-xl font-medium text-white bg-primary hover:bg-primary-600 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                 >
                   {buying ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -367,12 +368,12 @@ export default function ProductDetailPage() {
         </div>
 
         {/* ====== 详情标签页 ====== */}
-        <div className="mt-8 card-base overflow-hidden">
+        <div className="mt-4 sm:mt-8 card-base overflow-hidden">
           {/* Tab 切换 */}
           <div className="flex border-b border-gray-200">
             <button
               onClick={() => setActiveTab('desc')}
-              className={`px-6 py-3.5 text-sm font-medium transition-colors relative ${
+              className={`px-4 sm:px-6 py-3 sm:py-3.5 text-xs sm:text-sm font-medium transition-colors relative ${
                 activeTab === 'desc'
                   ? 'text-primary'
                   : 'text-gray-500 hover:text-gray-700'
@@ -385,7 +386,7 @@ export default function ProductDetailPage() {
             </button>
             <button
               onClick={() => setActiveTab('research')}
-              className={`px-6 py-3.5 text-sm font-medium transition-colors relative ${
+              className={`px-4 sm:px-6 py-3 sm:py-3.5 text-xs sm:text-sm font-medium transition-colors relative ${
                 activeTab === 'research'
                   ? 'text-primary'
                   : 'text-gray-500 hover:text-gray-700'
@@ -399,7 +400,7 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Tab 内容 */}
-          <div className="p-6 lg:p-8">
+          <div className="p-4 sm:p-6 lg:p-8">
             {activeTab === 'desc' ? (
               <div className="prose prose-sm max-w-none text-gray-600">
                 {product.description ? (
@@ -452,9 +453,11 @@ export default function ProductDetailPage() {
           >
             <X className="w-5 h-5" />
           </button>
-          <img
+          <Image
             src={product.imageUrl}
             alt={product.name}
+            width={800}
+            height={800}
             className="max-w-full max-h-[90vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
           />

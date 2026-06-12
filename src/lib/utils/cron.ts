@@ -1,42 +1,58 @@
 import { PointsService } from '@/lib/services/points.service'
+import { logger } from '@/lib/logger'
+import { DividendService } from '@/lib/services/dividend.service'
 
 // 每日任务
 export async function runDailyTasks() {
-  console.log('========================================')
-  console.log('  每日任务执行开始')
-  console.log('  时间:', new Date().toLocaleString('zh-CN'))
-  console.log('========================================\n')
+  logger.info('========================================')
+  logger.info('  每日任务执行开始')
+  logger.info('  时间:', { time: new Date().toLocaleString('zh-CN') })
+  logger.info('========================================\n')
+
+  const results: { pointsUnlock?: { success: boolean; count?: number; error?: string }; dividendSettle?: { success: boolean; data?: unknown; error?: string } } = {}
 
   try {
-    // 执行积分解锁
+    // 1. 执行积分解锁
     const unlockCount = await PointsService.dailyUnlock()
-    console.log(`✅ 积分解锁完成: ${unlockCount} 条记录已处理`)
-
-    console.log('\n========================================')
-    console.log('  每日任务执行完毕')
-    console.log('========================================\n')
-
-    return { success: true, unlockCount }
+    logger.info(`✅ 积分解锁完成: ${unlockCount} 条记录已处理`)
+    results.pointsUnlock = { success: true, count: unlockCount }
   } catch (error) {
-    console.error('❌ 每日任务执行失败:', error)
-    return { success: false, error: error instanceof Error ? error.message : '未知错误' }
+    logger.error('❌ 积分解锁失败', { error: error instanceof Error ? error.message : String(error) })
+    results.pointsUnlock = { success: false, error: error instanceof Error ? error.message : '未知错误' }
   }
+
+  try {
+    // 2. 执行分红结算
+    const dividendResult = await DividendService.settleDailyDividends()
+    logger.info('✅ 分红结算完成', { data: dividendResult })
+    results.dividendSettle = { success: true, data: dividendResult }
+  } catch (error) {
+    logger.error('❌ 分红结算失败', { error: error instanceof Error ? error.message : String(error) })
+    results.dividendSettle = { success: false, error: error instanceof Error ? error.message : '未知错误' }
+  }
+
+  logger.info('\n========================================')
+  logger.info('  每日任务执行完毕')
+  logger.info('========================================\n')
+
+  return results
 }
 
 // 如果直接运行此文件
 if (require.main === module) {
   runDailyTasks()
     .then(result => {
-      if (result.success) {
-        console.log('每日任务执行成功')
+      const allSuccess = Object.values(result).every(r => r.success)
+      if (allSuccess) {
+        logger.info('每日任务全部执行成功', { result })
         process.exit(0)
       } else {
-        console.error('每日任务执行失败:', result.error)
+        logger.error('部分每日任务执行失败', { result })
         process.exit(1)
       }
     })
     .catch(error => {
-      console.error('每日任务执行异常:', error)
+      logger.error('每日任务执行异常', { error: error instanceof Error ? error.message : String(error) })
       process.exit(1)
     })
 }

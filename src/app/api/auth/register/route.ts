@@ -2,18 +2,48 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { UserService } from '@/lib/services/user.service'
 import bcrypt from 'bcryptjs'
+import { z } from 'zod'
+
+// 注册输入校验 schema
+const registerSchema = z.object({
+  phone: z
+    .string()
+    .min(1, '手机号不能为空')
+    .regex(/^1[3-9]\d{9}$/, '手机号格式不正确'),
+  password: z
+    .string()
+    .min(1, '密码不能为空')
+    .min(8, '密码长度至少8位')
+    .regex(/[a-zA-Z]/, '密码必须包含字母')
+    .regex(/[0-9]/, '密码必须包含数字'),
+  nickname: z
+    .string()
+    .min(2, '昵称长度必须在2-20个字符之间')
+    .max(20, '昵称长度必须在2-20个字符之间')
+    .optional()
+    .or(z.literal('')),
+  referrerCode: z
+    .string()
+    .optional()
+    .or(z.literal('')),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const { phone, password, nickname, referrerCode } = await request.json()
+    const body = await request.json()
 
-    // 验证参数
-    if (!phone || !password) {
+    // 使用 zod 校验输入
+    const validationResult = registerSchema.safeParse(body)
+    if (!validationResult.success) {
+      const errors = validationResult.error.issues
+      const firstError = errors[0]?.message || '输入参数错误'
       return NextResponse.json(
-        { error: '手机号和密码不能为空' },
+        { success: false, message: firstError },
         { status: 400 }
       )
     }
+
+    const { phone, password, nickname, referrerCode } = validationResult.data
 
     // 检查手机号是否已注册
     const existingUser = await prisma.user.findUnique({
@@ -22,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: '手机号已注册' },
+        { success: false, message: '该手机号已注册' },
         { status: 400 }
       )
     }
@@ -57,6 +87,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      message: '注册成功',
       data: {
         id: user.id,
         phone: user.phone,
@@ -67,7 +98,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Register error:', error)
     return NextResponse.json(
-      { error: '注册失败' },
+      { success: false, message: '注册失败，请稍后重试' },
       { status: 500 }
     )
   }

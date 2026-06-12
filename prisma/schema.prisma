@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,64 +7,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-
-// 用户表
 model User {
-  id                String    @id @default(uuid())
-  phone             String    @unique
-  email             String?   @unique
-  passwordHash      String    @map("password_hash")
-  nickname          String?
-  avatarUrl         String?   @map("avatar_url")
-  
-  // 会员等级: 0游客 1会员 2经销商 3主任 4经理 5总监 6总裁 7董事
-  level             Int       @default(1) @map("level")
-  
-  // 推荐关系
-  referrerId        String?   @map("referrer_id")
-  referrer          User?     @relation("ReferrerRelation", fields: [referrerId], references: [id])
-  referrals         User[]    @relation("ReferrerRelation")
-  
-  // 安置关系（三三复制）
-  parentId          String?   @map("parent_id")
-  parent            User?     @relation("ParentRelation", fields: [parentId], references: [id])
-  children          User[]    @relation("ParentRelation")
-  position          Int?      @map("position") // 安置位置 1/2/3
-  
-  // 财务
-  balance           Float     @default(0) @map("balance")
-  frozenBalance     Float     @default(0) @map("frozen_balance")
-  
-  // 积分
-  totalPoints       Int       @default(0) @map("total_points")
-  unlockedPoints    Int       @default(0) @map("unlocked_points")
-  lockedPoints      Int       @default(0) @map("locked_points")
-  
-  // 升级进度
-  upgradeProductCount Int   @default(0) @map("upgrade_product_count")
-  directSalesAmount   Float @default(0) @map("direct_sales_amount")
-  directDistributorCount Int @default(0) @map("direct_distributor_count")
-  
-  // 角色: user, super_admin, goods_admin, finance_admin, support_admin, auditor
-  role              String    @default("user") @map("role")
-
-  // 状态
-  status            String    @default("active") @map("status") // active, disabled, deleted
-  
-  // 时间戳
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  
-  // 关联
-  orders            Order[]
-  pointsRecords     PointsRecord[]
-  rewards           Reward[]
-  dividends         Dividend[]
-  withdrawals       Withdrawal[]
-  cartItems         Cart[]
-  manualRewards     ManualReward[]
-  operationLogs     OperationLog[]
+  id                     String         @id @default(uuid())
+  phone                  String         @unique
+  email                  String?        @unique
+  passwordHash           String         @map("password_hash")
+  nickname               String?
+  avatarUrl              String?        @map("avatar_url")
+  level                  Int            @default(1) @map("level")
+  referrerId             String?        @map("referrer_id")
+  parentId               String?        @map("parent_id")
+  position               Int?           @map("position")
+  balance                Float          @default(0) @map("balance")
+  frozenBalance          Float          @default(0) @map("frozen_balance")
+  totalPoints            Int            @default(0) @map("total_points")
+  unlockedPoints         Int            @default(0) @map("unlocked_points")
+  lockedPoints           Int            @default(0) @map("locked_points")
+  upgradeProductCount    Int            @default(0) @map("upgrade_product_count")
+  directSalesAmount      Float          @default(0) @map("direct_sales_amount")
+  directDistributorCount Int            @default(0) @map("direct_distributor_count")
+  role                   String         @default("user") @map("role")
+  status                 String         @default("active") @map("status")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
+  cartItems              Cart[]
+  dividends              Dividend[]
+  manualRewards          ManualReward[]
+  operationLogs          OperationLog[]
+  orders                 Order[]
+  pointsRecords          PointsRecord[]
+  rewards                Reward[]
+  parent                 User?          @relation("ParentRelation", fields: [parentId], references: [id])
+  children               User[]         @relation("ParentRelation")
+  referrer               User?          @relation("ReferrerRelation", fields: [referrerId], references: [id])
+  referrals              User[]         @relation("ReferrerRelation")
+  withdrawals            Withdrawal[]
+  refundRequests         RefundRequest[]
 
   @@index([referrerId])
   @@index([parentId])
@@ -76,159 +51,127 @@ model User {
   @@map("users")
 }
 
-// 商品表
 model Product {
-  id                String   @id @default(uuid())
-  name              String
-  description       String?
-  imageUrl          String?  @map("image_url")
-  
-  // 价格
-  retailPrice       Float    @map("retail_price")
-  memberPrice       Float    @map("member_price")
-  
-  // 库存
-  stock             Int      @default(0)
-  
-  // 特殊配置
-  isUpgradeProduct  Boolean  @default(false) @map("is_upgrade_product")
-  maxPointsRatio    Int      @default(50) @map("max_points_ratio") // 积分使用比例%
-  benefits          Json?    @map("benefits") // 商品功效标签，string数组
-  
-  // 状态: active, inactive, out_of_stock
-  status            String   @default("active") @map("status")
-  
-  // 排序
-  sortOrder         Int      @default(0) @map("sort_order")
-  
-  // 时间戳
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  
-  // 关联
-  orderItems        OrderItem[]
-  cartItems         Cart[]
-  
+  id               String      @id @default(uuid())
+  name             String
+  description      String?
+  imageUrl         String?     @map("image_url")
+  retailPrice      Float       @map("retail_price")
+  memberPrice      Float       @map("member_price")
+  stock            Int         @default(0)
+  isUpgradeProduct Boolean     @default(false) @map("is_upgrade_product")
+  maxPointsRatio   Int         @default(50) @map("max_points_ratio")
+  benefits         Json?       @map("benefits")
+  specs            Json?       @map("specs")
+  images           Json?       @map("images")
+  videoUrl         String?     @map("video_url")
+  status           String      @default("active") @map("status")
+  sortOrder        Int         @default(0) @map("sort_order")
+  categoryId       String?     @map("category_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  cartItems        Cart[]
+  orderItems       OrderItem[]
+  category         Category?   @relation(fields: [categoryId], references: [id])
+
   @@index([status])
   @@index([isUpgradeProduct])
+  @@index([categoryId])
   @@map("products")
 }
 
-// 订单表
-model Order {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id])
-  
-  // 订单号
-  orderNo           String   @unique @map("order_no")
-  
-  // 金额
-  totalAmount       Float    @map("total_amount")
-  pointsUsed        Int      @default(0) @map("points_used")
-  pointsDiscount    Float    @default(0) @map("points_discount")
-  payAmount         Float    @map("pay_amount")
-  
-  // 状态: pending, paid, shipped, completed, refunded, cancelled
-  status            String   @default("pending") @map("status")
-  
-  // 物流
-  trackingNumber    String?  @map("tracking_number")
+model Category {
+  id        String     @id @default(uuid())
+  name      String
+  parentId  String?    @map("parent_id")
+  sortOrder Int        @default(0) @map("sort_order")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
 
-  // 时间戳
-  paidAt            DateTime? @map("paid_at")
-  shippedAt         DateTime? @map("shipped_at")
-  completedAt       DateTime? @map("completed_at")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  
-  // 关联
-  items             OrderItem[]
-  rewards           Reward[]
-  dividends         Dividend[]
-  
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  userId         String      @map("user_id")
+  orderNo        String      @unique @map("order_no")
+  totalAmount    Float       @map("total_amount")
+  pointsUsed     Int         @default(0) @map("points_used")
+  pointsDiscount Float       @default(0) @map("points_discount")
+  payAmount      Float       @map("pay_amount")
+  status         String      @default("pending") @map("status")
+  trackingNumber String?     @map("tracking_number")
+  paidAt         DateTime?   @map("paid_at")
+  shippedAt      DateTime?   @map("shipped_at")
+  completedAt    DateTime?   @map("completed_at")
+  cancelledAt    DateTime?   @map("cancelled_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  dividends      Dividend[]
+  items          OrderItem[]
+  user           User        @relation(fields: [userId], references: [id])
+  rewards        Reward[]
+  refundRequests RefundRequest[]
+
   @@index([userId])
   @@index([status])
   @@index([orderNo])
   @@map("orders")
 }
 
-// 订单商品表
 model OrderItem {
-  id                String   @id @default(uuid())
-  orderId           String   @map("order_id")
-  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
-  productId         String   @map("product_id")
-  product           Product  @relation(fields: [productId], references: [id])
-  
-  quantity          Int
-  unitPrice         Float    @map("unit_price")
-  totalPrice        Float    @map("total_price")
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  
+  id         String   @id @default(uuid())
+  orderId    String   @map("order_id")
+  productId  String   @map("product_id")
+  quantity   Int
+  unitPrice  Float    @map("unit_price")
+  totalPrice Float    @map("total_price")
+  createdAt  DateTime @default(now()) @map("created_at")
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id])
+
   @@index([orderId])
   @@index([productId])
   @@map("order_items")
 }
 
-// 积分记录表
 model PointsRecord {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id])
-  
-  // 类型: earn(获得), unlock(解锁), use(使用), transfer_in(转入), transfer_out(转出), void(作废)
-  type              String   @map("type")
-  
-  amount            Int      // 变动金额
-  
-  // 变动后余额
-  totalPoints       Int      @map("total_points")
-  unlockedPoints    Int      @map("unlocked_points")
-  lockedPoints      Int      @map("locked_points")
-  
-  // 来源
-  sourceId          String?  @map("source_id") // 关联订单ID
-  description       String?  @map("description")
-  
-  // 转赠相关
-  relatedUserId     String?  @map("related_user_id")
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  type           String   @map("type")
+  amount         Int
+  totalPoints    Int      @map("total_points")
+  unlockedPoints Int      @map("unlocked_points")
+  lockedPoints   Int      @map("locked_points")
+  sourceId       String?  @map("source_id")
+  description    String?  @map("description")
+  relatedUserId  String?  @map("related_user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  user           User     @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([type])
   @@index([sourceId])
   @@map("points_records")
 }
 
-// 奖励记录表
 model Reward {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id])
-  
-  // 类型: referral(推荐奖), brand_bonus(品牌管理奖)
-  type              String   @map("type")
-  
-  orderId           String   @map("order_id")
-  order             Order    @relation(fields: [orderId], references: [id])
-  
-  amount            Float
-    
-  // 来源用户
-  fromUserId        String?  @map("from_user_id")
-  
-  // 层级（品牌管理奖用）
-  level             Int?     @map("level")
-  
-  // 状态: pending, paid
-  status            String   @default("pending") @map("status")
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  type       String   @map("type")
+  orderId    String   @map("order_id")
+  amount     Float
+  fromUserId String?  @map("from_user_id")
+  level      Int?     @map("level")
+  status     String   @default("pending") @map("status")
+  createdAt  DateTime @default(now()) @map("created_at")
+  order      Order    @relation(fields: [orderId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([type])
   @@index([orderId])
@@ -236,221 +179,207 @@ model Reward {
   @@map("rewards")
 }
 
-// 分红记录表
 model Dividend {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id])
-  
-  orderId           String   @map("order_id")
-  order             Order    @relation(fields: [orderId], references: [id])
-  
-  amount            Float
-  
-  // 分红时的等级
-  userLevel         Int      @map("user_level")
-  
-  // 当日分红池总额
-  totalPool         Float    @map("total_pool")
-  
-  // 分红日期
-  dividendDate      DateTime @map("dividend_date")
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  orderId      String   @map("order_id")
+  amount       Float
+  userLevel    Int      @map("user_level")
+  totalPool    Float    @map("total_pool")
+  dividendDate DateTime @map("dividend_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+  order        Order    @relation(fields: [orderId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([orderId])
   @@index([dividendDate])
   @@map("dividends")
 }
 
-// 提现记录表
 model Withdrawal {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id])
-  
-  amount            Float
-  
-  // 状态: pending, approved, rejected
-  status            String   @default("pending") @map("status")
-  
-  // 审核信息
-  reviewedBy        String?  @map("reviewed_by")
-  reviewedAt        DateTime? @map("reviewed_at")
-  rejectReason      String?  @map("reject_reason")
-  
-  // 打款信息
-  paidAt            DateTime? @map("paid_at")
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  amount       Float
+  status       String    @default("pending") @map("status")
+  reviewedBy   String?   @map("reviewed_by")
+  reviewedAt   DateTime? @map("reviewed_at")
+  rejectReason String?   @map("reject_reason")
+  paidAt       DateTime? @map("paid_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([status])
   @@map("withdrawals")
 }
 
-// 系统配置表
 model SystemConfig {
-  id                String   @id @default(uuid())
-  key               String   @unique
-  value             String
-  description       String?
-  
-  // 站点基础配置
-  siteName          String?  @default("敏维生物·健康商城") @map("site_name")
-  logoUrl           String?  @default("/logo.png") @map("logo_url")
-  contactPhone      String?  @default("18566793066") @map("contact_phone")
-  serviceEmail      String?  @default("service@minwei.com") @map("service_email")
-  serviceTime       String?  @default("周一至周日 9:00-21:00") @map("service_time")
-  companyName       String?  @default("广州敏维生物科技有限公司") @map("company_name")
-  companyAddress    String?  @default("广州市花都区金谷南路9号") @map("company_address")
-  icp               String?  @default("粤ICP备XXXXXXXX号")
-  copyright         String?  @default("2026")
-  
-  // 富文本/HTML 内容
-  aboutUs           String?  @map("about_us")         // 富文本内容
-  termsHtml         String?  @map("terms_html")        // 用户协议HTML
-  privacyHtml       String?  @map("privacy_html")      // 隐私政策HTML
-  
-  // FAQ
-  helpFaq           Json?    @map("help_faq")           // 默认空数组
-  
-  // 轮播图
-  banners           Json?    @map("banners")            // 默认空数组 [{imageUrl, link?, title?}]
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  
+  id             String   @id @default(uuid())
+  key            String   @unique
+  value          String
+  description    String?
+  siteName       String?  @default("敏维生物·健康商城") @map("site_name")
+  logoUrl        String?  @default("/logo.png") @map("logo_url")
+  contactPhone   String?  @default("18566793066") @map("contact_phone")
+  serviceEmail   String?  @default("service@minwei.com") @map("service_email")
+  serviceTime    String?  @default("周一至周日 9:00-21:00") @map("service_time")
+  companyName    String?  @default("广州敏维生物科技有限公司") @map("company_name")
+  companyAddress String?  @default("广州市花都区金谷南路9号") @map("company_address")
+  icp            String?  @default("粤ICP备XXXXXXXX号")
+  copyright      String?  @default("2026")
+  aboutUs        String?  @map("about_us")
+  termsHtml      String?  @map("terms_html")
+  privacyHtml    String?  @map("privacy_html")
+  helpFaq        Json?    @map("help_faq")
+  banners        Json?    @map("banners")
+  seoTitle       String?  @map("seo_title")
+  seoDescription String?  @map("seo_description")
+  seoKeywords    String?  @map("seo_keywords")
+  paymentProvider   String?  @default("mock") @map("payment_provider")
+  paymentMerchantId String?  @map("payment_merchant_id")
+  paymentSecret     String?  @map("payment_secret")
+  paymentNotifyUrl  String?  @map("payment_notify_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
   @@map("system_configs")
 }
 
-// 分红快照表（每日等级快照）
 model LevelSnapshot {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  
-  // 快照日期
-  snapshotDate      DateTime @map("snapshot_date")
-  
-  // 当日等级
-  level             Int      @map("level")
-  
-  // 当日统计数据
-  directDistributorCount Int @map("direct_distributor_count")
-  directSalesAmount   Float @map("direct_sales_amount")
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  
+  id                     String   @id @default(uuid())
+  userId                 String   @map("user_id")
+  snapshotDate           DateTime @map("snapshot_date")
+  level                  Int      @map("level")
+  directDistributorCount Int      @map("direct_distributor_count")
+  directSalesAmount      Float    @map("direct_sales_amount")
+  createdAt              DateTime @default(now()) @map("created_at")
+
   @@unique([userId, snapshotDate])
   @@index([snapshotDate])
   @@index([level])
   @@map("level_snapshots")
 }
 
-// 积分解锁计划表
 model PointsUnlockSchedule {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  
-  // 关联的订单
-  orderId           String   @map("order_id")
-  
-  // 总积分
-  totalPoints       Int      @map("total_points")
-  
-  // 已解锁
-  unlockedPoints    Int      @default(0) @map("unlocked_points")
-  
-  // 剩余锁定
-  remainingPoints   Int      @map("remaining_points")
-  
-  // 每日解锁比例
-  dailyUnlockRate   Float    @map("daily_unlock_rate")
-  
-  // 计划天数
-  totalDays         Int      @map("total_days")
-  
-  // 已执行天数
-  completedDays     Int      @default(0) @map("completed_days")
-  
-  // 状态: active, completed, cancelled
-  status            String   @default("active") @map("status")
-  
-  // 下次解锁日期
-  nextUnlockDate    DateTime? @map("next_unlock_date")
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  orderId         String    @map("order_id")
+  totalPoints     Int       @map("total_points")
+  unlockedPoints  Int       @default(0) @map("unlocked_points")
+  remainingPoints Int       @map("remaining_points")
+  dailyUnlockRate Float     @map("daily_unlock_rate")
+  totalDays       Int       @map("total_days")
+  completedDays   Int       @default(0) @map("completed_days")
+  status          String    @default("active") @map("status")
+  nextUnlockDate  DateTime? @map("next_unlock_date")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
   @@index([userId])
   @@index([status])
   @@index([nextUnlockDate])
   @@map("points_unlock_schedules")
 }
 
-// 购物车表
 model Cart {
-  id                String   @id @default(cuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  productId         String   @map("product_id")
-  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
-  quantity          Int      @default(1)
-  
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  productId String   @map("product_id")
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, productId])
   @@index([userId])
   @@index([productId])
   @@map("carts")
 }
 
-// 手动奖励记录表
 model ManualReward {
-  id                String   @id @default(uuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id])
-
-  amount            Float
-
-  // 类型: manual（默认）, adjustment（调整）, bonus（额外奖励）
-  type              String   @default("manual") @map("type")
-
-  // 发放原因
-  reason            String   @map("reason")
-
-  // 操作人
-  operatorId        String?  @map("operator_id")
-
-  createdAt         DateTime @default(now()) @map("created_at")
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  amount     Float
+  type       String   @default("manual") @map("type")
+  reason     String   @map("reason")
+  operatorId String?  @map("operator_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([type])
   @@map("manual_rewards")
 }
 
-// 操作日志
 model OperationLog {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id])
-
-  action    String   // CREATE, UPDATE, DELETE, APPROVE, REJECT
-  module    String   // product, order, user, finance, setting
-  targetId  String?  @map("target_id") // 操作对象ID（商品ID、订单号等）
-  oldValue  Json?    @map("old_value") // 变更前数据（可选）
-  newValue  Json?    @map("new_value") // 变更后数据（可选）
+  action    String
+  module    String
+  targetId  String?  @map("target_id")
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
   ip        String?
   userAgent String?  @map("user_agent")
   createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([module])
   @@index([action])
   @@index([createdAt])
   @@map("operation_logs")
+}
+
+model NotificationTemplate {
+  id        String   @id @default(uuid())
+  type      String   @map("type")
+  channel   String   @map("channel")
+  subject   String?  @map("subject")
+  content   String   @map("content")
+  enabled   Boolean  @default(true) @map("enabled")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([type, channel])
+  @@index([type])
+  @@index([channel])
+  @@index([enabled])
+  @@map("notification_templates")
+}
+
+model RefundRequest {
+  id           String   @id @default(uuid())
+  orderId      String   @map("order_id")
+  userId       String   @map("user_id")
+  amount       Float
+  reason       String
+  description  String?
+  images       Json?    // 存储图片 URL 数组，如 ["url1", "url2"]
+  status       String   @default("pending") // pending, approved, rejected, completed
+  adminComment String?  @map("admin_comment")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([status])
+  @@map("refund_requests")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model banners {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  image_url  String
+  link       String?
+  title      String?
+  alt        String?
+  order      Int?      @default(0)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
 }

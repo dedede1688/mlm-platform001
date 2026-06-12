@@ -23,10 +23,20 @@ export const MEMBER_LEVEL_NAMES: Record<number, string> = {
 
 // 奖励比例
 export const REWARD_RATES = {
-  REFERRAL: 0.20,
-  BRAND_BONUS: 0.20,
-  DIVIDEND: 0.05,
+  REFERRAL: 0.10,          // 直推奖 10%
+  BRAND_BONUS: 0.20,       // 品牌管理奖 20%
+  TEAM_LEVEL_1: 0.05,      // 团队奖第1级 5%
+  TEAM_LEVEL_2: 0.03,      // 团队奖第2级 3%
+  TEAM_LEVEL_3: 0.02,      // 团队奖第3级 2%
+  DIVIDEND: 0.05,          // 分红奖 5%
 }
+
+// 团队奖层级配置
+export const TEAM_REWARD_LEVELS = [
+  { level: 1, rate: REWARD_RATES.TEAM_LEVEL_1 },
+  { level: 2, rate: REWARD_RATES.TEAM_LEVEL_2 },
+  { level: 3, rate: REWARD_RATES.TEAM_LEVEL_3 },
+] as const
 
 // 积分解锁配置
 export const POINTS_CONFIG = {
@@ -83,5 +93,6 @@ export const POINTS_RECORD_TYPE = {
 export const REWARD_TYPE = {
   REFERRAL: 'referral',
   BRAND_BONUS: 'brand_bonus',
+  TEAM: 'team',
   DIVIDEND: 'dividend',
 } as const

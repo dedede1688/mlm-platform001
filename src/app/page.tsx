@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import BannerSlider from '@/components/BannerSlider'
 import {
@@ -28,11 +29,14 @@ interface ProductItem {
 
 async function getBanners(): Promise<BannerItem[]> {
   try {
-    const config = await prisma.systemConfig.findFirst()
-    if (config?.banners && Array.isArray(config.banners)) {
-      return config.banners as unknown as BannerItem[]
-    }
-    return []
+    const records = await prisma.banners.findMany({
+      orderBy: { order: 'asc' },
+    })
+    return records.map(record => ({
+      imageUrl: record.image_url,
+      link: record.link ?? undefined,
+      title: record.title ?? undefined,
+    }))
   } catch {
     return []
   }
@@ -167,33 +171,33 @@ export default async function Home() {
         </section>
 
         {/* ====== 2. 品牌故事 ====== */}
-        <section className="mb-16">
+        <section className="mb-10 sm:mb-16">
           <h2 className="section-title">专注健康解决方案</h2>
           <p className="section-subtitle">耐高温金花菌专家</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {BRAND_POINTS.map((item, i) => (
               <div
                 key={i}
                 className="card-base card-body text-center animate-slide-up"
                 style={{ animationDelay: `${i * 100}ms` }}
               >
-                <div className="w-14 h-14 rounded-full bg-primary-50 flex items-center justify-center mx-auto mb-4">
-                  <item.icon className="w-7 h-7 text-primary" />
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-primary-50 flex items-center justify-center mx-auto mb-2 sm:mb-4">
+                  <item.icon className="w-5 h-5 sm:w-7 sm:h-7 text-primary" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">{item.title}</h3>
-                <p className="text-secondary font-bold mb-2">{item.desc}</p>
-                <p className="text-sm text-gray-500">{item.detail}</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 mb-0.5 sm:mb-1">{item.title}</h3>
+                <p className="text-xs sm:text-base text-secondary font-bold mb-1 sm:mb-2">{item.desc}</p>
+                <p className="text-xs sm:text-sm text-gray-500 line-clamp-2 sm:line-clamp-none">{item.detail}</p>
               </div>
             ))}
           </div>
         </section>
 
         {/* ====== 3. 明星产品 ====== */}
-        <section className="mb-16">
+        <section className="mb-10 sm:mb-16">
           <h2 className="section-title">热门产品推荐</h2>
           <p className="section-subtitle">甄选优质健康产品，为您的健康护航</p>
           {products.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -218,13 +222,13 @@ export default async function Home() {
         </section>
 
         {/* ====== 4. 健康科普 ====== */}
-        <section className="mb-16">
+        <section className="mb-10 sm:mb-16">
           <h2 className="section-title">高血脂与肠道菌群的秘密</h2>
           <p className="section-subtitle">科学解读冠突散囊菌（金花菌）的健康价值</p>
           <div className="card-base overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2">
               {/* 左侧文字 */}
-              <div className="p-6 lg:p-8">
+              <div className="p-4 sm:p-6 lg:p-8">
                 <div className="prose prose-sm max-w-none text-gray-600">
                   <h3 className="text-lg font-semibold text-gray-900 !mt-0">冠突散囊菌如何降血脂？</h3>
                   <p>
@@ -259,7 +263,7 @@ export default async function Home() {
                 </div>
               </div>
               {/* 右侧示意 */}
-              <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-6 lg:p-8 flex items-center justify-center">
+              <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
                 <div className="text-center">
                   {/* 简易SVG图表 */}
                   <svg viewBox="0 0 200 160" className="w-full max-w-xs mx-auto" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -298,10 +302,10 @@ export default async function Home() {
         </section>
 
         {/* ====== 5. 会员权益 ====== */}
-        <section className="mb-16">
+        <section className="mb-10 sm:mb-16">
           <h2 className="section-title">加入分销，三重奖励</h2>
           <p className="section-subtitle">推荐奖 + 品牌管理奖 + 分红奖，收益源源不断</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             {MEMBER_REWARDS.map((item, i) => {
               const [textColor, bgColor] = item.color.split(' ')
               return (
@@ -319,10 +323,10 @@ export default async function Home() {
               )
             })}
           </div>
-          <div className="text-center mt-8">
+          <div className="text-center mt-6 sm:mt-8">
             <Link
               href="/register"
-              className="inline-block bg-secondary text-white px-8 py-3 rounded-lg text-lg hover:bg-secondary-600 transition-colors shadow-lg hover:shadow-xl font-medium"
+              className="inline-block bg-secondary text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg text-base sm:text-lg hover:bg-secondary-600 transition-colors shadow-lg hover:shadow-xl font-medium"
             >
               立即加入，开启收益
             </Link>
@@ -330,18 +334,18 @@ export default async function Home() {
         </section>
 
         {/* ====== 6. 科研认证墙 ====== */}
-        <section className="mb-16">
+        <section className="mb-10 sm:mb-16">
           <h2 className="section-title">科研认证与合作机构</h2>
           <p className="section-subtitle">权威认证，品质保证</p>
-          <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap justify-center gap-3 sm:gap-4">
             {RESEARCH_ORGS.map((org, i) => (
               <div
                 key={i}
-                className="card-base px-6 py-4 flex items-center gap-3 animate-slide-up"
+                className="card-base px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-3 animate-slide-up"
                 style={{ animationDelay: `${i * 80}ms` }}
               >
-                <Star className="w-5 h-5 text-secondary flex-shrink-0" />
-                <span className="font-medium text-gray-700 whitespace-nowrap">{org}</span>
+                <Star className="w-4 h-4 sm:w-5 sm:h-5 text-secondary flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-medium text-gray-700">{org}</span>
               </div>
             ))}
           </div>
@@ -361,37 +365,38 @@ function ProductCard({ product }: { product: ProductItem }) {
       {/* 商品图片 */}
       <div className="aspect-square bg-gray-100 relative overflow-hidden">
         {product.imageUrl ? (
-          <img
+          <Image
             src={product.imageUrl}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <ShoppingBag className="w-12 h-12 text-gray-300" />
+            <ShoppingBag className="w-8 h-8 sm:w-12 sm:h-12 text-gray-300" />
           </div>
         )}
       </div>
       {/* 商品信息 */}
-      <div className="p-3 sm:p-4">
-        <h3 className="font-medium text-gray-900 text-sm sm:text-base truncate mb-1">{product.name}</h3>
+      <div className="p-2 sm:p-3 md:p-4">
+        <h3 className="font-medium text-gray-900 text-xs sm:text-sm md:text-base truncate mb-0.5 sm:mb-1">{product.name}</h3>
         {/* 功效标签 */}
         {(() => { const benefits = Array.isArray(product.benefits) ? product.benefits : []; return benefits.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="flex flex-wrap gap-0.5 sm:gap-1 mb-1 sm:mb-2">
             {benefits.slice(0, 3).map((tag, i) => (
-              <span key={i} className="text-xs bg-primary-50 text-primary px-1.5 py-0.5 rounded">
+              <span key={i} className="text-[10px] sm:text-xs bg-primary-50 text-primary px-1 sm:px-1.5 py-0.5 rounded">
                 {tag}
               </span>
             ))}
           </div>
         ) })()}
         {/* 价格 */}
-        <div className="flex items-baseline gap-2">
-          <span className="text-primary font-bold text-lg">¥{product.memberPrice}</span>
-          <span className="text-gray-400 text-xs line-through">¥{product.retailPrice}</span>
+        <div className="flex items-baseline gap-1 sm:gap-2">
+          <span className="text-primary font-bold text-sm sm:text-lg">¥{product.memberPrice}</span>
+          <span className="text-gray-400 text-[10px] sm:text-xs line-through">¥{product.retailPrice}</span>
         </div>
-        <div className="mt-2">
-          <span className="inline-block w-full text-center bg-primary text-white text-sm py-1.5 rounded-lg group-hover:bg-primary-600 transition-colors">
+        <div className="mt-1.5 sm:mt-2">
+          <span className="inline-block w-full text-center bg-primary text-white text-xs sm:text-sm py-1 sm:py-1.5 rounded-lg group-hover:bg-primary-600 transition-colors">
             立即购买
           </span>
         </div>

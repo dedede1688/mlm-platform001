@@ -37,6 +37,11 @@ export async function GET(request: NextRequest) {
         orderBy: { sortOrder: 'asc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: {
+          category: {
+            select: { id: true, name: true },
+          },
+        },
       }),
       prisma.product.count({ where }),
     ])
@@ -80,6 +85,10 @@ export async function POST(request: NextRequest) {
       benefits,
       status,
       sortOrder,
+      categoryId,
+      specs,
+      images,
+      videoUrl,
     } = body
 
     // 验证必填字段
@@ -126,6 +135,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 验证 categoryId 存在性
+    if (categoryId) {
+      const categoryExists = await prisma.category.findUnique({ where: { id: categoryId } })
+      if (!categoryExists) {
+        return NextResponse.json(
+          { success: false, message: '所选分类不存在' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // 验证 specs 格式（应为数组）
+    if (specs != null && !Array.isArray(specs)) {
+      return NextResponse.json(
+        { success: false, message: 'specs 必须为数组格式' },
+        { status: 400 }
+      )
+    }
+
+    // 验证 images 格式（应为字符串数组）
+    if (images != null && !Array.isArray(images)) {
+      return NextResponse.json(
+        { success: false, message: 'images 必须为字符串数组' },
+        { status: 400 }
+      )
+    }
+    if (Array.isArray(images) && images.some((img: unknown) => typeof img !== 'string')) {
+      return NextResponse.json(
+        { success: false, message: 'images 数组元素必须为字符串URL' },
+        { status: 400 }
+      )
+    }
+
     const product = await prisma.product.create({
       data: {
         name,
@@ -139,6 +181,10 @@ export async function POST(request: NextRequest) {
         benefits: benefits ? benefits : null,
         status: status || 'active',
         sortOrder: sortOrder != null ? Number(sortOrder) : 0,
+        categoryId: categoryId || null,
+        specs: specs || null,
+        images: images && images.length > 0 ? images : null,
+        videoUrl: videoUrl || null,
       },
     })
 

@@ -1,13 +1,12 @@
 import { NextRequest } from 'next/server'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET!
-
-function ensureSecret(): string {
-  if (!JWT_SECRET) {
-    throw new Error('JWT_SECRET environment variable is not set')
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is not set. Please configure it before starting the application.')
   }
-  return JWT_SECRET
+  return secret
 }
 
 export interface AuthUser {
@@ -22,7 +21,7 @@ export async function verifyToken(request: NextRequest): Promise<AuthUser | null
     if (!authHeader) return null
 
     const token = authHeader.replace('Bearer ', '')
-    const decoded = jwt.verify(token, ensureSecret()) as AuthUser
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthUser
 
     return decoded
   } catch {
@@ -33,7 +32,7 @@ export async function verifyToken(request: NextRequest): Promise<AuthUser | null
 export function generateToken(userId: string, phone: string, role?: string) {
   return jwt.sign(
     { userId, phone, role },
-    ensureSecret(),
+    getJwtSecret(),
     { expiresIn: '7d' }
   )
 }

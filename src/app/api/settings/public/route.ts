@@ -6,6 +6,19 @@ export async function GET() {
   try {
     const config = await prisma.systemConfig.findFirst()
 
+    // 从独立 banners 表查询轮播图
+    const bannerRecords = await prisma.banners.findMany({
+      orderBy: { order: 'asc' },
+    })
+    const banners = bannerRecords.map(record => ({
+      id: record.id,
+      imageUrl: record.image_url,
+      link: record.link ?? undefined,
+      title: record.title ?? undefined,
+      alt: record.alt ?? undefined,
+      order: record.order ?? 0,
+    }))
+
     if (!config) {
       // 返回默认值
       return NextResponse.json({
@@ -22,7 +35,11 @@ export async function GET() {
           termsHtml: null,
           privacyHtml: null,
           helpFaq: [],
-          banners: [],
+          banners,
+          seoTitle: null,
+          seoDescription: null,
+          seoKeywords: null,
+          paymentProvider: 'mock',
         },
       })
     }
@@ -42,7 +59,11 @@ export async function GET() {
         termsHtml: config.termsHtml ?? null,
         privacyHtml: config.privacyHtml ?? null,
         helpFaq: (config.helpFaq as Array<{ question: string; answer: string }>) ?? [],
-        banners: (config.banners as Array<{ imageUrl: string; link?: string; title?: string }>) ?? [],
+        banners,
+        seoTitle: config.seoTitle ?? null,
+        seoDescription: config.seoDescription ?? null,
+        seoKeywords: config.seoKeywords ?? null,
+        paymentProvider: config.paymentProvider ?? 'mock',
       },
     })
   } catch (error) {

@@ -1,10 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import {
   Package, Plus, Search, Edit2, Trash2, Loader2,
-  ChevronLeft, ChevronRight, X, Image as ImageIcon, ToggleLeft, ToggleRight
+  ChevronLeft, ChevronRight, X, Image as ImageIcon, ToggleLeft, ToggleRight,
+  PlusCircle, MinusCircle
 } from 'lucide-react'
+import ImageUpload from '@/components/ImageUpload'
+import RichTextEditor from '@/components/RichTextEditor'
+import VideoUpload from '@/components/VideoUpload'
 
 interface Product {
   id: string
@@ -19,8 +24,24 @@ interface Product {
   benefits: string[] | null
   status: string
   sortOrder: number
+  categoryId: string | null
+  specs: SpecGroup[] | null
+  images: string[] | null
+  videoUrl: string | null
+  category: { id: string; name: string } | null
   createdAt: string
   updatedAt: string
+}
+
+interface SpecGroup {
+  name: string
+  values: string[]
+}
+
+interface CategoryItem {
+  id: string
+  name: string
+  parentId: string | null
 }
 
 interface Pagination {
@@ -42,6 +63,10 @@ interface FormData {
   benefits: string[]
   status: string
   sortOrder: string
+  categoryId: string
+  specs: SpecGroup[]
+  images: string[]
+  videoUrl: string
 }
 
 const defaultForm: FormData = {
@@ -56,6 +81,10 @@ const defaultForm: FormData = {
   benefits: [],
   status: 'active',
   sortOrder: '0',
+  categoryId: '',
+  specs: [],
+  images: [],
+  videoUrl: '',
 }
 
 export default function AdminProductsPage() {
@@ -80,6 +109,9 @@ export default function AdminProductsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // 分类数据
+  const [categories, setCategories] = useState<CategoryItem[]>([])
+
   // 消息提示
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -89,8 +121,45 @@ export default function AdminProductsPage() {
     if (storedToken) {
       setToken(storedToken)
       fetchProducts(storedToken, 1)
+      fetchCategories(storedToken)
     }
   }, [])
+
+  const fetchCategories = useCallback(async (authToken: string) => {
+    try {
+      const res = await fetch('/api/admin/categories', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      const data = await res.json()
+      if (data.success) {
+        setCategories(data.data || [])
+      }
+    } catch (error) {
+      console.error('获取分类列表失败:', error)
+    }
+  }, [])
+
+  // 将分类列表构建为树形选项（带层级缩进）
+  const buildCategoryOptions = useCallback((): { id: string; name: string; depth: number }[] => {
+    const map = new Map<string, CategoryItem>()
+    categories.forEach(c => map.set(c.id, c))
+    const result: { id: string; name: string; depth: number }[] = []
+    const visited = new Set<string>()
+
+    const traverse = (parentId: string | null, depth: number) => {
+      categories
+        .filter(c => c.parentId === parentId)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach(c => {
+          if (visited.has(c.id)) return
+          visited.add(c.id)
+          result.push({ id: c.id, name: c.name, depth })
+          traverse(c.id, depth + 1)
+        })
+    }
+    traverse(null, 0)
+    return result
+  }, [categories])
 
   const fetchProducts = useCallback(async (authToken: string, page: number) => {
     setLoading(true)
@@ -161,6 +230,10 @@ export default function AdminProductsPage() {
       benefits: Array.isArray(product.benefits) ? product.benefits : [],
       status: product.status,
       sortOrder: String(product.sortOrder),
+      categoryId: product.categoryId || '',
+      specs: Array.isArray(product.specs) ? product.specs : [],
+      images: Array.isArray(product.images) ? product.images : [],
+      videoUrl: product.videoUrl || '',
     })
     setNewBenefit('')
     setShowModal(true)
@@ -209,6 +282,15 @@ export default function AdminProductsPage() {
         benefits: formData.benefits.length > 0 ? formData.benefits : null,
         status: formData.status,
         sortOrder: parseInt(formData.sortOrder) || 0,
+        categoryId: formData.categoryId || null,
+        specs: formData.specs.filter(s => s.name.trim()).length > 0
+          ? formData.specs.filter(s => s.name.trim()).map(s => ({
+              name: s.name.trim(),
+              values: s.values.filter(v => v.trim()).map(v => v.trim()),
+            }))
+          : null,
+        images: formData.images.length > 0 ? formData.images : null,
+        videoUrl: formData.videoUrl.trim() || null,
       }
 
       const res = await fetch(url, {
@@ -260,6 +342,72 @@ export default function AdminProductsPage() {
   }
 
   // benefits 操作
+  // ---- 规格操作 ----
+  const addSpecGroup = () => {
+    setFormData(prev => ({
+      ...prev,
+      specs: [...prev.specs, { name: '', values: [] }],
+    }))
+  }
+
+  const removeSpecGroup = (idx: number) => {
+    setFormData(prev => ({
+      ...prev,
+      specs: prev.specs.filter((_, i) => i !== idx),
+    }))
+  }
+
+  const updateSpecGroupName = (idx: number, name: string) => {
+    setFormData(prev => ({
+      ...prev,
+      specs: prev.specs.map((s, i) => i === idx ? { ...s, name } : s),
+    }))
+  }
+
+  const addSpecValue = (groupIdx: number) => {
+    setFormData(prev => ({
+      ...prev,
+      specs: prev.specs.map((s, i) =>
+        i === groupIdx ? { ...s, values: [...s.values, ''] } : s
+      ),
+    }))
+  }
+
+  const removeSpecValue = (groupIdx: number, valueIdx: number) => {
+    setFormData(prev => ({
+      ...prev,
+      specs: prev.specs.map((s, i) =>
+        i === groupIdx ? { ...s, values: s.values.filter((_, vi) => vi !== valueIdx) } : s
+      ),
+    }))
+  }
+
+  const updateSpecValue = (groupIdx: number, valueIdx: number, val: string) => {
+    setFormData(prev => ({
+      ...prev,
+      specs: prev.specs.map((s, i) =>
+        i === groupIdx ? { ...s, values: s.values.map((v, vi) => vi === valueIdx ? val : v) } : s
+      ),
+    }))
+  }
+
+  // ---- 多图操作 ----
+  const addImage = (url: string) => {
+    if (url.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, url.trim()],
+      }))
+    }
+  }
+
+  const removeImage = (idx: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== idx),
+    }))
+  }
+
   const addBenefit = () => {
     const val = newBenefit.trim()
     if (val && !formData.benefits.includes(val)) {
@@ -379,6 +527,7 @@ export default function AdminProductsPage() {
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">图片</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">名称</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">分类</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">零售价</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">会员价</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">库存</th>
@@ -393,14 +542,14 @@ export default function AdminProductsPage() {
                       {/* 图片 */}
                       <td className="px-4 py-3">
                         {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-12 h-12 rounded-lg object-cover border border-gray-200"
-                            onError={e => {
-                              (e.target as HTMLImageElement).style.display = 'none'
-                            }}
-                          />
+                          <div className="relative w-12 h-12">
+                            <Image
+                              src={product.imageUrl}
+                              alt={product.name}
+                              fill
+                              className="rounded-lg object-cover border border-gray-200"
+                            />
+                          </div>
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
                             <ImageIcon className="w-5 h-5 text-gray-300" />
@@ -412,6 +561,16 @@ export default function AdminProductsPage() {
                         <div className="font-medium text-gray-900">{product.name}</div>
                         {product.description && (
                           <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{product.description}</div>
+                        )}
+                      </td>
+                      {/* 分类 */}
+                      <td className="px-4 py-3">
+                        {product.category ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">
+                            {product.category.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">未分类</span>
                         )}
                       </td>
                       {/* 零售价 */}
@@ -579,42 +738,42 @@ export default function AdminProductsPage() {
               {/* 描述 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">商品描述</label>
-                <textarea
-                  value={formData.description}
-                  onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  rows={3}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400 resize-y"
+                <RichTextEditor
+                  content={formData.description}
+                  onChange={html => setFormData(prev => ({ ...prev, description: html }))}
                   placeholder="请输入商品描述"
                 />
               </div>
 
-              {/* 图片URL */}
+              {/* 分类选择 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">图片URL</label>
-                <input
-                  type="text"
-                  value={formData.imageUrl}
-                  onChange={e => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">商品分类</label>
+                <select
+                  value={formData.categoryId}
+                  onChange={e => setFormData(prev => ({ ...prev, categoryId: e.target.value }))}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400"
-                  placeholder="https://example.com/image.jpg"
-                />
-                {formData.imageUrl && (
-                  <div className="mt-2 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 inline-block">
-                    <img
-                      src={formData.imageUrl}
-                      alt="预览"
-                      className="w-24 h-24 object-cover"
-                      onError={e => {
-                        (e.target as HTMLImageElement).style.display = 'none'
-                      }}
-                    />
-                  </div>
-                )}
+                    transition-colors text-gray-900 hover:border-gray-400 bg-white"
+                >
+                  <option value="">-- 未分类 --</option>
+                  {buildCategoryOptions().map(opt => (
+                    <option key={opt.id} value={opt.id}>
+                      {'　'.repeat(opt.depth)}{opt.name}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {/* 图片 */}
+              <ImageUpload
+                label="商品图片"
+                value={formData.imageUrl}
+                onChange={url => setFormData(prev => ({ ...prev, imageUrl: url }))}
+                placeholder="https://example.com/image.jpg"
+                bucket="products"
+                folder="products"
+                maxSizeMB={5}
+              />
 
               {/* 价格行 */}
               <div className="grid grid-cols-2 gap-4">
@@ -800,6 +959,138 @@ export default function AdminProductsPage() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* 商品规格 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">商品规格</label>
+                  <button
+                    type="button"
+                    onClick={addSpecGroup}
+                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700
+                      font-medium transition-colors"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    添加规格组
+                  </button>
+                </div>
+                {formData.specs.length === 0 && (
+                  <p className="text-xs text-gray-400">暂无规格，点击「添加规格组」创建</p>
+                )}
+                <div className="space-y-3">
+                  {formData.specs.map((spec, gi) => (
+                    <div key={gi} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={spec.name}
+                          onChange={e => updateSpecGroupName(gi, e.target.value)}
+                          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm
+                            focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                            text-gray-900 placeholder-gray-400 bg-white"
+                          placeholder="规格名称（如：颜色、尺寸）"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeSpecGroup(gi)}
+                          className="text-red-400 hover:text-red-600 transition-colors"
+                        >
+                          <MinusCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {spec.values.map((val, vi) => (
+                          <span
+                            key={vi}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200
+                              rounded-md text-sm text-gray-700"
+                          >
+                            {val}
+                            <button
+                              type="button"
+                              onClick={() => removeSpecValue(gi, vi)}
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="输入规格值后回车"
+                          className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm
+                            focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                            text-gray-900 placeholder-gray-400 bg-white"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              const target = e.target as HTMLInputElement
+                              if (target.value.trim()) {
+                                updateSpecValue(gi, spec.values.length, target.value.trim())
+                                target.value = ''
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addSpecValue(gi)}
+                          className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-600
+                            rounded-md hover:bg-gray-50 transition-colors font-medium"
+                        >
+                          添加值
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 多图上传 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">商品多图</label>
+                {formData.images.length > 0 && (
+                  <div className="grid grid-cols-4 gap-3 mb-3">
+                    {formData.images.map((img, idx) => (
+                      <div key={idx} className="relative group w-full aspect-square">
+                        <Image
+                          src={img}
+                          alt={`商品图 ${idx + 1}`}
+                          fill
+                          className="rounded-lg object-cover border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full
+                            opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <ImageUpload
+                  label=""
+                  value=""
+                  onChange={url => addImage(url)}
+                  bucket="products"
+                  folder="products/gallery"
+                  maxSizeMB={5}
+                />
+              </div>
+
+              {/* 视频上传 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">商品视频</label>
+                <VideoUpload
+                  value={formData.videoUrl}
+                  onChange={url => setFormData(prev => ({ ...prev, videoUrl: url }))}
+                />
               </div>
             </div>
 

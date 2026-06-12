@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import {
   ClipboardList, Search, Loader2, ChevronLeft, ChevronRight,
-  X, Eye, Truck, Package
+  X, Eye, Truck, Package, CheckCircle, XCircle, CreditCard
 } from 'lucide-react'
 
 // ---- 类型定义 ----
@@ -54,6 +55,7 @@ interface Order {
   paidAt: string | null
   shippedAt: string | null
   completedAt: string | null
+  cancelledAt: string | null
   createdAt: string
   updatedAt: string
   user: OrderUser
@@ -188,6 +190,61 @@ export default function AdminOrdersPage() {
     }
   }
 
+  // 通用状态更新（调用 PATCH /api/admin/orders/[id]/status）
+  const updateOrderStatus = async (orderId: string, status: string, extra?: Record<string, string>) => {
+    if (!token) return false
+    try {
+      const body: Record<string, unknown> = { status, ...extra }
+      const res = await fetch(`/api/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.success) {
+        return true
+      } else {
+        showMessage('error', data.error || '操作失败')
+        return false
+      }
+    } catch {
+      showMessage('error', '网络错误，请重试')
+      return false
+    }
+  }
+
+  // 状态操作按钮配置
+  const STATUS_ACTIONS: Record<string, { label: string; status: string; icon: typeof CreditCard; color: string }[]> = {
+    pending: [
+      { label: '标记已支付', status: 'paid', icon: CreditCard, color: 'text-green-600 hover:bg-green-50' },
+      { label: '取消订单', status: 'cancelled', icon: XCircle, color: 'text-red-600 hover:bg-red-50' },
+    ],
+    paid: [
+      { label: '发货', status: 'shipped', icon: Truck, color: 'text-blue-600 hover:bg-blue-50' },
+      { label: '取消订单', status: 'cancelled', icon: XCircle, color: 'text-red-600 hover:bg-red-50' },
+    ],
+    shipped: [
+      { label: '完成订单', status: 'completed', icon: CheckCircle, color: 'text-green-600 hover:bg-green-50' },
+    ],
+  }
+
+  // 点击操作按钮
+  const handleStatusAction = async (orderId: string, action: { status: string; label: string }) => {
+    if (action.status === 'shipped') {
+      // 发货需要输入物流单号，弹出对话框
+      setShipOrderId(orderId)
+      return
+    }
+    const ok = await updateOrderStatus(orderId, action.status)
+    if (ok) {
+      showMessage('success', `${action.label}成功`)
+      fetchOrders(token!, pagination.page)
+    }
+  }
+
   // 发货
   const handleShip = async () => {
     if (!token || !shipOrderId) return
@@ -196,33 +253,14 @@ export default function AdminOrdersPage() {
       return
     }
     setShipping(true)
-    try {
-      const res = await fetch(`/api/admin/orders/${shipOrderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action: 'ship', trackingNumber: trackingNumber.trim() }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        showMessage('success', '发货成功')
-        setShipOrderId(null)
-        setTrackingNumber('')
-        // 刷新详情和列表
-        if (detailOrder) {
-          setDetailOrder(data.data)
-        }
-        fetchOrders(token, pagination.page)
-      } else {
-        showMessage('error', data.message || '发货失败')
-      }
-    } catch {
-      showMessage('error', '网络错误，请重试')
-    } finally {
-      setShipping(false)
+    const ok = await updateOrderStatus(shipOrderId, 'shipped', { trackingNumber: trackingNumber.trim() })
+    if (ok) {
+      showMessage('success', '发货成功')
+      setShipOrderId(null)
+      setTrackingNumber('')
+      fetchOrders(token, pagination.page)
     }
+    setShipping(false)
   }
 
   // 格式化时间
@@ -321,6 +359,7 @@ export default function AdminOrdersPage() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">实付金额</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">状态</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">支付时间</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">物流单号</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
                   </tr>
                 </thead>
@@ -352,16 +391,37 @@ export default function AdminOrdersPage() {
                         </td>
                         {/* 支付时间 */}
                         <td className="px-4 py-3 text-sm text-gray-500">{formatTime(order.paidAt)}</td>
+                        {/* 物流单号 */}
+                        <td className="px-4 py-3">
+                          {order.trackingNumber ? (
+                            <span className="text-xs font-mono text-gray-700">{order.trackingNumber}</span>
+                          ) : (
+                            <span className="text-xs text-gray-300">-</span>
+                          )}
+                        </td>
                         {/* 操作 */}
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => handleViewDetail(order.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600
-                              hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            详情
-                          </button>
+                          <div className="flex items-center justify-end gap-1 flex-wrap">
+                            <button
+                              onClick={() => handleViewDetail(order.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm text-blue-600
+                                hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              详情
+                            </button>
+                            {(STATUS_ACTIONS[order.status] || []).map(act => (
+                              <button
+                                key={act.status}
+                                onClick={() => handleStatusAction(order.id, act)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm
+                                  rounded-lg transition-colors font-medium ${act.color}`}
+                              >
+                                <act.icon className="w-3.5 h-3.5" />
+                                {act.label}
+                              </button>
+                            ))}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -509,6 +569,12 @@ export default function AdminOrdersPage() {
                       <p className="text-sm text-gray-900">{formatTime(detailOrder.completedAt)}</p>
                     </div>
                   )}
+                  {detailOrder.cancelledAt && (
+                    <div>
+                      <span className="text-xs text-gray-400">取消时间</span>
+                      <p className="text-sm text-gray-900">{formatTime(detailOrder.cancelledAt)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -535,12 +601,14 @@ export default function AdminOrdersPage() {
                     <div key={item.id} className="flex items-center gap-4 p-3 border border-gray-100 rounded-lg bg-gray-50">
                       {/* 商品图片 */}
                       {item.product.imageUrl ? (
-                        <img
-                          src={item.product.imageUrl}
-                          alt={item.product.name}
-                          className="w-14 h-14 rounded-lg object-cover border border-gray-200 flex-shrink-0"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                        />
+                        <div className="w-14 h-14 rounded-lg relative overflow-hidden border border-gray-200 flex-shrink-0">
+                          <Image
+                            src={item.product.imageUrl}
+                            alt={item.product.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
                       ) : (
                         <div className="w-14 h-14 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
                           <Package className="w-5 h-5 text-gray-400" />
@@ -588,16 +656,32 @@ export default function AdminOrdersPage() {
 
             {/* 底部操作 */}
             <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200 flex justify-end gap-3 rounded-b-2xl">
-              {detailOrder.status === 'paid' && (
+              {(STATUS_ACTIONS[detailOrder.status] || []).map(act => (
                 <button
-                  onClick={() => setShipOrderId(detailOrder.id)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white
-                    rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+                  key={act.status}
+                  onClick={() => {
+                    if (act.status === 'shipped') {
+                      setShipOrderId(detailOrder.id)
+                    } else {
+                      updateOrderStatus(detailOrder.id, act.status).then(ok => {
+                        if (ok) {
+                          showMessage('success', `${act.label}成功`)
+                          handleViewDetail(detailOrder.id)
+                          fetchOrders(token!, pagination.page)
+                        }
+                      })
+                    }
+                  }}
+                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium shadow-sm text-white ${
+                    act.status === 'cancelled'
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  } transition-colors`}
                 >
-                  <Truck className="w-4 h-4" />
-                  发货
+                  <act.icon className="w-4 h-4" />
+                  {act.label}
                 </button>
-              )}
+              ))}
               <button
                 onClick={() => setDetailOrder(null)}
                 className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg

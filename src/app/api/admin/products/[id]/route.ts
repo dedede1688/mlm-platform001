@@ -13,7 +13,14 @@ export async function GET(
     if (authError || !admin) return authError!
 
     const { id } = await params
-    const product = await prisma.product.findUnique({ where: { id } })
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        category: {
+          select: { id: true, name: true },
+        },
+      },
+    })
 
     if (!product) {
       return NextResponse.json(
@@ -151,6 +158,53 @@ export async function PUT(
 
     if (body.sortOrder !== undefined) {
       data.sortOrder = Number(body.sortOrder)
+    }
+
+    // categoryId
+    if (body.categoryId !== undefined) {
+      if (body.categoryId) {
+        const categoryExists = await prisma.category.findUnique({ where: { id: body.categoryId } })
+        if (!categoryExists) {
+          return NextResponse.json(
+            { success: false, message: '所选分类不存在' },
+            { status: 400 }
+          )
+        }
+      }
+      data.categoryId = body.categoryId || null
+    }
+
+    // specs
+    if (body.specs !== undefined) {
+      if (body.specs && !Array.isArray(body.specs)) {
+        return NextResponse.json(
+          { success: false, message: 'specs 必须为数组格式' },
+          { status: 400 }
+        )
+      }
+      data.specs = body.specs || null
+    }
+
+    // images
+    if (body.images !== undefined) {
+      if (!Array.isArray(body.images)) {
+        return NextResponse.json(
+          { success: false, message: 'images 必须为字符串数组' },
+          { status: 400 }
+        )
+      }
+      if (body.images.some((img: unknown) => typeof img !== 'string')) {
+        return NextResponse.json(
+          { success: false, message: 'images 数组元素必须为字符串URL' },
+          { status: 400 }
+        )
+      }
+      data.images = body.images.length > 0 ? body.images : null
+    }
+
+    // videoUrl
+    if (body.videoUrl !== undefined) {
+      data.videoUrl = body.videoUrl || null
     }
 
     if (Object.keys(data).length === 0) {

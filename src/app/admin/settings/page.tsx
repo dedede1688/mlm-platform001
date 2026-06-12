@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import {
   Settings, Save, CheckCircle, AlertCircle,
   ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2,
-  FileText, Shield, HelpCircle, Info, Image, ArrowUp, ArrowDown
+  FileText, Shield, HelpCircle, Info, Image as ImageIcon, Search, CreditCard
 } from 'lucide-react'
 
 interface FaqItem {
@@ -33,6 +34,13 @@ interface SettingsData {
   privacyHtml: string
   helpFaq: FaqItem[]
   banners: BannerItem[]
+  seoTitle: string
+  seoDescription: string
+  seoKeywords: string
+  paymentProvider: string
+  paymentMerchantId: string
+  paymentSecret: string
+  paymentNotifyUrl: string
 }
 
 const defaultSettings: SettingsData = {
@@ -50,6 +58,13 @@ const defaultSettings: SettingsData = {
   privacyHtml: '',
   helpFaq: [],
   banners: [],
+  seoTitle: '',
+  seoDescription: '',
+  seoKeywords: '',
+  paymentProvider: 'mock',
+  paymentMerchantId: '',
+  paymentSecret: '',
+  paymentNotifyUrl: '',
 }
 
 const fieldConfig: { key: keyof SettingsData; label: string; type?: string }[] = [
@@ -195,6 +210,13 @@ export default function AdminSettingsPage() {
           privacyHtml: data.data.privacyHtml ?? defaultSettings.privacyHtml,
           helpFaq: Array.isArray(data.data.helpFaq) ? data.data.helpFaq : defaultSettings.helpFaq,
           banners: Array.isArray(data.data.banners) ? data.data.banners : defaultSettings.banners,
+          seoTitle: data.data.seoTitle ?? defaultSettings.seoTitle,
+          seoDescription: data.data.seoDescription ?? defaultSettings.seoDescription,
+          seoKeywords: data.data.seoKeywords ?? defaultSettings.seoKeywords,
+          paymentProvider: data.data.paymentProvider ?? defaultSettings.paymentProvider,
+          paymentMerchantId: data.data.paymentMerchantId ?? defaultSettings.paymentMerchantId,
+          paymentSecret: data.data.paymentSecret ?? defaultSettings.paymentSecret,
+          paymentNotifyUrl: data.data.paymentNotifyUrl ?? defaultSettings.paymentNotifyUrl,
         })
       }
     } catch (_error) {
@@ -262,39 +284,7 @@ export default function AdminSettingsPage() {
     }))
   }
 
-  // Banner 操作
-  const addBanner = () => {
-    setFormData(prev => ({
-      ...prev,
-      banners: [...prev.banners, { imageUrl: '', link: '', title: '' }],
-    }))
-  }
-
-  const removeBanner = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      banners: prev.banners.filter((_, i) => i !== index),
-    }))
-  }
-
-  const updateBanner = (index: number, field: keyof BannerItem, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      banners: prev.banners.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      ),
-    }))
-  }
-
-  const moveBanner = (index: number, direction: 'up' | 'down') => {
-    setFormData(prev => {
-      const newBanners = [...prev.banners]
-      const targetIndex = direction === 'up' ? index - 1 : index + 1
-      if (targetIndex < 0 || targetIndex >= newBanners.length) return prev
-      ;[newBanners[index], newBanners[targetIndex]] = [newBanners[targetIndex], newBanners[index]]
-      return { ...prev, banners: newBanners }
-    })
-  }
+  // Banner 操作已迁移到独立管理页面 /admin/banners
 
   if (loading) {
     return (
@@ -358,6 +348,185 @@ export default function AdminSettingsPage() {
         {/* 高级配置（折叠面板） */}
         <div className="space-y-4 mb-6">
           <h2 className="text-lg font-semibold text-gray-900">高级配置</h2>
+
+          {/* SEO 设置 */}
+          <AccordionSection
+            title="SEO 设置"
+            icon={Search}
+            isOpen={!!openSections.seo}
+            onToggle={() => toggleSection('seo')}
+          >
+            <div className="space-y-5">
+              <p className="text-sm text-gray-500">
+                配置网站的全局 SEO 信息，将应用于所有前台页面的 meta 标签，有助于搜索引擎优化。
+              </p>
+              <div>
+                <label
+                  htmlFor="seoTitle"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  网站标题（SEO Title）
+                </label>
+                <input
+                  id="seoTitle"
+                  type="text"
+                  value={formData.seoTitle}
+                  onChange={e => handleChange('seoTitle', e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 placeholder-gray-400
+                    hover:border-gray-400"
+                  placeholder="如：敏维生物·健康商城 - 专注健康生活"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  留空则使用"网站名称"作为默认标题
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="seoDescription"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  网站描述（SEO Description）
+                </label>
+                <textarea
+                  id="seoDescription"
+                  value={formData.seoDescription}
+                  onChange={e => handleChange('seoDescription', e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 placeholder-gray-400
+                    hover:border-gray-400 resize-y"
+                  placeholder="如：敏维生物健康商城，提供优质健康产品，多级分销电商平台"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  建议不超过 160 个字符，留空则使用默认描述
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="seoKeywords"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  网站关键词（SEO Keywords）
+                </label>
+                <input
+                  id="seoKeywords"
+                  type="text"
+                  value={formData.seoKeywords}
+                  onChange={e => handleChange('seoKeywords', e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 placeholder-gray-400
+                    hover:border-gray-400"
+                  placeholder="如：健康商城,敏维生物,健康产品,分销平台"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  多个关键词用英文逗号分隔
+                </p>
+              </div>
+            </div>
+          </AccordionSection>
+
+          {/* 支付配置 */}
+          <AccordionSection
+            title="支付配置"
+            icon={CreditCard}
+            isOpen={!!openSections.payment}
+            onToggle={() => toggleSection('payment')}
+          >
+            <div className="space-y-5">
+              <p className="text-sm text-gray-500">
+                配置支付服务商参数。当前仅支持模拟支付，微信/支付宝为预留接口，后续集成真实 SDK。
+              </p>
+              <div>
+                <label
+                  htmlFor="paymentProvider"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  支付服务商
+                </label>
+                <select
+                  id="paymentProvider"
+                  value={formData.paymentProvider}
+                  onChange={e => handleChange('paymentProvider', e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 hover:border-gray-400
+                    bg-white appearance-none"
+                >
+                  <option value="mock">模拟支付（开发测试用）</option>
+                  <option value="wechat">微信支付（暂未开放）</option>
+                  <option value="alipay">支付宝（暂未开放）</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  选择"模拟支付"可直接完成支付流程，用于开发测试
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="paymentMerchantId"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  商户号
+                </label>
+                <input
+                  id="paymentMerchantId"
+                  type="text"
+                  value={formData.paymentMerchantId}
+                  onChange={e => handleChange('paymentMerchantId', e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 placeholder-gray-400
+                    hover:border-gray-400"
+                  placeholder="请输入支付服务商分配的商户号"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="paymentSecret"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  签名密钥
+                </label>
+                <input
+                  id="paymentSecret"
+                  type="password"
+                  value={formData.paymentSecret}
+                  onChange={e => handleChange('paymentSecret', e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 placeholder-gray-400
+                    hover:border-gray-400"
+                  placeholder="请输入签名密钥"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  密钥将以密码形式存储，生产环境建议使用环境变量
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="paymentNotifyUrl"
+                  className="block text-sm font-medium text-gray-700 mb-1.5"
+                >
+                  异步通知地址
+                </label>
+                <input
+                  id="paymentNotifyUrl"
+                  type="text"
+                  value={formData.paymentNotifyUrl || `${typeof window !== 'undefined' ? window.location.origin : ''}/api/payment/notify`}
+                  onChange={e => handleChange('paymentNotifyUrl', e.target.value)}
+                  readOnly
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg
+                    bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  支付结果异步通知地址，由系统自动生成，无需手动修改
+                </p>
+              </div>
+            </div>
+          </AccordionSection>
 
           {/* 关于我们 */}
           <AccordionSection
@@ -480,110 +649,40 @@ export default function AdminSettingsPage() {
             onToggle={() => toggleSection('banners')}
           >
             <div className="space-y-4">
-              {formData.banners.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">
-                  暂无轮播图，点击下方按钮添加
-                </p>
-              )}
-              {formData.banners.map((banner, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 relative">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-500">
-                        轮播图 #{index + 1}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => moveBanner(index, 'up')}
-                          disabled={index === 0}
-                          className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveBanner(index, 'down')}
-                          disabled={index === formData.banners.length - 1}
-                          className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ArrowDown className="w-4 h-4" />
-                        </button>
+              <p className="text-sm text-gray-500">
+                轮播图已迁移至独立管理页面，支持图片上传、拖拽排序等功能。
+              </p>
+              <a
+                href="/admin/banners"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg
+                  hover:bg-blue-700 transition-colors font-medium text-sm"
+              >
+                <ImageIcon className="w-4 h-4" />
+                前往轮播图管理
+              </a>
+              {formData.banners.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs text-gray-400 mb-2">当前轮播图预览：</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {formData.banners.map((banner, index) => (
+                      <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50 h-20">
+                        {banner.imageUrl ? (
+                          <Image
+                            src={banner.imageUrl}
+                            alt={banner.title || `轮播图 ${index + 1}`}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300">
+                            <ImageIcon className="w-6 h-6" />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeBanner(index)}
-                      className="text-red-400 hover:text-red-600 transition-colors p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* 图片预览 */}
-                  {banner.imageUrl && (
-                    <div className="mb-3 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                      <img
-                        src={banner.imageUrl}
-                        alt={banner.title || `轮播图 ${index + 1}`}
-                        className="w-full h-32 object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none'
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">图片地址 *</label>
-                      <input
-                        type="text"
-                        value={banner.imageUrl}
-                        onChange={e => updateBanner(index, 'imageUrl', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
-                          focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                          hover:border-gray-400 transition-colors"
-                        placeholder="https://example.com/banner.jpg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">链接地址</label>
-                      <input
-                        type="text"
-                        value={banner.link || ''}
-                        onChange={e => updateBanner(index, 'link', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
-                          focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                          hover:border-gray-400 transition-colors"
-                        placeholder="https://example.com/page（可选）"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">标题</label>
-                      <input
-                        type="text"
-                        value={banner.title || ''}
-                        onChange={e => updateBanner(index, 'title', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
-                          focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                          hover:border-gray-400 transition-colors"
-                        placeholder="轮播图标题（可选）"
-                      />
-                    </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-              <button
-                type="button"
-                onClick={addBanner}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300
-                  rounded-lg text-sm text-gray-500 hover:text-blue-600 hover:border-blue-300
-                  transition-colors w-full justify-center"
-              >
-                <Plus className="w-4 h-4" />
-                添加轮播图
-              </button>
+              )}
             </div>
           </AccordionSection>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Package, ShoppingBag, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react'
 
 // ---- 类型 ----
@@ -99,28 +100,28 @@ export default function ProductsPage() {
       {/* ====== Main ====== */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 标题栏 + 排序 */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <ShoppingBag className="w-6 h-6 text-primary" />
-            <h1 className="text-2xl font-bold text-gray-900">商品中心</h1>
-            <span className="text-sm text-gray-400">共 {sortedProducts.length} 件商品</span>
+        <div className="flex flex-col gap-3 mb-4 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">商品中心</h1>
+            <span className="text-xs sm:text-sm text-gray-400">共 {sortedProducts.length} 件商品</span>
           </div>
-          <div className="flex items-center gap-2">
-            <ArrowUpDown className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-500">排序：</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1">
+            <ArrowUpDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
+            <span className="text-xs sm:text-sm text-gray-500 flex-shrink-0">排序：</span>
             <SortButton
               label="默认"
               active={sortBy === 'default'}
               onClick={() => handleSortChange('default')}
             />
             <SortButton
-              label="价格升序"
+              label="价格↑"
               icon={<ArrowUp className="w-3 h-3" />}
               active={sortBy === 'price-asc'}
               onClick={() => handleSortChange('price-asc')}
             />
             <SortButton
-              label="价格降序"
+              label="价格↓"
               icon={<ArrowDown className="w-3 h-3" />}
               active={sortBy === 'price-desc'}
               onClick={() => handleSortChange('price-desc')}
@@ -130,14 +131,14 @@ export default function ProductsPage() {
 
         {loading ? (
           /* 骨架屏 */
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="bg-white rounded-xl shadow-md overflow-hidden animate-pulse">
-                <div className="h-[200px] bg-gray-200" />
-                <div className="p-4 space-y-3">
-                  <div className="h-5 bg-gray-200 rounded w-3/4" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2" />
-                  <div className="h-8 bg-gray-200 rounded w-full" />
+                <div className="aspect-square bg-gray-200" />
+                <div className="p-2 sm:p-4 space-y-2 sm:space-y-3">
+                  <div className="h-4 sm:h-5 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 sm:h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="h-6 sm:h-8 bg-gray-200 rounded w-full" />
                 </div>
               </div>
             ))}
@@ -145,7 +146,7 @@ export default function ProductsPage() {
         ) : pagedProducts.length > 0 ? (
           <>
             {/* 商品网格 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
               {pagedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -153,11 +154,11 @@ export default function ProductsPage() {
 
             {/* 分页 */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-10">
+              <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-8 sm:mt-10">
                 <button
                   onClick={() => goToPage(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -165,7 +166,7 @@ export default function ProductsPage() {
                   <button
                     key={page}
                     onClick={() => goToPage(page)}
-                    className={`w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                    className={`w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
                       page === currentPage
                         ? 'bg-primary text-white shadow-sm'
                         : 'border border-gray-300 text-gray-600 hover:bg-gray-100'
@@ -177,7 +178,7 @@ export default function ProductsPage() {
                 <button
                   onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -205,33 +206,34 @@ function ProductCard({ product }: { product: Product }) {
       className="card-base overflow-hidden group hover:-translate-y-0.5 transition-all duration-300"
     >
       {/* 图片 */}
-      <div className="h-[200px] bg-gray-100 relative overflow-hidden">
+      <div className="aspect-square bg-gray-100 relative overflow-hidden">
         {product.imageUrl ? (
-          <img
+          <Image
             src={product.imageUrl}
             alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Package className="w-14 h-14 text-gray-300" />
+            <Package className="w-10 h-10 sm:w-14 sm:h-14 text-gray-300" />
           </div>
         )}
         {/* 升级标签 */}
         {product.isUpgradeProduct && (
-          <span className="absolute top-2 left-2 bg-secondary text-white text-xs px-2 py-0.5 rounded-full font-medium shadow-sm">
+          <span className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 bg-secondary text-white text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium shadow-sm">
             升级产品
           </span>
         )}
       </div>
 
       {/* 信息 */}
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 text-base truncate mb-1.5">{product.name}</h3>
+      <div className="p-2 sm:p-4">
+        <h3 className="font-semibold text-gray-900 text-xs sm:text-base truncate mb-1 sm:mb-1.5">{product.name}</h3>
 
         {/* 功效标签 */}
         {(() => { const benefits = Array.isArray(product.benefits) ? product.benefits : []; return benefits.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="hidden sm:flex flex-wrap gap-1 mb-2">
             {benefits.slice(0, 3).map((tag, i) => (
               <span key={i} className="text-xs bg-primary-50 text-primary px-1.5 py-0.5 rounded">
                 {tag}
@@ -241,13 +243,13 @@ function ProductCard({ product }: { product: Product }) {
         ) })()}
 
         {/* 价格 */}
-        <div className="flex items-baseline gap-2 mb-3">
-          <span className="text-primary font-bold text-xl">¥{product.memberPrice}</span>
-          <span className="text-gray-400 text-sm line-through">¥{product.retailPrice}</span>
+        <div className="flex items-baseline gap-1 sm:gap-2 mb-2 sm:mb-3">
+          <span className="text-primary font-bold text-sm sm:text-xl">¥{product.memberPrice}</span>
+          <span className="text-gray-400 text-[10px] sm:text-sm line-through">¥{product.retailPrice}</span>
         </div>
 
         {/* 购买按钮 */}
-        <span className="block w-full text-center bg-primary text-white text-sm py-2 rounded-lg group-hover:bg-primary-600 group-hover:scale-[1.02] transition-all duration-200 font-medium">
+        <span className="block w-full text-center bg-primary text-white text-xs sm:text-sm py-1.5 sm:py-2 rounded-lg group-hover:bg-primary-600 group-hover:scale-[1.02] transition-all duration-200 font-medium">
           立即购买
         </span>
       </div>
@@ -271,7 +273,7 @@ function SortButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors font-medium ${
+      className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg transition-colors font-medium whitespace-nowrap ${
         active
           ? 'bg-primary text-white shadow-sm'
           : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'

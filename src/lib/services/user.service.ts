@@ -35,38 +35,61 @@ export class UserService {
     })
   }
 
-  // 查找安置位置（三三复制）
+  // 查找安置位置（三三复制）- 优化版：一次查询获取子树
   static async findPlacementPosition(referrerId: string): Promise<{
     parentId: string
     position: number
   }> {
-    // 从推荐人开始，按层级查找空位
-    const queue: string[] = [referrerId]
+    // 一次性获取该推荐人下所有已有安置关系的用户
+    // 使用递归查询获取所有后代
+    const allDescendants = await prisma.$queryRaw<Array<{ id: string; parentId: string | null; position: number }>>`
+      WITH RECURSIVE subtree AS (
+        SELECT id, "parentId", position
+        FROM "User"
+        WHERE id = ${referrerId}::uuid
+        UNION ALL
+        SELECT u.id, u."parentId", u.position
+        FROM "User" u
+        INNER JOIN subtree s ON u."parentId" = s.id
+      )
+      SELECT id, "parentId", position FROM subtree
+    `
+
+    // 构建节点子节点映射
+    const childrenMap = new Map<string, Set<number>>()
+    const nodeIds = new Set<string>()
     
+    for (const node of allDescendants) {
+      nodeIds.add(node.id)
+      if (node.parentId) {
+        if (!childrenMap.has(node.parentId)) {
+          childrenMap.set(node.parentId, new Set())
+        }
+        childrenMap.get(node.parentId)!.add(node.position)
+      }
+    }
+
+    // BFS 查找空位（纯内存操作）
+    const queue: string[] = [referrerId]
     while (queue.length > 0) {
       const currentId = queue.shift()!
+      const usedPositions = childrenMap.get(currentId) || new Set()
       
-      // 检查当前节点的子节点
-      const children = await prisma.user.findMany({
-        where: { parentId: currentId },
-        orderBy: { position: 'asc' },
-      })
-      
-      // 找到空位
-      const usedPositions = children.map(c => c.position)
       for (let pos = 1; pos <= 3; pos++) {
-        if (!usedPositions.includes(pos)) {
+        if (!usedPositions.has(pos)) {
           return { parentId: currentId, position: pos }
         }
       }
       
-      // 当前节点已满，将子节点加入队列（按位置排序）
+      // 将子节点加入队列
+      const children = allDescendants
+        .filter(d => d.parentId === currentId)
+        .sort((a, b) => a.position - b.position)
       for (const child of children) {
         queue.push(child.id)
       }
     }
-    
-    // 如果推荐人树已满，返回推荐人自己作为父节点（这种情况理论上不会发生）
+
     return { parentId: referrerId, position: 1 }
   }
 

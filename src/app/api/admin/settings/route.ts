@@ -10,6 +10,19 @@ export async function GET(request: NextRequest) {
 
     const config = await prisma.systemConfig.findFirst()
 
+    // 从独立 banners 表查询轮播图
+    const bannerRecords = await prisma.banners.findMany({
+      orderBy: { order: 'asc' },
+    })
+    const banners = bannerRecords.map(record => ({
+      id: record.id,
+      imageUrl: record.image_url,
+      link: record.link ?? undefined,
+      title: record.title ?? undefined,
+      alt: record.alt ?? undefined,
+      order: record.order ?? 0,
+    }))
+
     if (!config) {
       // 返回默认值
       return NextResponse.json({
@@ -28,7 +41,14 @@ export async function GET(request: NextRequest) {
           termsHtml: null,
           privacyHtml: null,
           helpFaq: [],
-          banners: [],
+          banners,
+          seoTitle: null,
+          seoDescription: null,
+          seoKeywords: null,
+          paymentProvider: 'mock',
+          paymentMerchantId: null,
+          paymentSecret: null,
+          paymentNotifyUrl: null,
         },
       })
     }
@@ -49,7 +69,14 @@ export async function GET(request: NextRequest) {
         termsHtml: config.termsHtml ?? null,
         privacyHtml: config.privacyHtml ?? null,
         helpFaq: config.helpFaq ?? [],
-        banners: (config.banners as Array<{ imageUrl: string; link?: string; title?: string }>) ?? [],
+        banners,
+        seoTitle: config.seoTitle ?? null,
+        seoDescription: config.seoDescription ?? null,
+        seoKeywords: config.seoKeywords ?? null,
+        paymentProvider: config.paymentProvider ?? 'mock',
+        paymentMerchantId: config.paymentMerchantId ?? null,
+        paymentSecret: config.paymentSecret ?? null,
+        paymentNotifyUrl: config.paymentNotifyUrl ?? null,
       },
     })
   } catch (error) {
@@ -83,7 +110,14 @@ export async function PUT(request: NextRequest) {
       termsHtml,
       privacyHtml,
       helpFaq,
-      banners,
+      seoTitle,
+      seoDescription,
+      seoKeywords,
+      paymentProvider,
+      paymentMerchantId,
+      paymentSecret,
+      paymentNotifyUrl,
+      // banners 已迁移到独立表，不再写入 SystemConfig
     } = body
 
     // 获取或创建配置记录
@@ -103,7 +137,13 @@ export async function PUT(request: NextRequest) {
       termsHtml: termsHtml ?? undefined,
       privacyHtml: privacyHtml ?? undefined,
       helpFaq: helpFaq ?? undefined,
-      banners: banners ?? undefined,
+      seoTitle: seoTitle ?? undefined,
+      seoDescription: seoDescription ?? undefined,
+      seoKeywords: seoKeywords ?? undefined,
+      paymentProvider: paymentProvider ?? undefined,
+      paymentMerchantId: paymentMerchantId ?? undefined,
+      paymentSecret: paymentSecret ?? undefined,
+      paymentNotifyUrl: paymentNotifyUrl ?? undefined,
     }
 
     let config
@@ -122,6 +162,19 @@ export async function PUT(request: NextRequest) {
       })
     }
 
+    // 从独立 banners 表查询最新轮播图
+    const bannerRecords = await prisma.banners.findMany({
+      orderBy: { order: 'asc' },
+    })
+    const banners = bannerRecords.map(record => ({
+      id: record.id,
+      imageUrl: record.image_url,
+      link: record.link ?? undefined,
+      title: record.title ?? undefined,
+      alt: record.alt ?? undefined,
+      order: record.order ?? 0,
+    }))
+
     return NextResponse.json({
       success: true,
       data: {
@@ -138,13 +191,20 @@ export async function PUT(request: NextRequest) {
         termsHtml: config.termsHtml,
         privacyHtml: config.privacyHtml,
         helpFaq: config.helpFaq,
-        banners: config.banners,
+        banners,
+        seoTitle: config.seoTitle,
+        seoDescription: config.seoDescription,
+        seoKeywords: config.seoKeywords,
+        paymentProvider: config.paymentProvider,
+        paymentMerchantId: config.paymentMerchantId,
+        paymentSecret: config.paymentSecret,
+        paymentNotifyUrl: config.paymentNotifyUrl,
       },
     })
   } catch (error: any) {
     console.error('更新系统配置失败:', error)
     return NextResponse.json(
-      { error: error.message || '更新系统配置失败' },
+      { error: '更新系统配置失败' },
       { status: 500 }
     )
   }

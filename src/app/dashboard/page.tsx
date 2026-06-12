@@ -7,6 +7,7 @@ import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
   TrendingUp, Award, Clock
 } from 'lucide-react'
+import { formatMoney } from '@/lib/utils/format'
 
 // ---- 类型 ----
 
@@ -134,8 +135,6 @@ export default function DashboardPage() {
     return '晚上好'
   }
 
-  const formatMoney = (n: number) => n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
   // 加载状态
   if (loading) {
     return (
@@ -160,36 +159,36 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 via-white to-gray-50">
       {/* ====== Main ====== */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
 
           {/* ====== 侧边栏 ====== */}
-          <div className="md:col-span-1 space-y-6">
+          <div className="md:col-span-1 space-y-4 sm:space-y-6">
             {/* 用户信息卡片 */}
-            <div className="card-base p-6 text-center">
+            <div className="card-base p-4 sm:p-6 text-center">
               {/* 头像 */}
-              <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-4">
-                <User className="w-10 h-10 text-primary" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <User className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
               </div>
               {/* 昵称 + 等级 */}
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1.5 sm:mb-2">
                 {user.nickname || user.phone}
               </h2>
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${levelConf.bg} ${levelConf.color}`}>
+              <span className={`inline-block px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium ${levelConf.bg} ${levelConf.color}`}>
                 {levelConf.name}
               </span>
 
               {/* 分割线 */}
-              <div className="border-t border-gray-100 my-4" />
+              <div className="border-t border-gray-100 my-3 sm:my-4" />
 
               {/* 推荐码 */}
               <div className="text-left">
-                <p className="text-xs text-gray-400 mb-1">我的推荐码</p>
+                <p className="text-[10px] sm:text-xs text-gray-400 mb-1">我的推荐码</p>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-primary text-lg flex-1">{user.phone}</span>
+                  <span className="font-mono font-bold text-primary text-base sm:text-lg flex-1 truncate">{user.phone}</span>
                   <button
                     onClick={handleCopyReferralCode}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                    className={`w-8 h-8 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${
                       copied
                         ? 'bg-green-100 text-green-600'
                         : 'bg-primary-50 text-primary hover:bg-primary-100'
@@ -199,47 +198,54 @@ export default function DashboardPage() {
                     {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">分享给好友注册，可获得推荐奖励</p>
+                <p className="text-[10px] sm:text-xs text-gray-400 mt-1">分享给好友注册，可获得推荐奖励</p>
               </div>
             </div>
 
             {/* 余额 & 积分 */}
-            <div className="card-base p-6 space-y-4">
-              <div>
-                <p className="text-sm text-gray-400 mb-1">可用余额</p>
-                <p className="text-2xl font-bold text-primary">¥{formatMoney(user.balance)}</p>
+            <div className="card-base p-4 sm:p-6">
+              <div className="grid grid-cols-3 gap-2 sm:gap-0 sm:space-y-0 sm:block sm:space-y-4">
+                <div className="text-center sm:text-left">
+                  <p className="text-[10px] sm:text-sm text-gray-400 mb-0.5 sm:mb-1">可用余额</p>
+                  <p className="text-base sm:text-2xl font-bold text-primary">¥{formatMoney(user.balance)}</p>
+                </div>
+                <div className="text-center sm:text-left">
+                  <p className="text-[10px] sm:text-sm text-gray-400 mb-0.5 sm:mb-1">冻结余额</p>
+                  <p className="text-sm sm:text-lg font-semibold text-gray-500">¥{formatMoney(user.frozenBalance)}</p>
+                </div>
+                <div className="text-center sm:text-left">
+                  <p className="text-[10px] sm:text-sm text-gray-400 mb-0.5 sm:mb-1">可用积分</p>
+                  <p className="text-base sm:text-2xl font-bold text-secondary">{user.unlockedPoints}</p>
+                </div>
               </div>
-              <div className="border-t border-gray-100" />
-              <div>
-                <p className="text-sm text-gray-400 mb-1">冻结余额</p>
-                <p className="text-lg font-semibold text-gray-500">¥{formatMoney(user.frozenBalance)}</p>
+              <div className="hidden sm:block">
+                <div className="border-t border-gray-100 my-4" />
+                <div className="border-t border-gray-100 my-4" />
               </div>
-              <div className="border-t border-gray-100" />
-              <div className="flex items-center justify-between">
+              <div className="sm:hidden border-t border-gray-100 mt-3 pt-2">
+                <p className="text-[10px] text-gray-400 text-center">锁定积分: {user.lockedPoints}</p>
+              </div>
+              <div className="hidden sm:flex items-center justify-between mt-4">
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">可用积分</p>
-                  <p className="text-2xl font-bold text-secondary">{user.unlockedPoints}</p>
+                  <p className="text-xs text-gray-400">锁定积分: {user.lockedPoints}</p>
                 </div>
                 <Coins className="w-8 h-8 text-secondary/30" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">锁定积分: {user.lockedPoints}</p>
               </div>
             </div>
           </div>
 
           {/* ====== 主内容区 ====== */}
-          <div className="md:col-span-2 space-y-6">
+          <div className="md:col-span-2 space-y-4 sm:space-y-6">
             {/* 欢迎语 */}
-            <div className="card-base p-6 bg-gradient-to-r from-primary to-primary-600 text-white">
-              <h1 className="text-2xl font-bold mb-1">
+            <div className="card-base p-4 sm:p-6 bg-gradient-to-r from-primary to-primary-600 text-white">
+              <h1 className="text-lg sm:text-2xl font-bold mb-0.5 sm:mb-1">
                 {getGreeting()}，{user.nickname || user.phone}
               </h1>
-              <p className="text-primary-100 text-sm">欢迎回来，祝您今天收获满满</p>
+              <p className="text-primary-100 text-xs sm:text-sm">欢迎回来，祝您今天收获满满</p>
             </div>
 
             {/* 统计卡片 */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <StatCard
                 icon={<Users className="w-5 h-5" />}
                 label="直推经销商"
@@ -268,8 +274,8 @@ export default function DashboardPage() {
 
             {/* 快捷入口 */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">快捷入口</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">快捷入口</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 <QuickLink
                   href="/dashboard/orders"
                   icon={<ShoppingBag className="w-6 h-6" />}
@@ -302,18 +308,18 @@ export default function DashboardPage() {
             </div>
 
             {/* 等级信息 */}
-            <div className="card-base p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Award className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-gray-900">会员等级</h3>
+            <div className="card-base p-4 sm:p-6">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <Award className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">会员等级</h3>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <table className="w-full text-xs sm:text-sm min-w-[280px]">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left py-2 text-gray-400 font-medium">等级</th>
-                      <th className="text-left py-2 text-gray-400 font-medium">身份</th>
-                      <th className="text-left py-2 text-gray-400 font-medium">核心权益</th>
+                      <th className="text-left py-2 px-2 sm:px-0 text-gray-400 font-medium">等级</th>
+                      <th className="text-left py-2 px-2 sm:px-0 text-gray-400 font-medium">身份</th>
+                      <th className="text-left py-2 px-2 sm:px-0 text-gray-400 font-medium">核心权益</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -324,15 +330,15 @@ export default function DashboardPage() {
                       { lv: 7, name: '董事', desc: '最高等级、全部权益' },
                     ].map((row) => (
                       <tr key={row.lv} className={`${user.level >= row.lv ? 'text-gray-900' : 'text-gray-400'}`}>
-                        <td className="py-2.5">
-                          <span className={`inline-block w-6 h-6 rounded-full text-center text-xs leading-6 font-bold ${
+                        <td className="py-2 px-2 sm:px-0 sm:py-2.5">
+                          <span className={`inline-block w-5 h-5 sm:w-6 sm:h-6 rounded-full text-center text-[10px] sm:text-xs leading-5 sm:leading-6 font-bold ${
                             user.level >= row.lv ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'
                           }`}>
                             {row.lv}
                           </span>
                         </td>
-                        <td className="py-2.5 font-medium">{row.name}</td>
-                        <td className="py-2.5">{row.desc}</td>
+                        <td className="py-2 px-2 sm:px-0 sm:py-2.5 font-medium">{row.name}</td>
+                        <td className="py-2 px-2 sm:px-0 sm:py-2.5">{row.desc}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -362,12 +368,12 @@ function StatCard({
 }) {
   const [textColor, bgColor] = color.split(' ')
   return (
-    <div className="card-base p-4">
-      <div className={`w-9 h-9 rounded-lg ${bgColor} ${textColor} flex items-center justify-center mb-2`}>
+    <div className="card-base p-3 sm:p-4">
+      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg ${bgColor} ${textColor} flex items-center justify-center mb-1.5 sm:mb-2`}>
         {icon}
       </div>
-      <p className="text-lg font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-sm sm:text-lg font-bold text-gray-900">{value}</p>
+      <p className="text-[10px] sm:text-xs text-gray-400">{label}</p>
     </div>
   )
 }
@@ -389,12 +395,12 @@ function QuickLink({
 }) {
   const [textColor, bgColor] = color.split(' ')
   return (
-    <Link href={href} className="card-base p-5 group">
-      <div className={`w-12 h-12 rounded-xl ${bgColor} ${textColor} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+    <Link href={href} className="card-base p-3 sm:p-5 group">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl ${bgColor} ${textColor} flex items-center justify-center mb-2 sm:mb-3 group-hover:scale-110 transition-transform`}>
         {icon}
       </div>
-      <h4 className="font-semibold text-gray-900 mb-0.5">{label}</h4>
-      <p className="text-xs text-gray-400">{desc}</p>
+      <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-0.5">{label}</h4>
+      <p className="text-[10px] sm:text-xs text-gray-400">{desc}</p>
     </Link>
   )
 }

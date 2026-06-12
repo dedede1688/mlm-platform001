@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ShoppingCart, Trash2, ShoppingBag, ArrowRight, Loader2, Coins } from 'lucide-react'
+import { toast } from '@/components/ToastProvider'
 
 interface CartProduct {
   id: string
@@ -109,10 +111,10 @@ export default function CartPage() {
         setCartItems(prev => prev.filter(item => item.id !== cartItemId))
       } else {
         const data = await res.json()
-        alert(data.error || '删除失败')
+        toast.error(data.error || '删除失败')
       }
     } catch (_error) {
-      alert('网络错误，请重试')
+      toast.error('网络错误，请重试')
     } finally {
       setDeletingId(null)
     }
@@ -129,15 +131,15 @@ export default function CartPage() {
     const pointsUsed = pointsMap[item.id] || 0
     const maxPoints = getMaxPoints(item)
     if (pointsUsed < 0 || !Number.isInteger(pointsUsed)) {
-      alert('积分数量必须为非负整数')
+      toast.error('积分数量必须为非负整数')
       return
     }
     if (pointsUsed > maxPoints) {
-      alert(`最多可使用 ${maxPoints} 积分`)
+      toast.error(`最多可使用 ${maxPoints} 积分`)
       return
     }
     if (pointsUsed > (userInfo?.unlockedPoints ?? 0)) {
-      alert(`可用积分不足，当前可用 ${userInfo?.unlockedPoints ?? 0} 积分`)
+      toast.error(`可用积分不足，当前可用 ${userInfo?.unlockedPoints ?? 0} 积分`)
       return
     }
 
@@ -159,7 +161,7 @@ export default function CartPage() {
 
       if (!orderRes.ok) {
         const orderData = await orderRes.json()
-        alert(orderData.error || '创建订单失败')
+        toast.error(orderData.error || '创建订单失败')
         return
       }
 
@@ -167,7 +169,7 @@ export default function CartPage() {
       const orderId = orderData.data?.id
 
       if (!orderId) {
-        alert('创建订单失败：未获取到订单ID')
+        toast.error('创建订单失败：未获取到订单ID')
         return
       }
 
@@ -179,7 +181,7 @@ export default function CartPage() {
 
       if (!payRes.ok) {
         const payData = await payRes.json()
-        alert(payData.error || '支付失败')
+        toast.error(payData.error || '支付失败')
         return
       }
 
@@ -197,10 +199,10 @@ export default function CartPage() {
         return next
       })
       fetchUserInfo(token) // 刷新积分余额
-      alert('购买成功')
+      toast.success('购买成功')
 
     } catch (_error) {
-      alert('网络错误，请重试')
+      toast.error('网络错误，请重试')
     } finally {
       setBuyingId(null)
     }
@@ -218,15 +220,15 @@ export default function CartPage() {
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Title */}
-        <div className="flex items-center gap-3 mb-6">
-          <ShoppingCart className="w-6 h-6 text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-900">我的购物车</h1>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">我的购物车</h1>
           {cartItems.length > 0 && (
-            <span className="text-sm text-gray-500">（{cartItems.length} 件商品）</span>
+            <span className="text-xs sm:text-sm text-gray-500">（{cartItems.length} 件商品）</span>
           )}
           {userInfo && (
-            <span className="ml-auto flex items-center gap-1 text-sm text-amber-600">
-              <Coins className="w-4 h-4" />
+            <span className="ml-auto flex items-center gap-1 text-xs sm:text-sm text-amber-600">
+              <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               可用积分：{userInfo.unlockedPoints}
             </span>
           )}
@@ -253,81 +255,130 @@ export default function CartPage() {
             {cartItems.map(item => (
               <div
                 key={item.id}
-                className="bg-white rounded-xl shadow-sm p-4 sm:p-6 flex items-center gap-4 sm:gap-6"
+                className="bg-white rounded-xl shadow-sm p-3 sm:p-6"
               >
-                {/* 商品图片 */}
-                <Link
-                  href={`/products/${item.product.id}`}
-                  className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 rounded-lg overflow-hidden"
-                >
-                  {item.product.imageUrl ? (
-                    <img
-                      src={item.product.imageUrl}
-                      alt={item.product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
-                      暂无图片
-                    </div>
-                  )}
-                </Link>
-
-                {/* 商品信息 */}
-                <div className="flex-1 min-w-0">
+                {/* 上部：图片 + 信息 + 桌面端操作 */}
+                <div className="flex items-start gap-3 sm:gap-6">
+                  {/* 商品图片 */}
                   <Link
                     href={`/products/${item.product.id}`}
-                    className="text-base font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-2"
+                    className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 rounded-lg overflow-hidden relative"
                   >
-                    {item.product.name}
+                    {item.product.imageUrl ? (
+                      <Image
+                        src={item.product.imageUrl}
+                        alt={item.product.name}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
+                        暂无图片
+                      </div>
+                    )}
                   </Link>
-                  {item.product.isUpgradeProduct && (
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
-                      升级产品
-                    </span>
-                  )}
-                  <div className="mt-2 flex items-center gap-3">
-                    <span className="text-lg font-bold text-red-600">
-                      ¥{item.product.memberPrice.toFixed(2)}
-                    </span>
-                    <span className="text-sm text-gray-400 line-through">
-                      ¥{item.product.retailPrice.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">× {item.quantity}</p>
-                  {/* 积分抵扣 */}
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <Coins className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                    <span className="text-xs text-gray-500">积分抵扣</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={getMaxPoints(item)}
-                      value={pointsMap[item.id] || 0}
-                      onChange={e => {
-                        const val = parseInt(e.target.value) || 0
-                        setPointsMap(prev => ({ ...prev, [item.id]: val < 0 ? 0 : val }))
-                      }}
-                      className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      disabled={buyingId === item.id}
-                    />
-                    <span className="text-xs text-gray-400">
-                      最多 {getMaxPoints(item)} 积分（{item.product.memberPrice.toFixed(0)}×{(item.product.maxPointsRatio ?? 50)}%）
-                    </span>
-                    {pointsMap[item.id] > 0 && (
-                      <span className="text-xs text-red-500 font-medium">
-                        -¥{(pointsMap[item.id] || 0).toFixed(2)}
+
+                  {/* 商品信息 */}
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      href={`/products/${item.product.id}`}
+                      className="text-sm sm:text-base font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-2"
+                    >
+                      {item.product.name}
+                    </Link>
+                    {item.product.isUpgradeProduct && (
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] sm:text-xs rounded-full">
+                        升级产品
                       </span>
                     )}
+                    <div className="mt-1.5 sm:mt-2 flex items-center gap-2 sm:gap-3">
+                      <span className="text-base sm:text-lg font-bold text-red-600">
+                        ¥{item.product.memberPrice.toFixed(2)}
+                      </span>
+                      <span className="text-xs sm:text-sm text-gray-400 line-through">
+                        ¥{item.product.retailPrice.toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">× {item.quantity}</p>
+                  </div>
+
+                  {/* 桌面端操作按钮 */}
+                  <div className="hidden sm:flex flex-shrink-0 flex-col items-end gap-2">
+                    <button
+                      onClick={() => handleBuyNow(item)}
+                      disabled={buyingId === item.id}
+                      className={`px-5 py-2 rounded-lg font-medium text-sm transition-colors ${
+                        buyingId === item.id
+                          ? 'bg-blue-400 text-white cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                      }`}
+                    >
+                      {buyingId === item.id
+                        ? '处理中...'
+                        : `¥${(item.product.memberPrice - (pointsMap[item.id] || 0)).toFixed(2)} 购买`
+                      }
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      disabled={deletingId === item.id || buyingId === item.id}
+                      className="p-1.5 text-gray-400 hover:text-red-500 transition-colors
+                        disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="删除"
+                    >
+                      {deletingId === item.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* 操作按钮 */}
-                <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                {/* 积分抵扣 */}
+                <div className="mt-2 sm:mt-3 flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs text-gray-500">积分抵扣</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={getMaxPoints(item)}
+                    value={pointsMap[item.id] || 0}
+                    onChange={e => {
+                      const val = parseInt(e.target.value) || 0
+                      setPointsMap(prev => ({ ...prev, [item.id]: val < 0 ? 0 : val }))
+                    }}
+                    className="w-16 sm:w-20 px-2 py-1.5 sm:py-1 text-xs sm:text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={buyingId === item.id}
+                  />
+                  <span className="text-[10px] sm:text-xs text-gray-400">
+                    最多 {getMaxPoints(item)} 积分
+                  </span>
+                  {pointsMap[item.id] > 0 && (
+                    <span className="text-[10px] sm:text-xs text-red-500 font-medium">
+                      -¥{(pointsMap[item.id] || 0).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+
+                {/* 移动端操作按钮 */}
+                <div className="mt-3 sm:hidden flex items-center justify-between">
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    disabled={deletingId === item.id || buyingId === item.id}
+                    className="flex items-center gap-1 px-3 py-2 text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="删除"
+                  >
+                    {deletingId === item.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                    删除
+                  </button>
                   <button
                     onClick={() => handleBuyNow(item)}
                     disabled={buyingId === item.id}
-                    className={`px-5 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    className={`px-4 py-2.5 rounded-lg font-medium text-sm transition-colors ${
                       buyingId === item.id
                         ? 'bg-blue-400 text-white cursor-not-allowed'
                         : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
@@ -337,19 +388,6 @@ export default function CartPage() {
                       ? '处理中...'
                       : `¥${(item.product.memberPrice - (pointsMap[item.id] || 0)).toFixed(2)} 购买`
                     }
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    disabled={deletingId === item.id || buyingId === item.id}
-                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors
-                      disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="删除"
-                  >
-                    {deletingId === item.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
                   </button>
                 </div>
               </div>

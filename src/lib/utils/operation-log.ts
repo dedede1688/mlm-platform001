@@ -1,13 +1,14 @@
 import type { InputJsonValue } from '@prisma/client/runtime/library'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 function toJsonValue(value: unknown): InputJsonValue | undefined {
   if (value === undefined) return undefined
   return JSON.parse(JSON.stringify(value)) as InputJsonValue
 }
 
-export type LogAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT'
-export type LogModule = 'product' | 'order' | 'user' | 'finance' | 'setting'
+export type LogAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT' | 'COMPLETE_REFUND'
+export type LogModule = 'product' | 'order' | 'user' | 'finance' | 'setting' | 'refund'
 
 interface LogOperationParams {
   userId: string
@@ -39,6 +40,6 @@ export async function logOperation(params: LogOperationParams): Promise<void> {
       },
     })
   } catch (error) {
-    console.error('[OperationLog] 记录操作日志失败:', error)
+    logger.error('[OperationLog] 记录操作日志失败', { error: error instanceof Error ? error.message : String(error) })
   }
 }

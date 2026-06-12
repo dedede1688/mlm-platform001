@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Phone, ShoppingCart, LogOut } from 'lucide-react'
+import { useAuthStore } from '@/lib/stores/useAuthStore'
 
 interface PublicSettings {
   siteName: string
@@ -12,13 +14,6 @@ interface PublicSettings {
   companyName: string
   icp: string
   copyright: string
-}
-
-interface UserInfo {
-  nickname?: string | null
-  phone: string
-  level: number
-  role?: string
 }
 
 const ALL_ADMIN_ROLES = ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor']
@@ -35,25 +30,9 @@ const defaultSettings: PublicSettings = {
 
 export default function Header() {
   const [settings, setSettings] = useState<PublicSettings | null>(null)
-  const [logoError, setLogoError] = useState(false)
+  const [logoError] = useState(false)
   const [showPhone, setShowPhone] = useState(false)
-  const [user, setUser] = useState<UserInfo | null>(null)
-
-  // 从 localStorage 同步用户状态
-  const syncUserFromStorage = () => {
-    const token = localStorage.getItem('token')
-    const userStr = localStorage.getItem('user')
-    if (token && userStr) {
-      try {
-        const parsed = JSON.parse(userStr)
-        setUser(parsed)
-      } catch {
-        setUser(null)
-      }
-    } else {
-      setUser(null)
-    }
-  }
+  const { user, logout, syncFromStorage } = useAuthStore()
 
   useEffect(() => {
     // 加载站点设置
@@ -70,25 +49,22 @@ export default function Header() {
         setSettings(defaultSettings)
       })
 
-    // 从 localStorage 读取登录状态
-    syncUserFromStorage()
+    // 从 localStorage 同步登录状态
+    syncFromStorage()
 
-    // 监听同页面登录/退出事件（localStorage 变化在同页面不触发 storage 事件）
+    // 监听同页面登录/退出事件
     const handleAuthChange = () => {
-      syncUserFromStorage()
+      syncFromStorage()
     }
     window.addEventListener('auth-change', handleAuthChange)
 
     return () => {
       window.removeEventListener('auth-change', handleAuthChange)
     }
-  }, [])
+  }, [syncFromStorage])
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setUser(null)
-    window.dispatchEvent(new Event('auth-change'))
+    logout()
     window.location.href = '/login'
   }
 
@@ -105,12 +81,14 @@ export default function Header() {
           ) : (
             <>
               {s.logoUrl && !logoError ? (
-                <img
-                  src={s.logoUrl}
-                  alt={s.siteName}
-                  className="h-8 w-auto object-contain"
-                  onError={() => setLogoError(true)}
-                />
+                <div className="relative h-8 w-auto min-w-[100px]">
+                  <Image
+                    src={s.logoUrl}
+                    alt={s.siteName}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
               ) : null}
               <span>{s.siteName}</span>
             </>
