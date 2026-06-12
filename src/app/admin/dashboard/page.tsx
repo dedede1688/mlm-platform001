@@ -80,8 +80,12 @@ export default function AdminDashboardPage() {
       ])
 
       if (statsRes.status === 403 || statsRes.status === 401) {
-        const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/admin/dashboard'
-        window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`
+        console.error('[AdminDashboard] stats API 认证失败:', statsRes.status)
+        // 只在两个 API 都返回 401 时才跳转登录
+        if (trendRes.status === 403 || trendRes.status === 401) {
+          const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/admin/dashboard'
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`
+        }
         return
       }
 

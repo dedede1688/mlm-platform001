@@ -28,11 +28,15 @@ function verifyJwt(token: string): { userId: string; phone: string; role?: strin
   try {
     const secret = process.env.JWT_SECRET
     if (!secret) {
-      console.error('JWT_SECRET environment variable is not set')
+      console.error('[Middleware] JWT_SECRET 未配置')
       return null
     }
+    // 调试：记录密钥指纹（前4字符+长度），不暴露完整密钥
+    const fingerprint = `${secret.substring(0, 4)}...${secret.length}chars`
+    console.log('[Middleware] JWT_SECRET fingerprint:', fingerprint)
     return jwt.verify(token, secret) as { userId: string; phone: string; role?: string }
-  } catch {
+  } catch (e: any) {
+    console.error('[Middleware] JWT 验证失败:', e?.message)
     return null
   }
 }

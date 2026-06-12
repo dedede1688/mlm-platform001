@@ -48,8 +48,12 @@ export async function POST(request: NextRequest) {
 
     // 生成 JWT
     console.log('[Login] 生成 JWT Token, userId:', user.id)
+    // 调试：记录密钥指纹，与 middleware 对照
+    const secret = process.env.JWT_SECRET || ''
+    const fp = secret ? `${secret.substring(0, 4)}...${secret.length}chars` : 'EMPTY!'
+    console.log('[Login] JWT_SECRET fingerprint:', fp)
     const token = generateToken(user.id, user.phone, user.role)
-    console.log('[Login] Token 生成成功')
+    console.log('[Login] Token 生成成功, 长度:', token.length)
 
     console.log('[Login] 登录成功，返回响应')
     return NextResponse.json({
