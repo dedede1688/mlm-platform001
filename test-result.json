@@ -1,0 +1,66 @@
+[
+  {
+    "key": "siteName",
+    "label": "网站名称",
+    "oldValue": "测试网站名称1781290431123",
+    "testValue": "TEST_siteName_1781290559776",
+    "newValue": "TEST_siteName_1781290559776",
+    "success": true
+  },
+  {
+    "key": "contactPhone",
+    "label": "联系电话",
+    "oldValue": "400-888-1124",
+    "testValue": "TEST_contactPhone_1781290579153",
+    "newValue": "TEST_contactPhone_1781290579153",
+    "success": true
+  },
+  {
+    "key": "serviceEmail",
+    "label": "客服邮箱",
+    "oldValue": "test1781290431124@example.com",
+    "testValue": "TEST_serviceEmail_1781290590576",
+    "newValue": "TEST_serviceEmail_1781290590576",
+    "success": true
+  },
+  {
+    "key": "serviceTime",
+    "label": "服务时间",
+    "oldValue": "每天 10:00-22:00",
+    "testValue": "TEST_serviceTime_1781290602114",
+    "newValue": "TEST_serviceTime_1781290602114",
+    "success": true
+  },
+  {
+    "key": "companyName",
+    "label": "公司名称",
+    "oldValue": "测试有限公司1781290431124",
+    "testValue": "TEST_companyName_1781290619351",
+    "newValue": "TEST_companyName_1781290619351",
+    "success": true
+  },
+  {
+    "key": "companyAddress",
+    "label": "公司地址",
+    "oldValue": "北京市朝阳区测试路1781290431124号",
+    "testValue": "TEST_companyAddress_1781290632290",
+    "newValue": "TEST_companyAddress_1781290632290",
+    "success": true
+  },
+  {
+    "key": "icp",
+    "label": "ICP备案号",
+    "oldValue": "京ICP备1781290431124号",
+    "testValue": "TEST_icp_1781290648514",
+    "newValue": "TEST_icp_1781290648514",
+    "success": true
+  },
+  {
+    "key": "copyright",
+    "label": "版权年份",
+    "oldValue": "2024",
+    "testValue": "TEST_copyright_1781290659962",
+    "newValue": "TEST_copyright_1781290659962",
+    "success": true
+  }
+]
