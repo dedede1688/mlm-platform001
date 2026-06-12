@@ -16,7 +16,7 @@ interface PublicSettings {
   copyright: string
 }
 
-const ALL_ADMIN_ROLES = ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor']
+const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'goods_admin', 'goods_manager', 'finance_admin', 'finance_viewer', 'order_manager', 'user_manager', 'support_admin', 'auditor']
 
 const defaultSettings: PublicSettings = {
   siteName: '敏维生物·健康商城',
@@ -30,7 +30,7 @@ const defaultSettings: PublicSettings = {
 
 export default function Header() {
   const [settings, setSettings] = useState<PublicSettings | null>(null)
-  const [logoError] = useState(false)
+  const [logoError, setLogoError] = useState(false)
   const [showPhone, setShowPhone] = useState(false)
   const { user, logout, syncFromStorage } = useAuthStore()
 
@@ -87,6 +87,8 @@ export default function Header() {
                     alt={s.siteName}
                     fill
                     className="object-contain"
+                    unoptimized
+                    onError={() => setLogoError(true)}
                   />
                 </div>
               ) : null}
