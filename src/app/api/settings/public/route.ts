@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// 强制动态渲染，禁止任何缓存，确保管理后台修改的设置能立即在前台生效
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // 获取公开系统配置（非敏感信息）
 export async function GET() {
   try {
