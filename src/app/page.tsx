@@ -105,20 +105,20 @@ const BRAND_POINTS = [
 const MEMBER_REWARDS = [
   {
     icon: Users,
-    title: '推荐奖 20%',
-    desc: '推荐好友消费，立享20%推荐奖励，多推多得，上不封顶',
+    title: '推荐喜悦',
+    desc: '分享健康，向往美好，每一份分享都将获得丰厚回报',
     color: 'text-green-600 bg-green-50',
   },
   {
     icon: TrendingUp,
-    title: '品牌管理奖 20%',
-    desc: '安置链下级消费，享受20%品牌管理奖，团队越大收益越高',
+    title: '品牌管理有惊喜',
+    desc: '团队荣誉有价值，共同成长，业绩节节高升',
     color: 'text-blue-600 bg-blue-50',
   },
   {
     icon: Coins,
-    title: '分红奖 5%',
-    desc: '主任及以上级别享平台每日分红，坐享全网销售红利',
+    title: '分红得奖',
+    desc: '晋职加薪年年有，共享平台发展红利，财源滚滚来',
     color: 'text-amber-600 bg-amber-50',
   },
 ]
@@ -303,8 +303,8 @@ export default async function Home() {
 
         {/* ====== 5. 会员权益 ====== */}
         <section className="mb-10 sm:mb-16">
-          <h2 className="section-title">加入分销，三重奖励</h2>
-          <p className="section-subtitle">推荐奖 + 品牌管理奖 + 分红奖，收益源源不断</p>
+          <h2 className="section-title">加入我们，享丰厚奖励</h2>
+          <p className="section-subtitle">推荐有奖励 + 品牌管理有奖励 + 还有分红，收益源源不断</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             {MEMBER_REWARDS.map((item, i) => {
               const [textColor, bgColor] = item.color.split(' ')
