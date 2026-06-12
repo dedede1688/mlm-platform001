@@ -6,7 +6,7 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
   Bold, Italic, Strikethrough, Heading1, Heading2, Heading3,
-  List, ListOrdered, Quote, Undo, Redo, ImagePlus, Code, Minus, Upload
+  List, ListOrdered, Quote, Undo, Redo, ImagePlus, Code, Minus, Upload, Link
 } from 'lucide-react'
 
 // ---- 类型 ----
@@ -206,24 +206,35 @@ export default function RichTextEditor({
 
           <ToolbarDivider />
 
-          {/* 图片 URL 按钮 */}
-          <ToolbarButton
-            onClick={handleImageUrl}
-            title="插入图片链接"
-          >
-            <ImagePlus className="w-4 h-4" />
-          </ToolbarButton>
-
-          {/* 图片上传按钮 */}
-          <label className="p-1.5 rounded transition-colors text-gray-600 hover:bg-gray-100 hover:text-gray-900 cursor-pointer" title="上传图片">
-            <Upload className="w-4 h-4" />
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageUpload}
-            />
-          </label>
+          {/* 图片按钮 - 弹出菜单选择 */}
+          <div className="relative group">
+            <ToolbarButton
+              onClick={() => {}}
+              title="插入图片"
+            >
+              <ImagePlus className="w-4 h-4" />
+            </ToolbarButton>
+            <div className="absolute left-0 top-full mt-1 hidden group-hover:flex flex-col bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50 min-w-[120px]">
+              <label className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors">
+                <Upload className="w-4 h-4" />
+                本地上传
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleImageUrl}
+                className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors text-left"
+              >
+                <Link className="w-4 h-4" />
+                图片链接
+              </button>
+            </div>
+          </div>
 
           <ToolbarDivider />
 

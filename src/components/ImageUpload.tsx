@@ -109,12 +109,17 @@ export default function ImageUpload({
     try {
       let url: string
 
-      // 优先使用 Supabase Storage；如果不可用，则回退到 Base64
-      if (isSupabaseAvailable()) {
-        setUploadState({ status: 'uploading', progress: 50 })
-        url = await uploadToSupabase(file)
-      } else {
-        setUploadState({ status: 'uploading', progress: 50 })
+      // 尝试 Supabase Storage；如果失败（bucket 不存在等），则回退到 Base64
+      try {
+        if (isSupabaseAvailable()) {
+          setUploadState({ status: 'uploading', progress: 50 })
+          url = await uploadToSupabase(file)
+        } else {
+          throw new Error('Supabase 不可用')
+        }
+      } catch (supabaseError) {
+        console.warn('Supabase 上传失败，回退到 Base64:', supabaseError)
+        setUploadState({ status: 'uploading', progress: 75 })
         url = await fileToBase64(file)
       }
 
