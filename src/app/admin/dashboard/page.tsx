@@ -80,7 +80,8 @@ export default function AdminDashboardPage() {
       ])
 
       if (statsRes.status === 403 || statsRes.status === 401) {
-        window.location.href = '/login'
+        const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/admin/dashboard'
+        window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`
         return
       }
 

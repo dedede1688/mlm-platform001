@@ -62,66 +62,86 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // 权限验证（仅在挂载时执行一次）
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
-      return
-    }
-
-    let role: string = ''
-    let displayName: string = '管理员'
+    let cancelled = false
 
     try {
-      const userStr = localStorage.getItem('user')
-      if (userStr) {
-        const user = JSON.parse(userStr)
-        role = user.role || ''
-        displayName = user.nickname || user.phone || '管理员'
-      } else {
-        // 降级：从 token 中解析角色
+      const token = localStorage.getItem('token')
+      if (!token) {
+        router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
+        return
+      }
+
+      let role: string = ''
+      let displayName: string = '管理员'
+
+      try {
+        const userStr = localStorage.getItem('user')
+        if (userStr) {
+          const user = JSON.parse(userStr)
+          role = user.role || ''
+          displayName = user.nickname || user.phone || '管理员'
+        } else {
+          // 降级：从 token 中解析角色
+          const tokenRole = parseRoleFromToken(token)
+          if (tokenRole) {
+            role = tokenRole
+          } else {
+            router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
+            return
+          }
+        }
+      } catch (parseErr) {
+        console.error('[AdminLayout] 解析用户信息失败:', parseErr)
+        // 解析失败，尝试从 token 降级
         const tokenRole = parseRoleFromToken(token)
         if (tokenRole) {
           role = tokenRole
         } else {
+          // 完全无法识别身份，清除状态并跳登录
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
           router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
           return
         }
       }
-    } catch {
-      // JSON.parse 失败，尝试从 token 降级
-      const tokenRole = parseRoleFromToken(token)
-      if (tokenRole) {
-        role = tokenRole
-      } else {
-        router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
+
+      if (cancelled) return
+
+      if (!ALL_ADMIN_ROLES.includes(role)) {
+        setNoPermission(true)
         return
+      }
+
+      setAdminName(displayName)
+      setUserRole(role)
+
+      // 如果 localStorage 缺少 user 对象，从 API 补充并存回
+      if (!localStorage.getItem('user')) {
+        fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (!cancelled && data.success && data.data) {
+              localStorage.setItem('user', JSON.stringify(data.data))
+              setAdminName(data.data.nickname || data.data.phone || '管理员')
+            }
+          })
+          .catch((fetchErr) => {
+            console.warn('[AdminLayout] 补充用户信息失败:', fetchErr)
+          })
+      }
+
+      setAuthed(true)
+    } catch (e) {
+      // 任何异常都不让页面崩溃
+      console.error('[AdminLayout] 初始化异常:', e)
+      if (!cancelled) {
+        setAuthed(true) // 仍然放行，让用户看到布局
       }
     }
 
-    if (!ALL_ADMIN_ROLES.includes(role)) {
-      setNoPermission(true)
-      return
-    }
-
-    setAdminName(displayName)
-    setUserRole(role)
-
-    // 如果 localStorage 缺少 user 对象，从 API 补充并存回
-    if (!localStorage.getItem('user')) {
-      fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.data) {
-            localStorage.setItem('user', JSON.stringify(data.data))
-            setAdminName(data.data.nickname || data.data.phone || '管理员')
-          }
-        })
-        .catch(() => {/* 补充失败不影响已通过的权限验证 */})
-    }
-
-    setAuthed(true)
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
