@@ -6,7 +6,7 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
   Bold, Italic, Strikethrough, Heading1, Heading2, Heading3,
-  List, ListOrdered, Quote, Undo, Redo, ImagePlus, Code, Minus
+  List, ListOrdered, Quote, Undo, Redo, ImagePlus, Code, Minus, Upload
 } from 'lucide-react'
 
 // ---- 类型 ----
@@ -87,11 +87,33 @@ export default function RichTextEditor({
 
   if (!editor) return null
 
-  const handleImageUpload = () => {
+  const handleImageUrl = () => {
     const url = window.prompt('请输入图片 URL：')
     if (url?.trim()) {
       editor.chain().focus().setImage({ src: url.trim() }).run()
     }
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string
+      if (base64) {
+        editor.chain().focus().setImage({ src: base64 }).run()
+      }
+    }
+    reader.readAsDataURL(file)
+
+    // Reset input so the same file can be selected again
+    e.target.value = ''
   }
 
   return (
@@ -184,12 +206,24 @@ export default function RichTextEditor({
 
           <ToolbarDivider />
 
+          {/* 图片 URL 按钮 */}
           <ToolbarButton
-            onClick={handleImageUpload}
-            title="插入图片"
+            onClick={handleImageUrl}
+            title="插入图片链接"
           >
             <ImagePlus className="w-4 h-4" />
           </ToolbarButton>
+
+          {/* 图片上传按钮 */}
+          <label className="p-1.5 rounded transition-colors text-gray-600 hover:bg-gray-100 hover:text-gray-900 cursor-pointer" title="上传图片">
+            <Upload className="w-4 h-4" />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageUpload}
+            />
+          </label>
 
           <ToolbarDivider />
 

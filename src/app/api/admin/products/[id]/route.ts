@@ -131,19 +131,19 @@ export async function PUT(
     }
 
     if (body.benefits !== undefined) {
-      if (!Array.isArray(body.benefits)) {
+      if (body.benefits !== null && !Array.isArray(body.benefits)) {
         return NextResponse.json(
           { success: false, message: 'benefits 必须为字符串数组' },
           { status: 400 }
         )
       }
-      if (body.benefits.some((b: unknown) => typeof b !== 'string')) {
+      if (body.benefits && body.benefits.some((b: unknown) => typeof b !== 'string')) {
         return NextResponse.json(
           { success: false, message: 'benefits 数组元素必须为字符串' },
           { status: 400 }
         )
       }
-      data.benefits = body.benefits.length > 0 ? body.benefits : null
+      data.benefits = body.benefits && body.benefits.length > 0 ? body.benefits : null
     }
 
     if (body.status !== undefined) {
@@ -187,19 +187,19 @@ export async function PUT(
 
     // images
     if (body.images !== undefined) {
-      if (!Array.isArray(body.images)) {
+      if (body.images !== null && !Array.isArray(body.images)) {
         return NextResponse.json(
           { success: false, message: 'images 必须为字符串数组' },
           { status: 400 }
         )
       }
-      if (body.images.some((img: unknown) => typeof img !== 'string')) {
+      if (body.images && body.images.some((img: unknown) => typeof img !== 'string')) {
         return NextResponse.json(
           { success: false, message: 'images 数组元素必须为字符串URL' },
           { status: 400 }
         )
       }
-      data.images = body.images.length > 0 ? body.images : null
+      data.images = body.images && body.images.length > 0 ? body.images : null
     }
 
     // videoUrl
