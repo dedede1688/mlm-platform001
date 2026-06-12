@@ -32,13 +32,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const admin = await verifyPermission(request, ['admin', 'super_admin'])
-  if (!admin) {
-    return NextResponse.json(
-      { success: false, error: '无权访问' },
-      { status: 403 }
-    )
-  }
+  const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+  if (authError || !admin) return authError!
 
   try {
     const { userId } = await params
