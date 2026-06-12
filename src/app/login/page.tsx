@@ -68,7 +68,10 @@ function LoginForm() {
           router.push('/dashboard')
         }
       } else {
-        setError(data.error || '登录失败')
+        // [DEBUG] 显示详细错误信息，方便排查
+        const errorMsg = data.error || data.message || '登录失败'
+        console.error('[Login] 登录失败响应:', data)
+        setError(errorMsg)
       }
     } catch (_err) {
       setError('网络错误')
