@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { generateToken } from '@/lib/utils/auth'
-import { checkRateLimit, getClientIP } from '@/lib/utils/rate-limit'
 import { errorResponse } from '@/lib/api-response'
 
 export async function POST(request: NextRequest) {
