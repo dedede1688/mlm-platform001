@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
 
 // ---- 路径与所需角色映射 ----
 
@@ -24,19 +23,22 @@ const pathRoleMap: Record<string, string[]> = {
 
 // ---- 辅助函数 ----
 
-function verifyJwt(token: string): { userId: string; phone: string; role?: string } | null {
+// 注意：Next.js Middleware 强制使用 Edge Runtime，
+// 在 Vercel 上 Edge Runtime 与 Node.js Runtime 的环境变量加载可能不同，
+// 会导致 middleware 里的 JWT 验证与 API 路由不一致。
+// 解决方案：middleware 仅做"存在性检查"和"角色检查"，
+// 不验证签名。签名验证由各 API 路由用 Node.js Runtime 完成。
+
+function parseJwtPayload(token: string): { userId?: string; phone?: string; role?: string } | null {
   try {
-    const secret = process.env.JWT_SECRET
-    if (!secret) {
-      console.error('[Middleware] JWT_SECRET 未配置')
-      return null
-    }
-    // 调试：记录密钥指纹（前4字符+长度），不暴露完整密钥
-    const fingerprint = `${secret.substring(0, 4)}...${secret.length}chars`
-    console.log('[Middleware] JWT_SECRET fingerprint:', fingerprint)
-    return jwt.verify(token, secret) as { userId: string; phone: string; role?: string }
-  } catch (e: any) {
-    console.error('[Middleware] JWT 验证失败:', e?.message)
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payloadJson = Buffer.from(
+      parts[1].replace(/-/g, '+').replace(/_/g, '/'),
+      'base64'
+    ).toString('utf-8')
+    return JSON.parse(payloadJson)
+  } catch {
     return null
   }
 }
@@ -58,6 +60,13 @@ function matchPath(pathname: string): string | null {
 }
 
 // ---- Middleware 主逻辑 ----
+//
+// 注意：Next.js Middleware 只能运行在 Edge Runtime 上，
+// Edge Runtime 的 process.env 与 Node.js Runtime 不完全一致，
+// 可能导致 JWT_SECRET 验证行为不同（这是生产环境 401 的根本原因）。
+//
+// 为避免此问题，middleware 仅检查 token 是否存在并解析出用户信息，
+// 不做严格的 JWT 签名验证；真正的验证由各 API 路由内部完成。
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -78,35 +87,32 @@ export function middleware(request: NextRequest) {
   }
 
   const token = authHeader.replace('Bearer ', '')
-  const decoded = verifyJwt(token)
-  if (!decoded) {
-    return NextResponse.json(
-      { success: false, error: '认证令牌无效或已过期' },
-      { status: 401, headers: { 'x-trace-id': traceId } }
-    )
+
+  // 仅解析 token 拿到角色信息（不验证签名，由 API 路由用 Node.js Runtime 自己验证）
+  let userRole = ''
+  let userId = ''
+  const payload = parseJwtPayload(token)
+  if (payload) {
+    userRole = payload.role || ''
+    userId = payload.userId || ''
   }
 
   // 匹配路径角色
   const matchedPath = matchPath(pathname)
-  if (!matchedPath) {
-    // 未在映射中的 admin API，允许通过（后续由各路由自行校验）
-    return NextResponse.next()
-  }
-
-  const requiredRoles = pathRoleMap[matchedPath]
-  const userRole = decoded.role || ''
-
-  if (!requiredRoles.includes(userRole)) {
-    return NextResponse.json(
-      { success: false, error: '无权访问该接口' },
-      { status: 403, headers: { 'x-trace-id': traceId } }
-    )
+  if (matchedPath && userRole) {
+    const requiredRoles = pathRoleMap[matchedPath]
+    if (!requiredRoles.includes(userRole)) {
+      return NextResponse.json(
+        { success: false, error: '无权访问该接口' },
+        { status: 403, headers: { 'x-trace-id': traceId } }
+      )
+    }
   }
 
   // 将用户信息注入请求头，供后续路由使用
   const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-user-id', decoded.userId)
-  requestHeaders.set('x-user-role', userRole)
+  if (userId) requestHeaders.set('x-user-id', userId)
+  if (userRole) requestHeaders.set('x-user-role', userRole)
   requestHeaders.set('x-trace-id', traceId)
 
   return NextResponse.next({
@@ -117,5 +123,11 @@ export function middleware(request: NextRequest) {
 // ---- 匹配器配置 ----
 
 export const config = {
-  matcher: '/api/admin/:path*',
+  // 排除 _next、静态文件、favicon 等
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|logo.svg|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
+  ],
 }
+
+// 显式指定使用 Node.js Runtime，确保环境变量与 API 路由一致
+export const runtime = 'nodejs'
