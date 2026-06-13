@@ -43,7 +43,7 @@ export default function BannerSlider() {
       <div className="max-w-6xl mx-auto">
         <div className="relative rounded-2xl overflow-hidden shadow-2xl h-[320px] md:h-[420px] bg-gray-100">
           {/* 图片 */}
-          <div className={bsolute inset-0 transition-opacity duration-300 }>
+          <div className="absolute inset-0 transition-opacity duration-300">
             <img
               src={banner.imageUrl}
               alt={banner.title}
@@ -73,7 +73,9 @@ export default function BannerSlider() {
                       setTransitioning(false)
                     }, 300)
                   }}
-                  className={h-2.5 rounded-full transition-all duration-300 }
+                  className={`h-2.5 w-2.5 rounded-full transition-all duration-300 ${
+                    index === current ? 'bg-white' : 'bg-white/50'
+                  }`}
                 />
               ))}
             </div>
