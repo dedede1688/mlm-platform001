@@ -26,7 +26,6 @@ interface Product {
   sortOrder: number
   categoryId: string | null
   specs: SpecGroup[] | null
-  images: string[] | null
   videoUrl: string | null
   category: { id: string; name: string } | null
   createdAt: string
@@ -65,7 +64,6 @@ interface FormData {
   sortOrder: string
   categoryId: string
   specs: SpecGroup[]
-  images: string[]
   videoUrl: string
 }
 
@@ -83,7 +81,6 @@ const defaultForm: FormData = {
   sortOrder: '0',
   categoryId: '',
   specs: [],
-  images: [],
   videoUrl: '',
 }
 
