@@ -86,6 +86,14 @@ export default function RichTextEditor({
     },
   })
 
+  // 🔑 关键修复：当外部 content prop 变化时（如从数据库加载），同步更新编辑器内容
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      // 只有内容真正不同时才更新，避免光标跳转
+      editor.commands.setContent(content)
+    }
+  }, [content, editor])
+
   // 图片菜单状态（click 切换模式，替代不稳定的 group-hover）—— 必须在 early return 之前
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const imageMenuRef = useRef<HTMLDivElement>(null)
@@ -297,7 +305,7 @@ export default function RichTextEditor({
         .tiptap p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
           float: left;
-          color: #9ca3af;
+          color: #9caaf;
           pointer-events: none;
           height: 0;
         }

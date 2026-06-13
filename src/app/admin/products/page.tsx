@@ -317,12 +317,13 @@ export default function AdminProductsPage() {
         )
       }
 
-      // 检查描述中是否包含 Base64 图片（Tiptap 编辑器可能嵌入）
+      // 检查描述中是否包含 Base64 图片（Tiptap 编辑器可能嵌入 base64 或 URL）
       const desc = formData.description.trim()
       let processedDesc = desc
       if (desc.includes('data:image')) {
         // 提取描述中的所有 base64 图片并替换
-        const base64Regex = /src="(data:image[^"]+)"/g
+        // 兼容 src="data:..." 和 src=data:... 两种格式（TipTap 可能生成不带引号的属性）
+        const base64Regex = /src=["']?(data:image[^"'\s>]+)["']?/g
         let match
         let replaceCount = 0
         while ((match = base64Regex.exec(desc)) !== null) {
@@ -332,7 +333,9 @@ export default function AdminProductsPage() {
             processedDesc = processedDesc.replace(base64Src, url)
             replaceCount++
           } catch (err) {
-            console.warn('描述中图片转换失败:', err)
+            console.error('描述中图片转换失败:', err)
+            // 转换失败时移除该 base64 图片，避免存入巨大字符串
+            processedDesc = processedDesc.replace(base64Src, '')
           }
         }
       }
