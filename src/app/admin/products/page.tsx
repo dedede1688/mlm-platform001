@@ -312,10 +312,29 @@ export default function AdminProductsPage() {
       // 先处理图片：将 Base64 转换为 URL（避免 payload 过大）
       let processedImages: string[] = []
       if (formData.images.length > 0) {
-        showMessage('error', '正在处理图片...')
         processedImages = await Promise.all(
           formData.images.map((img, idx) => uploadBase64ToSupabase(img, idx))
         )
+      }
+
+      // 检查描述中是否包含 Base64 图片（Tiptap 编辑器可能嵌入）
+      const desc = formData.description.trim()
+      let processedDesc = desc
+      if (desc.includes('data:image')) {
+        // 提取描述中的所有 base64 图片并替换
+        const base64Regex = /src="(data:image[^"]+)"/g
+        let match
+        let replaceCount = 0
+        while ((match = base64Regex.exec(desc)) !== null) {
+          const base64Src = match[1]
+          try {
+            const url = await uploadBase64ToSupabase(base64Src, replaceCount)
+            processedDesc = processedDesc.replace(base64Src, url)
+            replaceCount++
+          } catch (err) {
+            console.warn('描述中图片转换失败:', err)
+          }
+        }
       }
 
       const url = editingId
@@ -325,7 +344,7 @@ export default function AdminProductsPage() {
 
       const body: Record<string, unknown> = {
         name: formData.name.trim(),
-        description: formData.description.trim() || null,
+        description: processedDesc || null,
         // images 第一张作为主图/封面
         imageUrl: processedImages.length > 0 ? processedImages[0] : null,
         retailPrice: rp,
