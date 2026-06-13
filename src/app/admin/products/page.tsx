@@ -229,7 +229,6 @@ export default function AdminProductsPage() {
       sortOrder: String(product.sortOrder),
       categoryId: product.categoryId || '',
       specs: Array.isArray(product.specs) ? product.specs : [],
-      images: Array.isArray(product.images) ? product.images : [],
       videoUrl: product.videoUrl || '',
     })
     setNewBenefit('')
