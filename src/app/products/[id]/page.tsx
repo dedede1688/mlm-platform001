@@ -69,27 +69,29 @@ function ProductSpecsDisplay({ specs }: { specs?: SpecGroup[] | null }) {
   }
 
   return (
-    <div className="mb-3 sm:mb-5">
-      <h3 className="text-xs sm:text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
-        <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+    <div className="mb-4 sm:mb-6">
+      <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+        <CheckCircle2 className="w-4 h-4 text-primary" />
         商品规格
       </h3>
-      <div className="bg-gray-50 rounded-xl p-3 sm:p-4 space-y-2.5">
-        {validSpecs.map((spec, gi) => (
-          <div key={gi} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-            <span className="text-xs font-medium text-gray-500 sm:w-20 flex-shrink-0 pt-0.5">{spec.name}</span>
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {spec.values.map((val, vi) => (
-                <span
-                  key={vi}
-                  className="inline-flex items-center px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-primary hover:text-primary transition-colors cursor-default"
-                >
-                  {val}
-                </span>
-              ))}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-sm">
+        <div className="space-y-3">
+          {validSpecs.map((spec, gi) => (
+            <div key={gi} className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-600 w-12 flex-shrink-0">{spec.name}</span>
+              <div className="flex flex-wrap gap-2">
+                {spec.values.map((val, vi) => (
+                  <span
+                    key={vi}
+                    className="inline-flex items-center px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all cursor-default"
+                  >
+                    {val}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   )
