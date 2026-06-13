@@ -33,6 +33,55 @@ interface Product {
 
 type TabKey = 'desc' | 'research'
 
+// ---- 商品规格展示组件 ----
+
+function ProductSpecsDisplay({ specs }: { specs?: SpecGroup[] | null }) {
+  // 调试日志
+  console.log('[ProductSpecsDisplay] 收到的specs数据:', specs)
+
+  if (!Array.isArray(specs) || specs.length === 0) {
+    console.log('[ProductSpecsDisplay] 没有规格数据或数据为空')
+    return null
+  }
+
+  const validSpecs = specs
+    .map(s => ({
+      name: s?.name || '规格',
+      values: Array.isArray(s?.values) ? s.values.filter(v => v && v.trim()) : []
+    }))
+    .filter(s => s.values.length > 0)
+
+  console.log('[ProductSpecsDisplay] 处理后的有效规格:', validSpecs)
+
+  if (validSpecs.length === 0) return null
+
+  return (
+    <div className="mb-3 sm:mb-5">
+      <h3 className="text-xs sm:text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
+        <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+        商品规格
+      </h3>
+      <div className="bg-gray-50 rounded-xl p-3 sm:p-4 space-y-2.5">
+        {validSpecs.map((spec, gi) => (
+          <div key={gi} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+            <span className="text-xs font-medium text-gray-500 sm:w-20 flex-shrink-0 pt-0.5">{spec.name}</span>
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {spec.values.map((val, vi) => (
+                <span
+                  key={vi}
+                  className="inline-flex items-center px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-primary hover:text-primary transition-colors cursor-default"
+                >
+                  {val}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ---- 主组件 ----
 
 export default function ProductDetailPage() {
@@ -414,35 +463,7 @@ export default function ProductDetailPage() {
               )}
 
               {/* 商品规格 */}
-              {(() => {
-                const specs: SpecGroup[] = Array.isArray(product.specs) ? product.specs.filter(s => s.name && s.values && s.values.length > 0) : []
-                if (specs.length === 0) return null
-                return (
-                  <div className="mb-3 sm:mb-5">
-                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-                      商品规格
-                    </h3>
-                    <div className="bg-gray-50 rounded-xl p-3 sm:p-4 space-y-2.5">
-                      {specs.map((spec, gi) => (
-                        <div key={gi} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                          <span className="text-xs font-medium text-gray-500 sm:w-20 flex-shrink-0 pt-0.5">{spec.name}</span>
-                          <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                            {spec.values.map((val, vi) => (
-                              <span
-                                key={vi}
-                                className="inline-flex items-center px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-primary hover:text-primary transition-colors cursor-default"
-                              >
-                                {val}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
+              <ProductSpecsDisplay specs={product.specs} />
 
               {/* 操作按钮 - 移动端sticky底部 */}
               <div className="flex gap-2 sm:gap-3 sticky bottom-0 bg-white/80 backdrop-blur-sm py-3 -mx-3 px-3 sm:mx-0 sm:px-0 sm:relative sm:bg-transparent sm:backdrop-blur-none sm:py-0 sm:mt-0">
