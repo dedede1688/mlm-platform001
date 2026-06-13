@@ -555,26 +555,15 @@ export default function ProductDetailPage() {
               </div>
             ) : (
               <div className="prose prose-sm max-w-none text-gray-600">
-                <h3 className="text-lg font-semibold text-gray-900 !mt-0">冠突散囊菌（金花菌）科研背景</h3>
-                <p>
-                  本产品核心成分——冠突散囊菌（金花菌），源自青藏高原特殊环境筛选，经中国科学院博士团队13年潜心研究，
-                  成功实现从实验室到量产的完整转化。金花菌是目前已知唯一能耐121℃高温的益生菌，这一特性使其在口服制剂中
-                  具有无可比拟的优势。
-                </p>
-                <div className="bg-primary-50 rounded-lg p-4 !my-4">
-                  <h4 className="font-semibold text-primary !mt-0 !mb-2">核心科研成果</h4>
-                  <ul className="space-y-1.5 text-sm !mb-0">
-                    <li>耐高温121℃，活性保持率超过90%</li>
-                    <li>动物实验显示甘油三酯下降60%</li>
-                    <li>总胆固醇水平降低35%</li>
-                    <li>双歧杆菌等有益菌数量增加3倍</li>
-                    <li>多项国家发明专利认证</li>
-                  </ul>
-                </div>
-                <p>
-                  研究成果已在上海市公共卫生临床中心完成临床试验，并由中国微生物菌种保藏中心进行菌种保藏和鉴定。
-                  金花菌的降血脂、调节肠道菌群、增强免疫三重功效，为高血脂人群提供了全新的天然解决方案。
-                </p>
+                {product.research ? (
+                  <div dangerouslySetInnerHTML={{ __html: product.research }} />
+                ) : (
+                  <div className="text-center py-8">
+                    <FlaskConical className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-400">暂无科研背书内容</p>
+                    <p className="text-gray-400 text-sm mt-1">该产品暂无科研背景介绍</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

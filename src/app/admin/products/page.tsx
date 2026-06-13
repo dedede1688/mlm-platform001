@@ -28,6 +28,7 @@ interface Product {
   sortOrder: number
   categoryId: string | null
   specs: SpecGroup[] | null
+  research: string | null
   videoUrl: string | null
   category: { id: string; name: string } | null
   createdAt: string
@@ -66,6 +67,7 @@ interface FormData {
   sortOrder: string
   categoryId: string
   specs: SpecGroup[]
+  research: string
   videoUrl: string
 }
 
@@ -83,6 +85,7 @@ const defaultForm: FormData = {
   sortOrder: '0',
   categoryId: '',
   specs: [],
+  research: '',
   videoUrl: '',
 }
 
@@ -231,6 +234,7 @@ export default function AdminProductsPage() {
       sortOrder: String(product.sortOrder),
       categoryId: product.categoryId || '',
       specs: Array.isArray(product.specs) ? product.specs : [],
+      research: product.research || '',
       videoUrl: product.videoUrl || '',
     })
     // 🔍 调试：打印加载的规格数据
@@ -370,6 +374,7 @@ export default function AdminProductsPage() {
               values: s.values.filter(v => v.trim()).map(v => v.trim()),
             }))
           : null,
+        research: formData.research.trim() || null,
         images: processedImages.length > 0 ? processedImages : null,
         videoUrl: formData.videoUrl.trim() || null,
       }
@@ -1257,6 +1262,16 @@ export default function AdminProductsPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* 科研背书 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">科研背书</label>
+                <RichTextEditor
+                  content={formData.research}
+                  onChange={html => setFormData(prev => ({ ...prev, research: html }))}
+                  placeholder="请输入科研背书内容（如科研背景、核心成果、临床试验等）"
+                />
               </div>
 
               {/* 视频上传 */}

@@ -63,6 +63,7 @@ model Product {
   maxPointsRatio   Int         @default(50) @map("max_points_ratio")
   benefits         Json?       @map("benefits")
   specs            Json?       @map("specs")
+  research         String?     @map("research")
   images           Json?       @map("images")
   videoUrl         String?     @map("video_url")
   status           String      @default("active") @map("status")

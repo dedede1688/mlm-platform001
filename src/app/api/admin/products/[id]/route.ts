@@ -193,6 +193,11 @@ export async function PUT(
       data.specs = body.specs || null
     }
 
+    // research
+    if (body.research !== undefined) {
+      data.research = body.research || null
+    }
+
     // images
     if (body.images !== undefined) {
       if (body.images !== null && !Array.isArray(body.images)) {
