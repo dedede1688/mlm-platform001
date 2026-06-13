@@ -1216,8 +1216,15 @@ export default function AdminProductsPage() {
                             if (e.key === 'Enter') {
                               e.preventDefault()
                               const target = e.target as HTMLInputElement
-                              if (target.value.trim()) {
-                                updateSpecValue(gi, spec.values.length, target.value.trim())
+                              const val = target.value.trim()
+                              if (val) {
+                                // 🔧 修复：直接添加值到数组
+                                setFormData(prev => ({
+                                  ...prev,
+                                  specs: prev.specs.map((s, i) =>
+                                    i === gi ? { ...s, values: [...s.values, val] } : s
+                                  )
+                                }))
                                 target.value = ''
                               }
                             }
