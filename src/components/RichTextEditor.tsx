@@ -86,9 +86,7 @@ export default function RichTextEditor({
     },
   })
 
-  if (!editor) return null
-
-  // 图片菜单状态（click 切换模式，替代不稳定的 group-hover）
+  // 图片菜单状态（click 切换模式，替代不稳定的 group-hover）—— 必须在 early return 之前
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const imageMenuRef = useRef<HTMLDivElement>(null)
 
@@ -104,6 +102,8 @@ export default function RichTextEditor({
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [imageMenuOpen])
+
+  if (!editor) return null
 
   const handleImageUrl = () => {
     const url = window.prompt('请输入图片 URL：')
@@ -289,7 +289,7 @@ export default function RichTextEditor({
       <EditorContent editor={editor} />
 
       {/* Tiptap 样式覆盖 */}
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .tiptap {
           min-height: 200px;
           outline: none;
@@ -329,7 +329,7 @@ export default function RichTextEditor({
           margin: 1rem 0;
         }
         .tiptap p { margin: 0.5rem 0; }
-      `}</style>
+      ` }} />
     </div>
   )
 }
