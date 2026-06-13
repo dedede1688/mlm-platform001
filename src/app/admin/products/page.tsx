@@ -369,18 +369,12 @@ export default function AdminProductsPage() {
               values: s.values.filter(v => v.trim()).map(v => v.trim()),
             }))
           : null,
-        // 🔍 调试：打印提交的完整数据
-        _debug: console.log('[AdminProducts] 提交前的specs数据:', JSON.stringify(
-          formData.specs.filter(s => s.name.trim()).length > 0
-            ? formData.specs.filter(s => s.name.trim()).map(s => ({
-                name: s.name.trim(),
-                values: s.values.filter(v => v.trim()).map(v => v.trim()),
-              }))
-            : null, null, 2
-        )),
         images: processedImages.length > 0 ? processedImages : null,
         videoUrl: formData.videoUrl.trim() || null,
       }
+
+      // 🔍 调试：打印提交的完整数据
+      console.log('[AdminProducts] 提交前的specs数据:', JSON.stringify(body.specs, null, 2))
 
       const res = await fetch(url, {
         method,

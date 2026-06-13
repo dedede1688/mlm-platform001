@@ -39,30 +39,30 @@ export default function BannerSlider() {
   const banner = banners[current]
 
   return (
-    <section className=\"section-padding pt-8\">
-      <div className=\"max-w-6xl mx-auto\">
-        <div className=\"relative rounded-2xl overflow-hidden shadow-2xl h-[320px] md:h-[420px] bg-gray-100\">
+    <section className="section-padding pt-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="relative rounded-2xl overflow-hidden shadow-2xl h-[320px] md:h-[420px] bg-gray-100">
           {/* 图片 */}
           <div className={bsolute inset-0 transition-opacity duration-300 }>
             <img
               src={banner.imageUrl}
               alt={banner.title}
-              className=\"w-full h-full object-cover\"
+              className="w-full h-full object-cover"
             />
           </div>
 
           {/* 渐变蒙版 */}
-          <div className=\"absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent\" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
           {/* 文字 */}
-          <div className=\"absolute bottom-0 left-0 right-0 p-6 md:p-10\">
-            <h3 className=\"text-xl md:text-2xl font-bold text-white mb-2\">{banner.title}</h3>
-            <p className=\"text-sm md:text-base text-white/80\">{banner.subtitle}</p>
+          <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
+            <h3 className="text-xl md:text-2xl font-bold text-white mb-2">{banner.title}</h3>
+            <p className="text-sm md:text-base text-white/80">{banner.subtitle}</p>
           </div>
 
           {/* 指示点 */}
           {banners.length > 1 && (
-            <div className=\"absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2\">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
               {banners.map((_, index) => (
                 <button
                   key={index}

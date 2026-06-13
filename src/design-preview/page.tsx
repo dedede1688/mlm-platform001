@@ -11,7 +11,7 @@ import Footer from './components/Footer'
 
 export default function DesignPreview() {
   return (
-    <div className=\"min-h-screen bg-[#F8FAF8]\">
+    <div className="min-h-screen bg-[#F8FAF8]">
       <HeroSection />
       <StatsBar />
       <BannerSlider />

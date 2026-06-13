@@ -31,7 +31,7 @@ function AnimatedNumber({ target, suffix }: { target: number; suffix: string }) 
       { threshold: 0.3 }
     )
 
-    const el = document.getElementById(stat-)
+    const el = document.getElementById('stat-' + target)
     if (el) observer.observe(el)
 
     return () => observer.disconnect()
@@ -66,22 +66,22 @@ function AnimatedNumber({ target, suffix }: { target: number; suffix: string }) 
 
 export default function StatsBar() {
   return (
-    <section className=\"relative z-10 -mt-12 px-4 sm:px-6 lg:px-8\">
-      <div className=\"max-w-6xl mx-auto\">
-        <div className=\"bg-white rounded-2xl shadow-xl border border-gray-100 p-6 md:p-8\">
-          <div className=\"grid grid-cols-2 md:grid-cols-5 gap-6 md:gap-4\">
+    <section className="relative z-10 -mt-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 md:p-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6 md:gap-4">
             {stats.map((stat, index) => (
               <div
                 key={index}
-                id={stat-}
-                className=\"text-center animate-fade-in delay-{}ms\"
-                style={{ animationDelay: ${(index + 1) * 100}ms }}
+                id={'stat-' + stat.value}
+                className="text-center animate-fade-in"
+                style={{ animationDelay: ((index + 1) * 100) + 'ms' }}
               >
-                <div className=\"text-2xl md:text-3xl mb-1\">{stat.icon}</div>
-                <div className=\"text-2xl md:text-3xl font-bold text-[#1B5E3B]\">
+                <div className="text-2xl md:text-3xl mb-1">{stat.icon}</div>
+                <div className="text-2xl md:text-3xl font-bold text-[#1B5E3B]">
                   <AnimatedNumber target={stat.value} suffix={stat.suffix} />
                 </div>
-                <div className=\"text-sm text-[#64748B] mt-1\">{stat.label}</div>
+                <div className="text-sm text-[#64748B] mt-1">{stat.label}</div>
               </div>
             ))}
           </div>
