@@ -228,7 +228,7 @@ export default function ProductDetailPage() {
 
                 if (allImages.length === 0) {
                   return (
-                    <div className="relative w-full aspect-square max-w-[400px] mx-auto bg-gray-100 rounded-xl overflow-hidden flex flex-col items-center justify-center">
+                    <div className="relative w-full aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden flex flex-col items-center justify-center">
                       <Package className="w-16 h-16 text-gray-300 mb-2" />
                       <span className="text-gray-400 text-sm">暂无图片</span>
                     </div>
@@ -237,8 +237,8 @@ export default function ProductDetailPage() {
 
                 return (
                   <div className="flex flex-col items-center gap-3">
-                    {/* 主图正方形容器（overflow-hidden 只限制主图）*/}
-                    <div className="relative w-full aspect-square max-w-[400px] bg-gray-100 rounded-xl overflow-hidden">
+                    {/* 主图容器 - 自适应宽度，撑满左侧区域 */}
+                    <div className="relative w-full aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden">
                       {/* 升级标签 */}
                       {product.isUpgradeProduct && (
                         <span className="absolute top-3 left-3 bg-secondary text-white text-xs px-2.5 py-1 rounded-full font-medium shadow-sm z-10 pointer-events-none">
@@ -283,7 +283,7 @@ export default function ProductDetailPage() {
                       </div>
                     </div>
                     {/* 底部缩略图条（在主图容器外部，不会被裁剪）*/}
-                    <div className="flex justify-center gap-2 w-full max-w-[400px]">
+                    <div className="flex justify-center gap-2 w-full">
                       {allImages.map((imgUrl, idx) => (
                         <button
                           key={idx}
