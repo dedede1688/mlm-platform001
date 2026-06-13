@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -86,6 +87,23 @@ export default function RichTextEditor({
   })
 
   if (!editor) return null
+
+  // 图片菜单状态（click 切换模式，替代不稳定的 group-hover）
+  const [imageMenuOpen, setImageMenuOpen] = useState(false)
+  const imageMenuRef = useRef<HTMLDivElement>(null)
+
+  // 点击外部关闭图片菜单
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (imageMenuRef.current && !imageMenuRef.current.contains(e.target as Node)) {
+        setImageMenuOpen(false)
+      }
+    }
+    if (imageMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [imageMenuOpen])
 
   const handleImageUrl = () => {
     const url = window.prompt('请输入图片 URL：')
@@ -206,34 +224,46 @@ export default function RichTextEditor({
 
           <ToolbarDivider />
 
-          {/* 图片按钮 - 弹出菜单选择 */}
-          <div className="relative group">
+          {/* 图片按钮 - 点击弹出菜单（替代不稳定的 hover 模式） */}
+          <div className="relative" ref={imageMenuRef}>
             <ToolbarButton
-              onClick={() => {}}
+              onClick={() => setImageMenuOpen(!imageMenuOpen)}
+              isActive={imageMenuOpen}
               title="插入图片"
             >
               <ImagePlus className="w-4 h-4" />
             </ToolbarButton>
-            <div className="absolute left-0 top-full mt-1 hidden group-hover:flex flex-col bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50 min-w-[120px]">
-              <label className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors">
-                <Upload className="w-4 h-4" />
-                本地上传
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
-              </label>
-              <button
-                type="button"
-                onClick={handleImageUrl}
-                className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors text-left"
-              >
-                <Link className="w-4 h-4" />
-                图片链接
-              </button>
-            </div>
+            {imageMenuOpen && (
+              <div className="absolute left-0 top-full mt-1 flex flex-col bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50 min-w-[120px]">
+                <label
+                  className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors"
+                  onClick={() => setImageMenuOpen(false)}
+                >
+                  <Upload className="w-4 h-4" />
+                  本地上传
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleImageUpload(e)
+                      setImageMenuOpen(false)
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleImageUrl()
+                    setImageMenuOpen(false)
+                  }}
+                  className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors text-left"
+                >
+                  <Link className="w-4 h-4" />
+                  图片链接
+                </button>
+              </div>
+            )}
           </div>
 
           <ToolbarDivider />
