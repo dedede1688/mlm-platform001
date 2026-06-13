@@ -402,9 +402,9 @@ export default function ProductDetailPage() {
           {/* Tab 内容 */}
           <div className="p-4 sm:p-6 lg:p-8">
             {activeTab === 'desc' ? (
-              <div className="prose prose-sm max-w-none text-gray-600">
+              <div className="prose prose-sm max-w-none text-gray-600 [&_img]:max-w-full [&_img]:h-auto">
                 {product.description ? (
-                  <p>{product.description}</p>
+                  <div dangerouslySetInnerHTML={{ __html: product.description }} />
                 ) : (
                   <div className="text-center py-8">
                     <FlaskConical className="w-10 h-10 text-gray-300 mx-auto mb-3" />
