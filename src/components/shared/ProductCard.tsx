@@ -9,7 +9,7 @@ import { ShoppingBag, Package } from 'lucide-react'
 export interface ProductCardData {
   id: string
   name: string
-  imageUrl: string | null
+  images: string[] | null
   memberPrice: number
   retailPrice: number
   benefits?: string[] | null
@@ -38,9 +38,9 @@ export function ProductCard({ product, variant = 'home' }: ProductCardProps) {
     >
       {/* 商品图片 */}
       <div className="aspect-square bg-gray-100 relative overflow-hidden">
-        {product.imageUrl ? (
+        {product.images && product.images.length > 0 ? (
           <Image
-            src={product.imageUrl}
+            src={product.images[0]}
             alt={product.name}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"

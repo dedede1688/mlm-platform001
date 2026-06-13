@@ -16,7 +16,6 @@ interface Product {
   id: string
   name: string
   description: string
-  imageUrl: string | null
   images: string[] | null
   retailPrice: number
   memberPrice: number
@@ -225,9 +224,7 @@ export default function ProductDetailPage() {
               {(() => {
                 const allImages = product.images && product.images.length > 0
                   ? product.images
-                  : product.imageUrl
-                    ? [product.imageUrl]
-                    : []
+                  : []
 
                 if (allImages.length === 0) {
                   return (
@@ -510,9 +507,7 @@ export default function ProductDetailPage() {
       {imageModal && (() => {
         const allImages = product.images && product.images.length > 0
           ? product.images
-          : product.imageUrl
-            ? [product.imageUrl]
-            : []
+          : []
         if (allImages.length === 0) return null
 
         return (

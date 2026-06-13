@@ -11,7 +11,7 @@ interface Product {
   id: string
   name: string
   description: string
-  imageUrl: string
+  images: string[] | null
   retailPrice: number
   memberPrice: number
   stock: number
@@ -207,9 +207,9 @@ function ProductCard({ product }: { product: Product }) {
     >
       {/* 图片 */}
       <div className="aspect-square bg-gray-100 relative overflow-hidden">
-        {product.imageUrl ? (
+        {product.images && product.images.length > 0 ? (
           <Image
-            src={product.imageUrl}
+            src={product.images[0]}
             alt={product.name}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"

@@ -15,7 +15,7 @@ interface Product {
   id: string
   name: string
   description: string | null
-  imageUrl: string | null
+  images: string[] | null
   retailPrice: number
   memberPrice: number
   stock: number
@@ -54,7 +54,7 @@ interface Pagination {
 interface FormData {
   name: string
   description: string
-  imageUrl: string
+  images: string[]
   retailPrice: string
   memberPrice: string
   stock: string
@@ -72,7 +72,7 @@ interface FormData {
 const defaultForm: FormData = {
   name: '',
   description: '',
-  imageUrl: '',
+  images: [],
   retailPrice: '',
   memberPrice: '',
   stock: '0',
@@ -221,7 +221,7 @@ export default function AdminProductsPage() {
     setFormData({
       name: product.name,
       description: product.description || '',
-      imageUrl: product.imageUrl || '',
+      images: Array.isArray(product.images) ? product.images : [],
       retailPrice: String(product.retailPrice),
       memberPrice: String(product.memberPrice),
       stock: String(product.stock),
@@ -273,7 +273,8 @@ export default function AdminProductsPage() {
       const body: Record<string, unknown> = {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
-        imageUrl: formData.imageUrl.trim() || null,
+        // images 第一张作为主图/封面
+        imageUrl: formData.images.length > 0 ? formData.images[0] : null,
         retailPrice: rp,
         memberPrice: mp,
         stock: parseInt(formData.stock) || 0,
@@ -425,9 +426,9 @@ export default function AdminProductsPage() {
     }))
   }
 
-  // ---- 多图操作 ----
+  // ---- 多图操作（最多3张）----
   const addImage = (url: string) => {
-    if (url.trim()) {
+    if (url.trim() && formData.images.length < 3) {
       setFormData(prev => ({
         ...prev,
         images: [...prev.images, url.trim()],
@@ -575,10 +576,10 @@ export default function AdminProductsPage() {
                     <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                       {/* 图片 */}
                       <td className="px-4 py-3">
-                        {product.imageUrl ? (
+                        {product.images && product.images.length > 0 ? (
                           <div className="relative w-12 h-12">
                             <Image
-                              src={product.imageUrl}
+                              src={product.images[0]}
                               alt={product.name}
                               fill
                               className="rounded-lg object-cover border border-gray-200"
@@ -809,16 +810,53 @@ export default function AdminProductsPage() {
                 </select>
               </div>
 
-              {/* 图片 */}
-              <ImageUpload
-                label="商品图片"
-                value={formData.imageUrl}
-                onChange={url => setFormData(prev => ({ ...prev, imageUrl: url }))}
-                placeholder="https://example.com/image.jpg"
-                bucket="products"
-                folder="products"
-                maxSizeMB={5}
-              />
+              {/* 产品主图（最多3张，第一张作为封面） */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  产品主图 <span className="text-xs text-gray-400 font-normal">（最多3张，第一张为封面）</span>
+                </label>
+                {formData.images.length > 0 && (
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {formData.images.map((img, idx) => (
+                      <div key={idx} className="relative group w-full aspect-square">
+                        <div className={`absolute top-1.5 left-1.5 z-10 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                          idx === 0
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-400/80 text-white'
+                        }`}>
+                          {idx === 0 ? '封面' : `${idx + 1}`}
+                        </div>
+                        <Image
+                          src={img}
+                          alt={`产品图 ${idx + 1}`}
+                          fill
+                          className="rounded-lg object-cover border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {formData.images.length < 3 && (
+                  <ImageUpload
+                    label=""
+                    value=""
+                    onChange={url => addImage(url)}
+                    bucket="products"
+                    folder="products/gallery"
+                    maxSizeMB={5}
+                  />
+                )}
+                {formData.images.length >= 3 && (
+                  <p className="text-xs text-gray-400 mt-1">已达到最大数量限制（3张）</p>
+                )}
+              </div>
 
               {/* 价格行 */}
               <div className="grid grid-cols-2 gap-4">
@@ -1092,41 +1130,6 @@ export default function AdminProductsPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* 多图上传 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">商品多图</label>
-                {formData.images.length > 0 && (
-                  <div className="grid grid-cols-4 gap-3 mb-3">
-                    {formData.images.map((img, idx) => (
-                      <div key={idx} className="relative group w-full aspect-square">
-                        <Image
-                          src={img}
-                          alt={`商品图 ${idx + 1}`}
-                          fill
-                          className="rounded-lg object-cover border border-gray-200"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(idx)}
-                          className="absolute top-1 right-1 p-0.5 bg-red-500 text-white rounded-full
-                            opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <ImageUpload
-                  label=""
-                  value=""
-                  onChange={url => addImage(url)}
-                  bucket="products"
-                  folder="products/gallery"
-                  maxSizeMB={5}
-                />
               </div>
 
               {/* 视频上传 */}
