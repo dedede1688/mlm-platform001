@@ -253,7 +253,7 @@ export default function ProductDetailPage() {
                           sizes="(max-width: 768px) 100vw, 400px"
                           className="object-cover hover:scale-105 transition-transform duration-300"
                         />
-                        {/* 左右切换箭头（多图时显示）*/}
+                        {/* 左右切换箭头（多图时显示，常驻可见）*/}
                         {allImages.length > 1 && (
                           <>
                             <button
@@ -261,7 +261,7 @@ export default function ProductDetailPage() {
                                 e.stopPropagation()
                                 setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length)
                               }}
-                              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity"
+                              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-opacity"
                             >
                               <ChevronLeft className="w-5 h-5" />
                             </button>
@@ -270,24 +270,10 @@ export default function ProductDetailPage() {
                                 e.stopPropagation()
                                 setCurrentImageIndex((prev) => (prev + 1) % allImages.length)
                               }}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white transition-opacity"
                             >
                               <ChevronRight className="w-5 h-5" />
                             </button>
-                            {/* 图片计数指示器 */}
-                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                              {allImages.map((_, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(idx) }}
-                                  className={`w-2 h-2 rounded-full transition-all ${
-                                    idx === currentImageIndex
-                                      ? 'bg-white w-4'
-                                      : 'bg-white/50 hover:bg-white/75'
-                                  }`}
-                                />
-                              ))}
-                            </div>
                           </>
                         )}
                       </div>
@@ -297,9 +283,8 @@ export default function ProductDetailPage() {
                           升级产品
                         </span>
                       )}
-                      {/* 底部缩略图条（多图时显示）*/}
-                      {allImages.length > 1 && (
-                        <div className="flex gap-2 mt-3 px-1">
+                      {/* 底部缩略图条（始终显示，有几张显示几张）*/}
+                      <div className="flex gap-2 mt-3 px-1">
                           {allImages.map((imgUrl, idx) => (
                             <button
                               key={idx}
@@ -319,7 +304,6 @@ export default function ProductDetailPage() {
                             </button>
                           ))}
                         </div>
-                      )}
                     </>
                   )
                 })()}
