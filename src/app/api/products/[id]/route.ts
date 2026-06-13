@@ -32,7 +32,7 @@ export async function GET(
   }
 }
 
-// 更新商品
+// 更新商品（用户端）
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,22 +49,38 @@ export async function PUT(
       stock,
       isUpgradeProduct,
       maxPointsRatio,
+      benefits,
+      specs,
       status,
     } = body
 
+    // 检查商品是否存在
+    const existing = await prisma.product.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, message: '商品不存在' },
+        { status: 404 }
+      )
+    }
+
+    // 构建更新数据
+    const data: Record<string, unknown> = {}
+
+    if (name !== undefined) data.name = name
+    if (description !== undefined) data.description = description || null
+    if (imageUrl !== undefined) data.imageUrl = imageUrl || null
+    if (retailPrice !== undefined) data.retailPrice = Number(retailPrice)
+    if (memberPrice !== undefined) data.memberPrice = Number(memberPrice)
+    if (stock !== undefined) data.stock = Number(stock)
+    if (isUpgradeProduct !== undefined) data.isUpgradeProduct = isUpgradeProduct === true
+    if (maxPointsRatio !== undefined) data.maxPointsRatio = Number(maxPointsRatio)
+    if (benefits !== undefined) data.benefits = benefits && Array.isArray(benefits) && benefits.length > 0 ? benefits : null
+    if (specs !== undefined) data.specs = specs && Array.isArray(specs) && specs.length > 0 ? specs : null
+    if (status !== undefined) data.status = status
+
     const product = await prisma.product.update({
       where: { id },
-      data: {
-        name,
-        description,
-        imageUrl,
-        retailPrice,
-        memberPrice,
-        stock,
-        isUpgradeProduct,
-        maxPointsRatio,
-        status,
-      },
+      data,
     })
 
     return NextResponse.json({
