@@ -310,8 +310,16 @@ export default function AdminProductsPage() {
       } else {
         showMessage('error', data.message || '操作失败')
       }
-    } catch {
-      showMessage('error', '网络错误，请重试')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '未知错误'
+      // 给出更具体的错误提示
+      if (message.includes('body') || message.includes('payload') || message.includes('413') || message.includes('size') || message.includes('large')) {
+        showMessage('error', '图片数据过大，请减少上传的图片数量或压缩图片后重试')
+      } else if (message.includes('fetch') || message.includes('network') || message.includes('Failed')) {
+        showMessage('error', '网络连接失败，请检查网络后重试')
+      } else {
+        showMessage('error', `保存失败：${message}`)
+      }
     } finally {
       setSaving(false)
     }

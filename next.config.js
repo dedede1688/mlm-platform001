@@ -4,6 +4,10 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 增加请求体大小限制（支持 base64 多图上传）
+  server: {
+    bodySizeLimit: '50mb',
+  },
   images: {
     remotePatterns: [
       {
