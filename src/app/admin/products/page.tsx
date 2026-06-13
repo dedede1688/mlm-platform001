@@ -231,7 +231,7 @@ export default function AdminProductsPage() {
       categoryId: product.categoryId || '',
       specs: Array.isArray(product.specs) ? product.specs : [],
       videoUrl: product.videoUrl || '',
-    }))
+    })
     // 🔍 调试：打印加载的规格数据
     console.log('[AdminProducts] 编辑模式 - 加载的原始specs数据:', JSON.stringify(product.specs, null, 2))
     console.log('[AdminProducts] 编辑模式 - 赋值后的formData.specs:', JSON.stringify(Array.isArray(product.specs) ? product.specs : [], null, 2))
