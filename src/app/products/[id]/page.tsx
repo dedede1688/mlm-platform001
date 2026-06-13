@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
-  ChevronLeft, Package, ShoppingCart, Zap, Tag, Shield,
+  ChevronLeft, ChevronRight, Package, ShoppingCart, Zap, Tag, Shield,
   X, Loader2, FlaskConical
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
@@ -16,7 +16,8 @@ interface Product {
   id: string
   name: string
   description: string
-  imageUrl: string
+  imageUrl: string | null
+  images: string[] | null
   retailPrice: number
   memberPrice: number
   stock: number
@@ -43,6 +44,7 @@ export default function ProductDetailPage() {
   const [buying, setBuying] = useState(false)
   const [pointsToUse, setPointsToUse] = useState(0)
   const [imageModal, setImageModal] = useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<TabKey>('desc')
 
   useEffect(() => {
@@ -218,32 +220,109 @@ export default function ProductDetailPage() {
         {/* ====== 主内容：左图右文 ====== */}
         <div className="card-base overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-            {/* 左侧图片 */}
+            {/* 左侧图片 - 支持多图轮播 */}
             <div className="p-3 sm:p-6 lg:p-8">
-              <div
-                className="relative w-full aspect-square max-w-[400px] mx-auto bg-gray-100 rounded-xl overflow-hidden cursor-zoom-in"
-                onClick={() => product.imageUrl && setImageModal(true)}
-              >
-                {product.imageUrl ? (
-                  <Image
-                    src={product.imageUrl}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 400px"
-                    className="object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center">
-                    <Package className="w-16 h-16 text-gray-300 mb-2" />
-                    <span className="text-gray-400 text-sm">暂无图片</span>
-                  </div>
-                )}
-                {/* 升级标签 */}
-                {product.isUpgradeProduct && (
-                  <span className="absolute top-3 left-3 bg-secondary text-white text-xs px-2.5 py-1 rounded-full font-medium shadow-sm">
-                    升级产品
-                  </span>
-                )}
+              <div className="relative w-full aspect-square max-w-[400px] mx-auto bg-gray-100 rounded-xl overflow-hidden">
+                {(() => {
+                  const allImages = product.images && product.images.length > 0
+                    ? product.images
+                    : product.imageUrl
+                      ? [product.imageUrl]
+                      : []
+
+                  if (allImages.length === 0) {
+                    return (
+                      <div className="w-full h-full flex flex-col items-center justify-center">
+                        <Package className="w-16 h-16 text-gray-300 mb-2" />
+                        <span className="text-gray-400 text-sm">暂无图片</span>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <>
+                      {/* 主图展示区 */}
+                      <div
+                        className="relative w-full h-full cursor-zoom-in"
+                        onClick={() => setImageModal(true)}
+                      >
+                        <Image
+                          src={allImages[currentImageIndex] || ''}
+                          alt={`${product.name} - 图片${currentImageIndex + 1}`}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 400px"
+                          className="object-cover hover:scale-105 transition-transform duration-300"
+                        />
+                        {/* 左右切换箭头（多图时显示）*/}
+                        {allImages.length > 1 && (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length)
+                              }}
+                              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity"
+                            >
+                              <ChevronLeft className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setCurrentImageIndex((prev) => (prev + 1) % allImages.length)
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity"
+                            >
+                              <ChevronRight className="w-5 h-5" />
+                            </button>
+                            {/* 图片计数指示器 */}
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                              {allImages.map((_, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(idx) }}
+                                  className={`w-2 h-2 rounded-full transition-all ${
+                                    idx === currentImageIndex
+                                      ? 'bg-white w-4'
+                                      : 'bg-white/50 hover:bg-white/75'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {/* 升级标签 */}
+                      {product.isUpgradeProduct && (
+                        <span className="absolute top-3 left-3 bg-secondary text-white text-xs px-2.5 py-1 rounded-full font-medium shadow-sm z-10 pointer-events-none">
+                          升级产品
+                        </span>
+                      )}
+                      {/* 底部缩略图条（多图时显示）*/}
+                      {allImages.length > 1 && (
+                        <div className="flex gap-2 mt-3 px-1">
+                          {allImages.map((imgUrl, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setCurrentImageIndex(idx)}
+                              className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 ${
+                                idx === currentImageIndex
+                                  ? 'border-primary shadow-sm'
+                                  : 'border-transparent hover:border-gray-300'
+                              }`}
+                            >
+                              <Image
+                                src={imgUrl}
+                                alt={`缩略图${idx + 1}`}
+                                fill
+                                className="object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             </div>
 
@@ -441,28 +520,79 @@ export default function ProductDetailPage() {
         </div>
       </main>
 
-      {/* ====== 图片放大模态框 ====== */}
-      {imageModal && product.imageUrl && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 cursor-zoom-out"
-          onClick={() => setImageModal(false)}
-        >
-          <button
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors"
+      {/* ====== 图片放大模态框（支持多图）===== */}
+      {imageModal && (() => {
+        const allImages = product.images && product.images.length > 0
+          ? product.images
+          : product.imageUrl
+            ? [product.imageUrl]
+            : []
+        if (allImages.length === 0) return null
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 cursor-zoom-out"
             onClick={() => setImageModal(false)}
           >
-            <X className="w-5 h-5" />
-          </button>
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            width={800}
-            height={800}
-            className="max-w-full max-h-[90vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+            <button
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors z-10"
+              onClick={() => setImageModal(false)}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {/* 主大图 */}
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <Image
+                src={allImages[currentImageIndex] || ''}
+                alt={`${product.name} - 大图${currentImageIndex + 1}`}
+                width={800}
+                height={800}
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              />
+              {/* 多图时左右切换 */}
+              {allImages.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length)}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentImageIndex((prev) => (prev + 1) % allImages.length)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </>
+              )}
+            </div>
+            {/* 底部缩略图 */}
+            {allImages.length > 1 && (
+              <div className="flex gap-2 mt-4 justify-center" onClick={(e) => e.stopPropagation()}>
+                {allImages.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentImageIndex(idx)}
+                    className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
+                      idx === currentImageIndex
+                        ? 'border-white'
+                        : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <Image
+                      src={imgUrl}
+                      alt={`大图缩略${idx + 1}`}
+                      fill
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
     </div>
   )
