@@ -415,7 +415,7 @@ export default function ProductDetailPage() {
 
               {/* 商品规格 */}
               {(() => {
-                const specs = Array.isArray(product.specs) ? product.specs.filter(s => s.name && s.values && s.values.length > 0) : []
+                const specs: SpecGroup[] = Array.isArray(product.specs) ? product.specs.filter(s => s.name && s.values && s.values.length > 0) : []
                 if (specs.length === 0) return null
                 return (
                   <div className="mb-3 sm:mb-5">
