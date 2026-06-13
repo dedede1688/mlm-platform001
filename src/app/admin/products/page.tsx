@@ -1,4 +1,5 @@
 'use client'
+// v7.0-fix: 修复构建错误 - 调试日志语法优化
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
