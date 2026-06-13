@@ -177,7 +177,8 @@ export async function POST(request: NextRequest) {
         memberPrice: Number(memberPrice),
         stock: stock != null ? Number(stock) : 0,
         isUpgradeProduct: isUpgradeProduct === true,
-        maxPointsRatio: maxPointsRatio != null ? Number(maxPointsRatio) : 50,
+        // 升级产品强制为0，普通产品默认0，最高不超过50
+        maxPointsRatio: isUpgradeProduct ? 0 : (maxPointsRatio != null ? Math.min(50, Number(maxPointsRatio)) : 0),
         benefits: benefits ? benefits : null,
         status: status || 'active',
         sortOrder: sortOrder != null ? Number(sortOrder) : 0,

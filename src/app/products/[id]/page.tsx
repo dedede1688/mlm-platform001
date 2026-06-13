@@ -6,11 +6,16 @@ import Link from 'next/link'
 import Image from 'next/image'
 import {
   ChevronLeft, ChevronRight, Package, ShoppingCart, Zap, Tag, Shield,
-  X, Loader2, FlaskConical
+  X, Loader2, FlaskConical, CheckCircle2
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 
 // ---- 类型 ----
+
+interface SpecGroup {
+  name: string
+  values: string[]
+}
 
 interface Product {
   id: string
@@ -23,6 +28,7 @@ interface Product {
   isUpgradeProduct: boolean
   maxPointsRatio: number
   benefits?: string[] | null
+  specs?: SpecGroup[] | null
 }
 
 type TabKey = 'desc' | 'research'
@@ -90,8 +96,8 @@ export default function ProductDetailPage() {
     }
   }
 
-  // 积分计算
-  const maxPoints = product && user
+  // 积分计算（升级产品不支持积分抵扣）
+  const maxPoints = (product && user && !product.isUpgradeProduct)
     ? Math.min(
         Math.floor(product.memberPrice * product.maxPointsRatio / 100),
         user.unlockedPoints
@@ -336,9 +342,14 @@ export default function ProductDetailPage() {
                   <span className="text-xs bg-secondary/10 text-secondary-700 px-2 py-0.5 rounded-full font-medium">
                     会员专享价
                   </span>
-                  {product.maxPointsRatio > 0 && (
+                  {!product.isUpgradeProduct && product.maxPointsRatio > 0 && (
                     <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium">
                       可用积分抵扣 {product.maxPointsRatio}%
+                    </span>
+                  )}
+                  {product.isUpgradeProduct && (
+                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                      不支持积分抵扣
                     </span>
                   )}
                 </div>
@@ -357,8 +368,8 @@ export default function ProductDetailPage() {
                 <span className="ml-1 sm:ml-2 text-[10px] sm:text-xs text-gray-400">限购1件</span>
               </div>
 
-              {/* 积分抵扣 */}
-              {user && product.maxPointsRatio > 0 && user.unlockedPoints > 0 && (
+              {/* 积分抵扣（升级产品不显示此区域） */}
+              {user && !product.isUpgradeProduct && product.maxPointsRatio > 0 && user.unlockedPoints > 0 && (
                 <div className="mb-3 sm:mb-5 bg-gray-50 rounded-xl p-3 sm:p-4">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs sm:text-sm font-medium text-gray-700">使用积分抵扣</label>
@@ -401,6 +412,37 @@ export default function ProductDetailPage() {
                   <span>购买此产品可累计升级经销商资格</span>
                 </div>
               )}
+
+              {/* 商品规格 */}
+              {(() => {
+                const specs = Array.isArray(product.specs) ? product.specs.filter(s => s.name && s.values && s.values.length > 0) : []
+                if (specs.length === 0) return null
+                return (
+                  <div className="mb-3 sm:mb-5">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                      商品规格
+                    </h3>
+                    <div className="bg-gray-50 rounded-xl p-3 sm:p-4 space-y-2.5">
+                      {specs.map((spec, gi) => (
+                        <div key={gi} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+                          <span className="text-xs font-medium text-gray-500 sm:w-20 flex-shrink-0 pt-0.5">{spec.name}</span>
+                          <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                            {spec.values.map((val, vi) => (
+                              <span
+                                key={vi}
+                                className="inline-flex items-center px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-primary hover:text-primary transition-colors cursor-default"
+                              >
+                                {val}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* 操作按钮 - 移动端sticky底部 */}
               <div className="flex gap-2 sm:gap-3 sticky bottom-0 bg-white/80 backdrop-blur-sm py-3 -mx-3 px-3 sm:mx-0 sm:px-0 sm:relative sm:bg-transparent sm:backdrop-blur-none sm:py-0 sm:mt-0">

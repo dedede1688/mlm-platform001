@@ -127,7 +127,15 @@ export async function PUT(
     }
 
     if (body.maxPointsRatio !== undefined) {
-      data.maxPointsRatio = Number(body.maxPointsRatio)
+      const ratio = Number(body.maxPointsRatio)
+      if (isNaN(ratio) || ratio < 0) {
+        return NextResponse.json(
+          { success: false, message: '积分抵扣比例不能为负数' },
+          { status: 400 }
+        )
+      }
+      // 升级产品强制为0，普通产品最高不超过50
+      data.maxPointsRatio = existing.isUpgradeProduct ? 0 : Math.min(50, ratio)
     }
 
     if (body.benefits !== undefined) {

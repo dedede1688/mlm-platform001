@@ -76,7 +76,7 @@ const defaultForm: FormData = {
   memberPrice: '',
   stock: '0',
   isUpgradeProduct: false,
-  maxPointsRatio: '50',
+  maxPointsRatio: '0',
   benefits: [],
   status: 'active',
   sortOrder: '0',
@@ -354,7 +354,8 @@ export default function AdminProductsPage() {
         memberPrice: mp,
         stock: parseInt(formData.stock) || 0,
         isUpgradeProduct: formData.isUpgradeProduct,
-        maxPointsRatio: parseInt(formData.maxPointsRatio) || 50,
+        // 升级产品强制积分抵扣为0；普通产品默认0，最高不超过50
+        maxPointsRatio: formData.isUpgradeProduct ? 0 : Math.min(50, parseInt(formData.maxPointsRatio) || 0),
         benefits: formData.benefits.length > 0 ? formData.benefits : null,
         status: formData.status,
         sortOrder: parseInt(formData.sortOrder) || 0,
@@ -994,22 +995,34 @@ export default function AdminProductsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    积分抵扣比例 <span className="text-xs text-gray-400">(0-100)</span>
+                    积分抵扣比例 {formData.isUpgradeProduct ? (
+                      <span className="text-xs text-red-400 font-normal">(升级产品不可用)</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">(0-50, 默认0)</span>
+                    )}
                   </label>
                   <div className="relative">
                     <input
                       type="number"
-                      value={formData.maxPointsRatio}
+                      value={formData.isUpgradeProduct ? '0' : formData.maxPointsRatio}
                       onChange={e => setFormData(prev => ({ ...prev, maxPointsRatio: e.target.value }))}
                       min="0"
-                      max="100"
-                      className="w-full pr-8 px-4 py-2.5 border border-gray-300 rounded-lg
+                      max="50"
+                      disabled={formData.isUpgradeProduct}
+                      className={`w-full pr-8 px-4 py-2.5 border border-gray-300 rounded-lg
                         focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                        transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400"
-                      placeholder="50"
+                        transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400
+                        ${formData.isUpgradeProduct ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
+                        placeholder="0"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
                   </div>
+                  {formData.isUpgradeProduct && (
+                    <p className="mt-1 text-[11px] text-red-400">升级产品不支持积分抵扣</p>
+                  )}
+                  {!formData.isUpgradeProduct && (
+                    <p className="mt-1 text-[11px] text-gray-400">留空或填0表示不支持积分抵扣，最高50%</p>
+                  )}
                 </div>
               </div>
 
@@ -1019,7 +1032,15 @@ export default function AdminProductsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">是否升级产品</label>
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, isUpgradeProduct: !prev.isUpgradeProduct }))}
+                    onClick={() => {
+                      const newValue = !formData.isUpgradeProduct
+                      setFormData(prev => ({
+                        ...prev,
+                        isUpgradeProduct: newValue,
+                        // 切换为升级产品时，自动将积分抵扣清零
+                        maxPointsRatio: newValue ? '0' : prev.maxPointsRatio,
+                      }))
+                    }}
                     className="flex items-center gap-2"
                   >
                     {formData.isUpgradeProduct ? (

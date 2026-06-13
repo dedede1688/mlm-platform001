@@ -73,7 +73,10 @@ export async function PUT(
     if (memberPrice !== undefined) data.memberPrice = Number(memberPrice)
     if (stock !== undefined) data.stock = Number(stock)
     if (isUpgradeProduct !== undefined) data.isUpgradeProduct = isUpgradeProduct === true
-    if (maxPointsRatio !== undefined) data.maxPointsRatio = Number(maxPointsRatio)
+    if (maxPointsRatio !== undefined) {
+      // 升级产品强制为0，普通产品最高不超过50
+      data.maxPointsRatio = existing.isUpgradeProduct ? 0 : Math.min(50, Number(maxPointsRatio))
+    }
     if (benefits !== undefined) data.benefits = benefits && Array.isArray(benefits) && benefits.length > 0 ? benefits : null
     if (specs !== undefined) data.specs = specs && Array.isArray(specs) && specs.length > 0 ? specs : null
     if (status !== undefined) data.status = status

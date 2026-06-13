@@ -263,21 +263,22 @@ export default function RichTextEditor({
               <ImagePlus className="w-4 h-4" />
             </ToolbarButton>
             {imageMenuOpen && (
-              <div className="absolute left-0 top-full mt-1 flex flex-col bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50 min-w-[120px">
+              <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50" style={{ minWidth: '140px' }}>
                 <button
                   type="button"
                   onClick={handleUploadClick}
-                  className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors text-left"
+                  className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors text-left whitespace-nowrap w-full"
                 >
-                  <Upload className="w-4 h-4" />
+                  <Upload className="w-4 h-4 flex-shrink-0" />
                   本地上传
                 </button>
+                <div className="border-t border-gray-100" />
                 <button
                   type="button"
                   onClick={handleImageUrl}
-                  className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors text-left"
+                  className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer flex items-center gap-2 transition-colors text-left whitespace-nowrap w-full"
                 >
-                  <Link className="w-4 h-4" />
+                  <Link className="w-4 h-4 flex-shrink-0" />
                   图片链接
                 </button>
               </div>
