@@ -222,25 +222,32 @@ export default function ProductDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
             {/* 左侧图片 - 支持多图轮播 */}
             <div className="p-3 sm:p-6 lg:p-8">
-              <div className="relative w-full aspect-square max-w-[400px] mx-auto bg-gray-100 rounded-xl overflow-hidden">
-                {(() => {
-                  const allImages = product.images && product.images.length > 0
-                    ? product.images
-                    : product.imageUrl
-                      ? [product.imageUrl]
-                      : []
+              {(() => {
+                const allImages = product.images && product.images.length > 0
+                  ? product.images
+                  : product.imageUrl
+                    ? [product.imageUrl]
+                    : []
 
-                  if (allImages.length === 0) {
-                    return (
-                      <div className="w-full h-full flex flex-col items-center justify-center">
-                        <Package className="w-16 h-16 text-gray-300 mb-2" />
-                        <span className="text-gray-400 text-sm">暂无图片</span>
-                      </div>
-                    )
-                  }
-
+                if (allImages.length === 0) {
                   return (
-                    <>
+                    <div className="relative w-full aspect-square max-w-[400px] mx-auto bg-gray-100 rounded-xl overflow-hidden flex flex-col items-center justify-center">
+                      <Package className="w-16 h-16 text-gray-300 mb-2" />
+                      <span className="text-gray-400 text-sm">暂无图片</span>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="flex flex-col items-center gap-3">
+                    {/* 主图正方形容器（overflow-hidden 只限制主图）*/}
+                    <div className="relative w-full aspect-square max-w-[400px] bg-gray-100 rounded-xl overflow-hidden">
+                      {/* 升级标签 */}
+                      {product.isUpgradeProduct && (
+                        <span className="absolute top-3 left-3 bg-secondary text-white text-xs px-2.5 py-1 rounded-full font-medium shadow-sm z-10 pointer-events-none">
+                          升级产品
+                        </span>
+                      )}
                       {/* 主图展示区 */}
                       <div
                         className="relative w-full h-full cursor-zoom-in"
@@ -277,37 +284,32 @@ export default function ProductDetailPage() {
                           </>
                         )}
                       </div>
-                      {/* 升级标签 */}
-                      {product.isUpgradeProduct && (
-                        <span className="absolute top-3 left-3 bg-secondary text-white text-xs px-2.5 py-1 rounded-full font-medium shadow-sm z-10 pointer-events-none">
-                          升级产品
-                        </span>
-                      )}
-                      {/* 底部缩略图条（始终显示，有几张显示几张）*/}
-                      <div className="flex gap-2 mt-3 px-1">
-                          {allImages.map((imgUrl, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setCurrentImageIndex(idx)}
-                              className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 ${
-                                idx === currentImageIndex
-                                  ? 'border-primary shadow-sm'
-                                  : 'border-transparent hover:border-gray-300'
-                              }`}
-                            >
-                              <Image
-                                src={imgUrl}
-                                alt={`缩略图${idx + 1}`}
-                                fill
-                                className="object-cover"
-                              />
-                            </button>
-                          ))}
-                        </div>
-                    </>
-                  )
-                })()}
-              </div>
+                    </div>
+                    {/* 底部缩略图条（在主图容器外部，不会被裁剪）*/}
+                    <div className="flex justify-center gap-2 w-full max-w-[400px]">
+                      {allImages.map((imgUrl, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentImageIndex(idx)}
+                          className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 ${
+                            idx === currentImageIndex
+                              ? 'border-primary shadow-sm'
+                              : 'border-transparent hover:border-gray-300 opacity-80 hover:opacity-100'
+                          }`}
+                        >
+                          <Image
+                            src={imgUrl}
+                            alt={`缩略图${idx + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized   // base64 图片不需要优化，直接显示
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* 右侧信息 */}
