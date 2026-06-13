@@ -1208,7 +1208,8 @@ export default function AdminProductsPage() {
                       <div className="flex gap-2">
                         <input
                           type="text"
-                          placeholder="输入规格值后回车"
+                          data-spec-group={gi}
+                          placeholder="输入规格值后按回车添加"
                           className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm
                             focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                             text-gray-900 placeholder-gray-400 bg-white"
@@ -1232,13 +1233,27 @@ export default function AdminProductsPage() {
                         />
                         <button
                           type="button"
-                          onClick={() => addSpecValue(gi)}
+                          onClick={() => {
+                            // 获取对应的input值并添加
+                            const inputEl = document.querySelector(`[data-spec-group="${gi}"]`) as HTMLInputElement
+                            if (inputEl && inputEl.value.trim()) {
+                              const val = inputEl.value.trim()
+                              setFormData(prev => ({
+                                ...prev,
+                                specs: prev.specs.map((s, i) =>
+                                  i === gi ? { ...s, values: [...s.values, val] } : s
+                                )
+                              }))
+                              inputEl.value = ''
+                            }
+                          }}
                           className="px-3 py-1.5 text-xs bg-white border border-gray-300 text-gray-600
                             rounded-md hover:bg-gray-50 transition-colors font-medium"
                         >
                           添加值
                         </button>
                       </div>
+                      <p className="text-xs text-gray-400 mt-1">💡 提示：输入规格值后按回车键或点击"添加值"按钮</p>
                     </div>
                   ))}
                 </div>
