@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import {
   Package, Plus, Search, Edit2, Trash2, Loader2,
   ChevronLeft, ChevronRight, X, Image as ImageIcon, ToggleLeft, ToggleRight,
   PlusCircle, MinusCircle
 } from 'lucide-react'
+import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'
 import VideoUpload from '@/components/VideoUpload'
@@ -235,6 +236,53 @@ export default function AdminProductsPage() {
     setShowModal(true)
   }
 
+  // 将 Base64 图片数据上传到 Supabase Storage 并返回 URL
+  const uploadBase64ToSupabase = useCallback(async (base64Data: string, index: number): Promise<string> => {
+    if (!base64Data.startsWith('data:image')) {
+      // 已经是 URL，直接返回
+      return base64Data
+    }
+
+    if (!isSupabaseAvailable() || !supabaseBrowserClient) {
+      throw new Error(`图片 ${index + 1} 是 Base64 格式但 Supabase 不可用，无法保存`)
+    }
+
+    // 从 Base64 数据中提取文件信息
+    const [header, data] = base64Data.split(',')
+    if (!data) {
+      throw new Error(`图片 ${index + 1} 的 Base64 数据格式无效`)
+    }
+
+        const mimeMatch = header.match(/data:image\/([^;]+)/)
+        const ext = mimeMatch ? mimeMatch[1] : 'jpg'
+        const random = Math.random().toString(36).substring(2, 8)
+    const fileName = `${Date.now()}-${random}.${ext}`
+    const filePath = `products/gallery/${fileName}`
+
+    // 将 Base64 转为 Blob 再上传
+    const byteChars = atob(data)
+    const byteArray = new Uint8Array(byteChars.length)
+    for (let i = 0; i < byteChars.length; i++) {
+      byteArray[i] = byteChars.charCodeAt(i)
+    }
+    const blob = new Blob([byteArray], { type: `image/${ext}` })
+    const file = new File([blob], fileName, { type: `image/${ext}` })
+
+    const { error: uploadError } = await supabaseBrowserClient.storage
+      .from('products')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      throw new Error(`图片 ${index + 1} 上传失败: ${uploadError.message}`)
+    }
+
+    const { data: urlData } = supabaseBrowserClient.storage.from('products').getPublicUrl(filePath)
+    return urlData.publicUrl
+  }, [])
+
   // 保存商品
   const handleSave = async () => {
     if (!token) return
@@ -261,6 +309,15 @@ export default function AdminProductsPage() {
 
     setSaving(true)
     try {
+      // 先处理图片：将 Base64 转换为 URL（避免 payload 过大）
+      let processedImages: string[] = []
+      if (formData.images.length > 0) {
+        showMessage('error', '正在处理图片...')
+        processedImages = await Promise.all(
+          formData.images.map((img, idx) => uploadBase64ToSupabase(img, idx))
+        )
+      }
+
       const url = editingId
         ? `/api/admin/products/${editingId}`
         : '/api/admin/products'
@@ -270,7 +327,7 @@ export default function AdminProductsPage() {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         // images 第一张作为主图/封面
-        imageUrl: formData.images.length > 0 ? formData.images[0] : null,
+        imageUrl: processedImages.length > 0 ? processedImages[0] : null,
         retailPrice: rp,
         memberPrice: mp,
         stock: parseInt(formData.stock) || 0,
@@ -286,7 +343,7 @@ export default function AdminProductsPage() {
               values: s.values.filter(v => v.trim()).map(v => v.trim()),
             }))
           : null,
-        images: formData.images.length > 0 ? formData.images : null,
+        images: processedImages.length > 0 ? processedImages : null,
         videoUrl: formData.videoUrl.trim() || null,
       }
 
@@ -314,6 +371,8 @@ export default function AdminProductsPage() {
         showMessage('error', '图片数据过大，请减少上传的图片数量或压缩图片后重试')
       } else if (message.includes('fetch') || message.includes('network') || message.includes('Failed')) {
         showMessage('error', '网络连接失败，请检查网络后重试')
+      } else if (message.includes('Supabase') || message.includes('上传') || message.includes('Base64')) {
+        showMessage('error', message)
       } else {
         showMessage('error', `保存失败：${message}`)
       }
