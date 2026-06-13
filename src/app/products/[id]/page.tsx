@@ -236,9 +236,9 @@ export default function ProductDetailPage() {
                 }
 
                 return (
-                  <div className="flex flex-col items-center gap-3">
-                    {/* 主图容器 - 自适应宽度，撑满左侧区域 */}
-                    <div className="relative w-full aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden">
+                  <div className="flex flex-col items-center gap-3 h-full">
+                    {/* 主图容器 - 自适应宽度，flex-1 撑满剩余空间 */}
+                    <div className="relative w-full flex-1 min-h-0 bg-gray-100 rounded-xl overflow-hidden">
                       {/* 升级标签 */}
                       {product.isUpgradeProduct && (
                         <span className="absolute top-3 left-3 bg-secondary text-white text-xs px-2.5 py-1 rounded-full font-medium shadow-sm z-10 pointer-events-none">
