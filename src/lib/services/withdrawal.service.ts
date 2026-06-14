@@ -12,7 +12,7 @@ export class WithdrawalService {
       const result = await tx.$queryRaw<{ count: number }[]>`
         UPDATE "users"
         SET balance = balance - ${amount},
-            "frozenBalance" = "frozenBalance" + ${amount}
+            "frozen_balance" = "frozen_balance" + ${amount}
         WHERE id = ${userId}::uuid AND balance >= ${amount}
         RETURNING 1 as count
       `

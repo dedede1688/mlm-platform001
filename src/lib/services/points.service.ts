@@ -184,8 +184,8 @@ export class PointsService {
       // 原子扣减转出方积分（防并发透支）
       const fromResult = await tx.$queryRaw<{ count: number }[]>`
         UPDATE "users"
-        SET "unlockedPoints" = "unlockedPoints" - ${totalDeduction}
-        WHERE id = ${fromUserId}::uuid AND "unlockedPoints" >= ${totalDeduction}
+        SET "unlocked_points" = "unlocked_points" - ${totalDeduction}
+        WHERE id = ${fromUserId}::uuid AND "unlocked_points" >= ${totalDeduction}
         RETURNING 1 as count
       `
       
@@ -196,7 +196,7 @@ export class PointsService {
       // 原子增加接收方积分
       await tx.$queryRaw`
         UPDATE "users"
-        SET "unlockedPoints" = "unlockedPoints" + ${amount}
+        SET "unlocked_points" = "unlocked_points" + ${amount}
         WHERE id = ${toUserId}::uuid
       `
 

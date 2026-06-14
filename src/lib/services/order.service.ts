@@ -134,8 +134,8 @@ export class OrderService {
       if (actualPointsUsed > 0) {
         const result = await tx.$queryRaw<{ count: number }[]>`
           UPDATE "users"
-          SET "unlockedPoints" = "unlockedPoints" - ${actualPointsUsed}
-          WHERE id = ${userId}::uuid AND "unlockedPoints" >= ${actualPointsUsed}
+          SET "unlocked_points" = "unlocked_points" - ${actualPointsUsed}
+          WHERE id = ${userId}::uuid AND "unlocked_points" >= ${actualPointsUsed}
           RETURNING 1 as count
         `
         if (result.length === 0) {

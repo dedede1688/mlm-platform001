@@ -48,19 +48,19 @@ export class UserService {
 
     // 一次性获取该推荐人下所有已有安置关系的用户
     // 使用递归查询获取所有后代
-    let allDescendants: Array<{ id: string; parentId: string | null; position: number }>
+    let allDescendants: Array<{ id: string; parent_id: string | null; position: number }>
     try {
-      allDescendants = await prisma.$queryRaw<Array<{ id: string; parentId: string | null; position: number }>>`
+      allDescendants = await prisma.$queryRaw<Array<{ id: string; parent_id: string | null; position: number }>>`
         WITH RECURSIVE subtree AS (
-          SELECT id, "parentId", position
+          SELECT id, parent_id, position
           FROM "users"
           WHERE id = ${referrerId}::uuid
           UNION ALL
-          SELECT u.id, u."parentId", u.position
+          SELECT u.id, u.parent_id, u.position
           FROM "users" u
-          INNER JOIN subtree s ON u."parentId" = s.id
+          INNER JOIN subtree s ON u.parent_id = s.id
         )
-        SELECT id, "parentId", position FROM subtree
+        SELECT id, parent_id, position FROM subtree
       `
     } catch (queryError) {
       console.error('findPlacementPosition query error:', queryError)
@@ -73,11 +73,11 @@ export class UserService {
     
     for (const node of allDescendants) {
       nodeIds.add(node.id)
-      if (node.parentId) {
-        if (!childrenMap.has(node.parentId)) {
-          childrenMap.set(node.parentId, new Set())
+      if (node.parent_id) {
+        if (!childrenMap.has(node.parent_id)) {
+          childrenMap.set(node.parent_id, new Set())
         }
-        childrenMap.get(node.parentId)!.add(node.position)
+        childrenMap.get(node.parent_id)!.add(node.position)
       }
     }
 
@@ -95,7 +95,7 @@ export class UserService {
       
       // 将子节点加入队列
       const children = allDescendants
-        .filter(d => d.parentId === currentId)
+        .filter(d => d.parent_id === currentId)
         .sort((a, b) => a.position - b.position)
       for (const child of children) {
         queue.push(child.id)
