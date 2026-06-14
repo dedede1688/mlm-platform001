@@ -20,9 +20,8 @@ export async function POST(
 
     // 1. 参数校验
     const validTypes = ['totalPoints', 'unlockedPoints', 'lockedPoints'] as const
-    type PointsField = typeof validTypes[number]
 
-    if (!type || !validTypes.includes(type as PointsField)) {
+    if (!type || !validTypes.includes(type as typeof validTypes[number])) {
       return NextResponse.json(
         { success: false, message: 'type 必须为 totalPoints、unlockedPoints 或 lockedPoints' },
         { status: 400 }
