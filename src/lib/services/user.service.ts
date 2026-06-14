@@ -40,20 +40,32 @@ export class UserService {
     parentId: string
     position: number
   }> {
+    // 验证 referrerId 是有效的 UUID 格式
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(referrerId)) {
+      throw new Error(`推荐人 ID 格式无效：${referrerId}`)
+    }
+
     // 一次性获取该推荐人下所有已有安置关系的用户
     // 使用递归查询获取所有后代
-    const allDescendants = await prisma.$queryRaw<Array<{ id: string; parentId: string | null; position: number }>>`
-      WITH RECURSIVE subtree AS (
-        SELECT id, "parentId", position
-        FROM "User"
-        WHERE id = ${referrerId}::uuid
-        UNION ALL
-        SELECT u.id, u."parentId", u.position
-        FROM "User" u
-        INNER JOIN subtree s ON u."parentId" = s.id
-      )
-      SELECT id, "parentId", position FROM subtree
-    `
+    let allDescendants: Array<{ id: string; parentId: string | null; position: number }>
+    try {
+      allDescendants = await prisma.$queryRaw<Array<{ id: string; parentId: string | null; position: number }>>`
+        WITH RECURSIVE subtree AS (
+          SELECT id, "parentId", position
+          FROM "User"
+          WHERE id = ${referrerId}::uuid
+          UNION ALL
+          SELECT u.id, u."parentId", u.position
+          FROM "User" u
+          INNER JOIN subtree s ON u."parentId" = s.id
+        )
+        SELECT id, "parentId", position FROM subtree
+      `
+    } catch (queryError) {
+      console.error('findPlacementPosition query error:', queryError)
+      throw new Error(`查询安置位置失败：${queryError instanceof Error ? queryError.message : '数据库查询异常'}`)
+    }
 
     // 构建节点子节点映射
     const childrenMap = new Map<string, Set<number>>()
