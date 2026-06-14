@@ -124,9 +124,28 @@ export default function AdminUsersPage() {
   const [statusReason, setStatusReason] = useState('')
   const [savingStatus, setSavingStatus] = useState(false)
 
+  // 积分调整
+  const [pointsType, setPointsType] = useState<'totalPoints' | 'unlockedPoints' | 'lockedPoints'>('totalPoints')
+  const [pointsAmount, setPointsAmount] = useState<string>('')
+  const [pointsReason, setPointsReason] = useState('')
+  const [savingPoints, setSavingPoints] = useState(false)
+
+  // 基础资料修改
+  const [profilePhone, setProfilePhone] = useState<string>('')
+  const [profileNickname, setProfileNickname] = useState<string>('')
+  const [profileEmail, setProfileEmail] = useState<string>('')
+  const [profileRole, setProfileRole] = useState<string>('')
+  const [profileReason, setProfileReason] = useState('')
+  const [savingProfile, setSavingProfile] = useState(false)
+
+  // 密码重置
+  const [resetPassword, setResetPassword] = useState<string>('')
+  const [passwordReason, setPasswordReason] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
+
   // 展开区块
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    stats: true, relation: true, referrals: true, children: false, level: false, balance: false, status: false,
+    stats: true, relation: true, referrals: true, children: false, level: false, balance: false, points: false, profile: false, password: false, status: false,
   })
 
   // 消息提示
@@ -255,6 +274,93 @@ export default function AdminUsersPage() {
       } else { showMessage('error', data.message || '状态变更失败') }
     } catch { showMessage('error', '网络错误') }
     finally { setSavingStatus(false) }
+  }
+
+  // 积分调整（自动联动：调一个字段，其他同步）
+  const handleAdjustPoints = async () => {
+    if (!token || !detailUser) return
+    const amount = Number(pointsAmount)
+    if (!amount || isNaN(amount)) { showMessage('error', '请输入有效的调整数值'); return }
+    if (pointsReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    setSavingPoints(true)
+    try {
+      const res = await fetch(`/api/admin/users/${detailUser.id}/points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: pointsType, amount, reason: pointsReason.trim() }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', data.message || '积分调整成功')
+        handleViewDetail(detailUser.id)
+        setPointsAmount('')
+        setPointsReason('')
+        fetchUsers(token, pagination.page)
+      } else { showMessage('error', data.message || '积分调整失败') }
+    } catch { showMessage('error', '网络错误') }
+    finally { setSavingPoints(false) }
+  }
+
+  // 基础资料修改
+  const handleUpdateProfile = async () => {
+    if (!token || !detailUser) return
+    const hasChanges = profilePhone || profileNickname || profileEmail || profileRole
+    if (!hasChanges) { showMessage('error', '至少需要修改一个字段'); return }
+    if ((profilePhone || profileRole) && profileReason.trim().length < 5) {
+      showMessage('error', '修改手机号或角色时，原因至少 5 个字'); return
+    }
+    setSavingProfile(true)
+    try {
+      const payload: Record<string, string> = {}
+      if (profilePhone) payload.phone = profilePhone
+      if (profileNickname) payload.nickname = profileNickname
+      if (profileEmail) payload.email = profileEmail
+      if (profileRole) payload.role = profileRole
+      if (profileReason) payload.reason = profileReason.trim()
+      const res = await fetch(`/api/admin/users/${detailUser.id}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', '资料修改成功')
+        handleViewDetail(detailUser.id)
+        setProfilePhone('')
+        setProfileNickname('')
+        setProfileEmail('')
+        setProfileRole('')
+        setProfileReason('')
+        fetchUsers(token, pagination.page)
+      } else { showMessage('error', data.message || '资料修改失败') }
+    } catch { showMessage('error', '网络错误') }
+    finally { setSavingProfile(false) }
+  }
+
+  // 密码重置
+  const handleResetPassword = async () => {
+    if (!token || !detailUser) return
+    if (!resetPassword || resetPassword.length < 8 || resetPassword.length > 20) {
+      showMessage('error', '密码长度必须在 8-20 位之间'); return
+    }
+    if (!/[a-zA-Z]/.test(resetPassword)) { showMessage('error', '密码必须包含字母'); return }
+    if (!/[0-9]/.test(resetPassword)) { showMessage('error', '密码必须包含数字'); return }
+    if (passwordReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    setSavingPassword(true)
+    try {
+      const res = await fetch(`/api/admin/users/${detailUser.id}/password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newPassword: resetPassword, reason: passwordReason.trim() }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', '密码已重置，请通知用户')
+        setResetPassword('')
+        setPasswordReason('')
+      } else { showMessage('error', data.message || '密码重置失败') }
+    } catch { showMessage('error', '网络错误') }
+    finally { setSavingPassword(false) }
   }
 
   const formatTime = (iso: string | null) => {
@@ -553,6 +659,125 @@ export default function AdminUsersPage() {
                   <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5}
                     className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
                     {savingBalance ? '处理中...' : '确认调整'}
+                  </button>
+                </div>
+              </Section>
+
+              {/* 积分调整 */}
+              <Section title="积分调整" open={openSections.points} onToggle={() => toggleSection('points')}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">调整字段</label>
+                      <select value={pointsType} onChange={e => setPointsType(e.target.value as 'totalPoints' | 'unlockedPoints' | 'lockedPoints')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
+                        <option value="totalPoints">总积分</option>
+                        <option value="unlockedPoints">可用积分</option>
+                        <option value="lockedPoints">锁定积分</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">当前值</label>
+                      <p className="text-sm font-medium text-gray-900 py-2">
+                        {pointsType === 'totalPoints' ? detailUser.totalPoints :
+                         pointsType === 'unlockedPoints' ? detailUser.unlockedPoints : detailUser.lockedPoints}
+                      </p>
+                      <p className="text-xs text-gray-400">总积分 {detailUser.totalPoints} = 可用 {detailUser.unlockedPoints} + 锁定 {detailUser.lockedPoints}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">调整数量（正数=增加，负数=扣减）</label>
+                    <input type="number" value={pointsAmount} onChange={e => setPointsAmount(e.target.value)}
+                      placeholder="例如：100 或 -50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">调整原因（至少 5 字）</label>
+                    <textarea value={pointsReason} onChange={e => setPointsReason(e.target.value)} rows={2}
+                      placeholder="请输入调整原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleAdjustPoints} disabled={savingPoints || !pointsAmount || pointsReason.trim().length < 5}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPoints || !pointsAmount || pointsReason.trim().length < 5 ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-sm'}`}>
+                    {savingPoints ? '处理中...' : '确认调整'}
+                  </button>
+                </div>
+              </Section>
+
+              {/* 基础资料修改 */}
+              <Section title="基础资料修改" open={openSections.profile} onToggle={() => toggleSection('profile')}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">手机号</label>
+                      <input type="text" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
+                        placeholder={detailUser.phone}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">昵称</label>
+                      <input type="text" value={profileNickname} onChange={e => setProfileNickname(e.target.value)}
+                        placeholder={detailUser.nickname || '未设置'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">邮箱</label>
+                      <input type="email" value={profileEmail} onChange={e => setProfileEmail(e.target.value)}
+                        placeholder={detailUser.email || '未设置'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">角色</label>
+                      <select value={profileRole} onChange={e => setProfileRole(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
+                        <option value="">不修改</option>
+                        <option value="user" selected={detailUser.role === 'user'}>普通用户</option>
+                        <option value="auditor" selected={detailUser.role === 'auditor'}>审计员</option>
+                        <option value="support_admin" selected={detailUser.role === 'support_admin'}>客服管理员</option>
+                        <option value="goods_admin" selected={detailUser.role === 'goods_admin'>商品管理员</option>
+                        <option value="finance_admin" selected={detailUser.role === 'finance_admin'}>财务管理员</option>
+                        <option value="super_admin" selected={detailUser.role === 'super_admin'}>超级管理员</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">
+                      修改原因{((profilePhone && profilePhone !== detailUser.phone) || profileRole) ? '（必填，≥5字）' : '（选填）'}
+                    </label>
+                    <textarea value={profileReason} onChange={e => setProfileReason(e.target.value)} rows={2}
+                      placeholder="请输入修改原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleUpdateProfile} disabled={savingProfile}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingProfile ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+                    {savingProfile ? '保存中...' : '确认修改'}
+                  </button>
+                </div>
+              </Section>
+
+              {/* 密码重置 */}
+              <Section title="密码重置" open={openSections.password} onToggle={() => toggleSection('password')}>
+                <div className="space-y-4">
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-xs text-yellow-700">⚠️ 重置后用户需使用新密码登录，请务必通知用户。</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">新密码（8-20 位，必须包含字母和数字）</label>
+                    <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)}
+                      placeholder="请输入新密码"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">重置原因（至少 5 字）</label>
+                    <textarea value={passwordReason} onChange={e => setPasswordReason(e.target.value)} rows={2}
+                      placeholder="请输入重置原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleResetPassword} disabled={savingPassword || !resetPassword || passwordReason.trim().length < 5}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPassword || !resetPassword || passwordReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
+                    {savingPassword ? '处理中...' : '确认重置密码'}
                   </button>
                 </div>
               </Section>
