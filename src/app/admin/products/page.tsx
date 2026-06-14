@@ -800,11 +800,11 @@ const handleDuplicate = async (product: Product) => {
                         </span>
                       </td>
                       {/* 操作 */}
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <td className="px-4 py-3 text-right min-w-[300px]">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 pl-3 whitespace-nowrap">
                           <button
                             onClick={() => toggleStatus(product)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors font-medium ${
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors font-medium min-h-[28px] ${
                               product.status === 'active'
                                 ? 'text-green-600 hover:bg-green-50'
                                 : 'text-gray-500 hover:bg-gray-50'
@@ -817,9 +817,7 @@ const handleDuplicate = async (product: Product) => {
                           <button
                             onClick={() => handleDuplicate(product)}
                             disabled={duplicatingId === product.id}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600
-                              hover:bg-gray-100 rounded-lg transition-colors font-medium
-                              disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[28px]"
                             title="复制商品"
                           >
                             <ClipboardCopy className={`w-3.5 h-3.5 ${duplicatingId === product.id ? 'animate-spin' : ''}`} />
@@ -827,16 +825,14 @@ const handleDuplicate = async (product: Product) => {
                           </button>
                           <button
                             onClick={() => handleEdit(product)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600
-                              hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium min-h-[28px]"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                             编辑
                           </button>
                           <button
                             onClick={() => setDeleteId(product.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600
-                              hover:bg-red-50 rounded-lg transition-colors font-medium"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium min-h-[28px]"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             删除
