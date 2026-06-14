@@ -55,6 +55,8 @@ interface ChildItem {
 }
 
 interface UserDetail extends UserRow {
+  email: string | null
+  role: string
   referrer: RelatedUser | null
   parent: RelatedUser | null
   referrals: ReferralItem[]
@@ -145,7 +147,7 @@ export default function AdminUsersPage() {
 
   // 展开区块
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    stats: true, relation: true, referrals: true, children: false, level: false, balance: false, points: false, profile: false, password: false, status: false,
+    stats: true, relation: true, referrals: true, children: false, level: false, balance: false, points: true, profile: false, password: true, status: false,
   })
 
   // 消息提示
@@ -627,42 +629,6 @@ export default function AdminUsersPage() {
                 </div>
               </Section>
 
-              {/* 资金调整 */}
-              <Section title="资金调整" open={openSections.balance} onToggle={() => toggleSection('balance')}>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">调整字段</label>
-                      <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
-                        <option value="balance">余额</option>
-                        <option value="frozenBalance">冻结余额</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : '冻结余额'}</label>
-                      <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : detailUser.frozenBalance).toFixed(2)}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">调整金额（正数=增加，负数=扣减）</label>
-                    <input type="number" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)}
-                      placeholder="例如：100 或 -50"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">调整原因（至少 5 字）</label>
-                    <textarea value={balanceReason} onChange={e => setBalanceReason(e.target.value)} rows={2}
-                      placeholder="请输入调整原因..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
-                  </div>
-                  <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
-                    {savingBalance ? '处理中...' : '确认调整'}
-                  </button>
-                </div>
-              </Section>
-
               {/* 积分调整 */}
               <Section title="积分调整" open={openSections.points} onToggle={() => toggleSection('points')}>
                 <div className="space-y-4">
@@ -703,6 +669,68 @@ export default function AdminUsersPage() {
                   </button>
                 </div>
               </Section>
+
+              {/* 密码重置 */}
+              <Section title="密码重置" open={openSections.password} onToggle={() => toggleSection('password')}>
+                <div className="space-y-4">
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-xs text-yellow-700">⚠️ 重置后用户需使用新密码登录，请务必通知用户。</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">新密码（8-20 位，必须包含字母和数字）</label>
+                    <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)}
+                      placeholder="请输入新密码"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">重置原因（至少 5 字）</label>
+                    <textarea value={passwordReason} onChange={e => setPasswordReason(e.target.value)} rows={2}
+                      placeholder="请输入重置原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleResetPassword} disabled={savingPassword || !resetPassword || passwordReason.trim().length < 5}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPassword || !resetPassword || passwordReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
+                    {savingPassword ? '处理中...' : '确认重置密码'}
+                  </button>
+                </div>
+              </Section>
+
+              {/* 资金调整 */}
+              <Section title="资金调整" open={openSections.balance} onToggle={() => toggleSection('balance')}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">调整字段</label>
+                      <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
+                        <option value="balance">余额</option>
+                        <option value="frozenBalance">冻结余额</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : '冻结余额'}</label>
+                      <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : detailUser.frozenBalance).toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">调整金额（正数=增加，负数=扣减）</label>
+                    <input type="number" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)}
+                      placeholder="例如：100 或 -50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">调整原因（至少 5 字）</label>
+                    <textarea value={balanceReason} onChange={e => setBalanceReason(e.target.value)} rows={2}
+                      placeholder="请输入调整原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+                    {savingBalance ? '处理中...' : '确认调整'}
+                  </button>
+                </div>
+              </Section>
+
 
               {/* 基础资料修改 */}
               <Section title="基础资料修改" open={openSections.profile} onToggle={() => toggleSection('profile')}>
@@ -757,30 +785,6 @@ export default function AdminUsersPage() {
                 </div>
               </Section>
 
-              {/* 密码重置 */}
-              <Section title="密码重置" open={openSections.password} onToggle={() => toggleSection('password')}>
-                <div className="space-y-4">
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-xs text-yellow-700">⚠️ 重置后用户需使用新密码登录，请务必通知用户。</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">新密码（8-20 位，必须包含字母和数字）</label>
-                    <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)}
-                      placeholder="请输入新密码"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">重置原因（至少 5 字）</label>
-                    <textarea value={passwordReason} onChange={e => setPasswordReason(e.target.value)} rows={2}
-                      placeholder="请输入重置原因..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
-                  </div>
-                  <button onClick={handleResetPassword} disabled={savingPassword || !resetPassword || passwordReason.trim().length < 5}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPassword || !resetPassword || passwordReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
-                    {savingPassword ? '处理中...' : '确认重置密码'}
-                  </button>
-                </div>
-              </Section>
 
               {/* 状态管理 */}
               <Section title="状态管理" open={openSections.status} onToggle={() => toggleSection('status')}>
