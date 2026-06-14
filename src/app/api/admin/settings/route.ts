@@ -96,6 +96,9 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
 
+    // 调试日志：打印接收到的数据
+    console.log('[Settings PUT] Received body:', JSON.stringify(body, null, 2))
+
     const {
       siteName,
       logoUrl,
