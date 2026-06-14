@@ -113,9 +113,20 @@ export default function AdminUsersPage() {
   const [newLevel, setNewLevel] = useState<number>(0)
   const [savingLevel, setSavingLevel] = useState(false)
 
+  // 资金调整
+  const [balanceType, setBalanceType] = useState<'balance' | 'frozenBalance'>('balance')
+  const [balanceAmount, setBalanceAmount] = useState<string>('')
+  const [balanceReason, setBalanceReason] = useState('')
+  const [savingBalance, setSavingBalance] = useState(false)
+
+  // 状态管理
+  const [newStatus, setNewStatus] = useState<string>('')
+  const [statusReason, setStatusReason] = useState('')
+  const [savingStatus, setSavingStatus] = useState(false)
+
   // 展开区块
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    stats: true, relation: true, referrals: true, children: false, level: false,
+    stats: true, relation: true, referrals: true, children: false, level: false, balance: false, status: false,
   })
 
   // 消息提示
@@ -195,6 +206,55 @@ export default function AdminUsersPage() {
       } else { showMessage('error', data.message || '调整失败') }
     } catch { showMessage('error', '网络错误') }
     finally { setSavingLevel(false) }
+  }
+
+  // 资金调整
+  const handleAdjustBalance = async () => {
+    if (!token || !detailUser) return
+    const amount = Number(balanceAmount)
+    if (!amount || isNaN(amount)) { showMessage('error', '请输入有效的金额'); return }
+    if (balanceReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    setSavingBalance(true)
+    try {
+      const res = await fetch(`/api/admin/users/${detailUser.id}/balance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: balanceType, amount, reason: balanceReason.trim() }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', data.message || '资金调整成功')
+        // 刷新详情以更新余额显示
+        handleViewDetail(detailUser.id)
+        setBalanceAmount('')
+        setBalanceReason('')
+        fetchUsers(token, pagination.page)
+      } else { showMessage('error', data.message || '资金调整失败') }
+    } catch { showMessage('error', '网络错误') }
+    finally { setSavingBalance(false) }
+  }
+
+  // 状态管理
+  const handleChangeStatus = async () => {
+    if (!token || !detailUser) return
+    if (!newStatus) { showMessage('error', '请选择目标状态'); return }
+    if (statusReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    setSavingStatus(true)
+    try {
+      const res = await fetch(`/api/admin/users/${detailUser.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: newStatus, reason: statusReason.trim() }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', data.message || '状态变更成功')
+        setDetailUser(prev => prev ? { ...prev, status: newStatus } : null)
+        setStatusReason('')
+        fetchUsers(token, pagination.page)
+      } else { showMessage('error', data.message || '状态变更失败') }
+    } catch { showMessage('error', '网络错误') }
+    finally { setSavingStatus(false) }
   }
 
   const formatTime = (iso: string | null) => {
@@ -458,6 +518,75 @@ export default function AdminUsersPage() {
                       {savingLevel ? '保存中...' : '确认调整'}
                     </button>
                   </div>
+                </div>
+              </Section>
+
+              {/* 资金调整 */}
+              <Section title="资金调整" open={openSections.balance} onToggle={() => toggleSection('balance')}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">调整字段</label>
+                      <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
+                        <option value="balance">余额</option>
+                        <option value="frozenBalance">冻结余额</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : '冻结余额'}</label>
+                      <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : detailUser.frozenBalance).toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">调整金额（正数=增加，负数=扣减）</label>
+                    <input type="number" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)}
+                      placeholder="例如：100 或 -50"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">调整原因（至少 5 字）</label>
+                    <textarea value={balanceReason} onChange={e => setBalanceReason(e.target.value)} rows={2}
+                      placeholder="请输入调整原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+                    {savingBalance ? '处理中...' : '确认调整'}
+                  </button>
+                </div>
+              </Section>
+
+              {/* 状态管理 */}
+              <Section title="状态管理" open={openSections.status} onToggle={() => toggleSection('status')}>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-6">
+                    <div>
+                      <span className="text-xs text-gray-400">当前状态</span>
+                      <p><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${detailUser.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                        {detailUser.status === 'active' ? '正常' : detailUser.status === 'frozen' ? '已冻结' : detailUser.status}
+                      </span></p>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">切换至</label>
+                      <select value={newStatus} onChange={e => setNewStatus(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
+                        <option value="">请选择</option>
+                        <option value="active" disabled={detailUser.status === 'active'}>正常（解封）</option>
+                        <option value="frozen" disabled={detailUser.status === 'frozen'}>冻结</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">变更原因（至少 5 字）</label>
+                    <textarea value={statusReason} onChange={e => setStatusReason(e.target.value)} rows={2}
+                      placeholder="请输入变更原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleChangeStatus} disabled={savingStatus || !newStatus || statusReason.trim().length < 5}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingStatus || !newStatus || statusReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
+                    {savingStatus ? '处理中...' : '确认变更'}
+                  </button>
                 </div>
               </Section>
 
