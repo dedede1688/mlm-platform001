@@ -29,6 +29,7 @@ interface Product {
   maxPointsRatio: number
   benefits?: string[] | null
   specs?: SpecGroup[] | null
+  research?: string | null
 }
 
 type TabKey = 'desc' | 'research'
