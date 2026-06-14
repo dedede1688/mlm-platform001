@@ -793,11 +793,12 @@ const handleDuplicate = async (product: Product) => {
                             onClick={() => toggleStatus(product)}
                             className={`inline-flex items-center gap-1 px-2 py-1.5 text-sm rounded-lg transition-colors font-medium ${
                               product.status === 'active'
-                                ? 'text-gray-600 hover:bg-gray-50'
-                                : 'text-green-600 hover:bg-green-50'
+                                ? 'text-green-600 hover:bg-green-50'
+                                : 'text-gray-500 hover:bg-gray-50'
                             }`}
                             title={product.status === 'active' ? '点击下架' : '点击上架'}
                           >
+                            {product.status === 'active' ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
                             {product.status === 'active' ? '下架' : '上架'}
                           </button>
                           <button
