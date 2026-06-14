@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
     const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
     if (authError || !admin) return authError!
 
-    const config = await prisma.systemConfig.findFirst()
+    // 使用 findUnique 精确查询，避免返回错误记录
+    const config = await prisma.systemConfig.findUnique({
+      where: { key: 'site_settings' },
+    })
 
     // 从独立 banners 表查询轮播图
     const bannerRecords = await prisma.banners.findMany({
@@ -123,8 +126,10 @@ export async function PUT(request: NextRequest) {
       // banners 已迁移到独立表，不再写入 SystemConfig
     } = body
 
-    // 获取或创建配置记录
-    const existing = await prisma.systemConfig.findFirst()
+    // 获取或创建配置记录（使用 findUnique 精确定位）
+    const existing = await prisma.systemConfig.findUnique({
+      where: { key: 'site_settings' },
+    })
 
     const updateData = {
       siteName: siteName ?? undefined,
@@ -156,8 +161,11 @@ export async function PUT(request: NextRequest) {
         data: updateData,
       })
     } else {
-      config = await prisma.systemConfig.create({
-        data: {
+      // 使用 upsert 确保只创建一条记录
+      config = await prisma.systemConfig.upsert({
+        where: { key: 'site_settings' },
+        update: updateData,
+        create: {
           key: 'site_settings',
           value: 'system',
           ...updateData,

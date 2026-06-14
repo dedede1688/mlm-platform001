@@ -8,7 +8,10 @@ export const revalidate = 0
 // 获取公开系统配置（非敏感信息）
 export async function GET() {
   try {
-    const config = await prisma.systemConfig.findFirst()
+    // 使用 findUnique 精确查询，避免返回错误记录
+    const config = await prisma.systemConfig.findUnique({
+      where: { key: 'site_settings' },
+    })
 
     // 从独立 banners 表查询轮播图
     const bannerRecords = await prisma.banners.findMany({
