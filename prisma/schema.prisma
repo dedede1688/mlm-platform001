@@ -220,13 +220,13 @@ model SystemConfig {
   key            String   @unique
   value          String
   description    String?
-  siteName       String?  @default("敏维生物·健康商城") @map("site_name")
+  siteName       String?  @default("敏维科技") @map("site_name")
   logoUrl        String?  @default("/logo.png") @map("logo_url")
   contactPhone   String?  @default("18566793066") @map("contact_phone")
-  serviceEmail   String?  @default("service@minwei.com") @map("service_email")
+  serviceEmail   String?  @default("381901944@qq.com") @map("service_email")
   serviceTime    String?  @default("周一至周日 9:00-21:00") @map("service_time")
-  companyName    String?  @default("广州敏维生物科技有限公司") @map("company_name")
-  companyAddress String?  @default("广州市花都区金谷南路9号") @map("company_address")
+  companyName    String?  @default("广州敏维科技有限公司") @map("company_name")
+  companyAddress String?  @default("广州市花都区金谷南路") @map("company_address")
   icp            String?  @default("粤ICP备XXXXXXXX号")
   copyright      String?  @default("2026")
   aboutUs        String?  @map("about_us")

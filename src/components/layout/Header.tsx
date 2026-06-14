@@ -35,8 +35,8 @@ export default function Header() {
   const { user, logout, syncFromStorage } = useAuthStore()
 
   useEffect(() => {
-    // 加载站点设置
-    fetch('/api/settings/public')
+    // 加载站点设置（禁用缓存确保获取最新数据）
+    fetch('/api/settings/public', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data) {
