@@ -47,8 +47,6 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
-  // 输出独立追踪文件（用于分析）
-  output: 'standalone',
 }
 
 module.exports = withNextIntl(nextConfig)
