@@ -6,7 +6,7 @@ import Image from 'next/image'
 import {
   Package, Plus, Search, Edit2, Trash2, Loader2,
   ChevronLeft, ChevronRight, X, Image as ImageIcon, ToggleLeft, ToggleRight,
-  PlusCircle, MinusCircle
+  PlusCircle, MinusCircle, Copy
 } from 'lucide-react'
 import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ImageUpload'
@@ -107,11 +107,14 @@ export default function AdminProductsPage() {
   const [saving, setSaving] = useState(false)
   const [newBenefit, setNewBenefit] = useState('')
 
-  // 删除确认
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
+// 删除确认
+const [deleteId, setDeleteId] = useState<string | null>(null)
+const [deleting, setDeleting] = useState(false)
 
-  // 分类数据
+// 复制商品
+const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
+
+// 分类数据
   const [categories, setCategories] = useState<CategoryItem[]>([])
 
   // 消息提示
@@ -435,12 +438,38 @@ export default function AdminProductsPage() {
       }
     } catch {
       showMessage('error', '网络错误，请重试')
-    } finally {
-      setDeleting(false)
-    }
-  }
+} finally {
+  setDeleting(false)
+}
+}
 
-  // 切换商品状态（上架/下架）
+// 复制商品
+const handleDuplicate = async (product: Product) => {
+  if (!token) return
+  setDuplicatingId(product.id)
+  try {
+    const res = await fetch(`/api/admin/products/${product.id}/duplicate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    if (data.success && data.data?.id) {
+      showMessage('success', `商品已复制：${data.data.name}`)
+      // 跳转到新商品的编辑页
+      setTimeout(() => {
+        window.location.href = `/admin/products/${data.data.id}/edit`
+      }, 500)
+    } else {
+      showMessage('error', data.error || '复制失败')
+    }
+  } catch {
+    showMessage('error', '网络错误，请重试')
+  } finally {
+    setDuplicatingId(null)
+  }
+}
+
+// 切换商品状态（上架/下架）
   const toggleStatus = async (product: Product) => {
     if (!token) return
     const newStatus = product.status === 'active' ? 'inactive' : 'active'
@@ -749,6 +778,17 @@ export default function AdminProductsPage() {
                             title={product.status === 'active' ? '点击下架' : '点击上架'}
                           >
                             {product.status === 'active' ? '下架' : '上架'}
+                          </button>
+                          <button
+                            onClick={() => handleDuplicate(product)}
+                            disabled={duplicatingId === product.id}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-gray-600
+                              hover:bg-gray-100 rounded-lg transition-colors font-medium
+                              disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="复制商品"
+                          >
+                            <Copy className={`w-3.5 h-3.5 ${duplicatingId === product.id ? 'animate-spin' : ''}`} />
+                            {duplicatingId === product.id ? '复制中...' : '复制'}
                           </button>
                           <button
                             onClick={() => handleEdit(product)}
