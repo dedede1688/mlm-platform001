@@ -736,7 +736,7 @@ export default function AdminUsersPage() {
                         <option value="user" selected={detailUser.role === 'user'}>普通用户</option>
                         <option value="auditor" selected={detailUser.role === 'auditor'}>审计员</option>
                         <option value="support_admin" selected={detailUser.role === 'support_admin'}>客服管理员</option>
-                        <option value="goods_admin" selected={detailUser.role === 'goods_admin'>商品管理员</option>
+                        <option value="goods_admin" selected={detailUser.role === 'goods_admin'}>商品管理员</option>
                         <option value="finance_admin" selected={detailUser.role === 'finance_admin'}>财务管理员</option>
                         <option value="super_admin" selected={detailUser.role === 'super_admin'}>超级管理员</option>
                       </select>
