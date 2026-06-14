@@ -379,6 +379,8 @@ export default function AdminSettingsPage() {
       const data = await res.json()
       if (data.success) {
         setMessage({ type: 'success', text: '保存成功' })
+        // 保存成功后重新拉取数据，确保输入框显示最新值
+        await fetchSettings()
       } else {
         setMessage({ type: 'error', text: data.error || '保存失败' })
       }
@@ -784,51 +786,6 @@ export default function AdminSettingsPage() {
                 <Plus className="w-4 h-4" />
                 添加 FAQ
               </button>
-            </div>
-          </AccordionSection>
-
-          {/* 轮播图管理 */}
-          <AccordionSection
-            title="轮播图管理"
-            icon={Image}
-            isOpen={!!openSections.banners}
-            onToggle={() => toggleSection('banners')}
-          >
-            <div className="space-y-4">
-              <p className="text-sm text-gray-500">
-                轮播图已迁移至独立管理页面，支持图片上传、拖拽排序等功能。
-              </p>
-              <a
-                href="/admin/banners"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg
-                  hover:bg-blue-700 transition-colors font-medium text-sm"
-              >
-                <ImageIcon className="w-4 h-4" />
-                前往轮播图管理
-              </a>
-              {formData.banners.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-xs text-gray-400 mb-2">当前轮播图预览：</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {formData.banners.map((banner, index) => (
-                      <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50 h-20">
-                        {banner.imageUrl ? (
-                          <Image
-                            src={banner.imageUrl}
-                            alt={banner.title || `轮播图 ${index + 1}`}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-300">
-                            <ImageIcon className="w-6 h-6" />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </AccordionSection>
         </div>
