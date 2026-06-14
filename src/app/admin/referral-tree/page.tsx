@@ -5,7 +5,10 @@ import Link from 'next/link'
 import {
   Network, Search, Loader2, ChevronLeft, Users, RefreshCw, ZoomIn, ZoomOut, Maximize
 } from 'lucide-react'
-import ReactECharts from 'echarts-for-react'
+import dynamic from 'next/dynamic'
+
+// 动态导入 echarts，减少初始加载体积
+const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
 // ---- 类型 ----
 

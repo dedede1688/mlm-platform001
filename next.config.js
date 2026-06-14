@@ -4,18 +4,20 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 构建时忽略 ESLint 错误（ESLint 检查在本地开发流程中已保障代码质量，
-  // 生产构建时避免因 lint 警告升级为错误而导致部署失败）
+  // 构建时忽略 ESLint 错误
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // 增加 Server Actions 和 API Route 的请求体大小限制（支持 base64 多图上传）
+  // 增加 Server Actions 请求体大小限制
   experimental: {
     serverActions: {
       bodySizeLimit: '50mb',
     },
   },
+  // 图片优化配置
   images: {
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 60 * 60 * 24 * 30, // 30天缓存
     remotePatterns: [
       {
         protocol: 'https',
@@ -39,6 +41,14 @@ const nextConfig = {
       },
     ],
   },
+  // 压缩优化
+  compress: true,
+  // 生产环境移除 console
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  // 输出独立追踪文件（用于分析）
+  output: 'standalone',
 }
 
 module.exports = withNextIntl(nextConfig)

@@ -21,7 +21,23 @@ const DEFAULT_SEO_TITLE = "敏维生物·健康商城";
 const DEFAULT_SEO_DESCRIPTION = "敏维生物健康商城，提供优质健康产品，多级分销电商平台";
 const DEFAULT_SEO_KEYWORDS = "健康商城,敏维生物,健康产品,分销平台";
 
+// 缓存 SEO 配置，避免每次请求都查询数据库
+let cachedSeoConfig: { title: string; description: string; keywords: string } | null = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 分钟缓存
+
 export async function generateMetadata(): Promise<Metadata> {
+  const now = Date.now();
+  
+  // 如果缓存有效，直接返回缓存数据
+  if (cachedSeoConfig && now - cacheTimestamp < CACHE_DURATION) {
+    return {
+      title: cachedSeoConfig.title,
+      description: cachedSeoConfig.description,
+      keywords: cachedSeoConfig.keywords,
+    };
+  }
+
   let seoTitle = DEFAULT_SEO_TITLE;
   let seoDescription = DEFAULT_SEO_DESCRIPTION;
   let seoKeywords = DEFAULT_SEO_KEYWORDS;
@@ -36,6 +52,14 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch (error) {
     console.error("获取 SEO 配置失败，使用默认值:", error);
   }
+
+  // 更新缓存
+  cachedSeoConfig = {
+    title: seoTitle,
+    description: seoDescription,
+    keywords: seoKeywords,
+  };
+  cacheTimestamp = now;
 
   return {
     title: seoTitle,
