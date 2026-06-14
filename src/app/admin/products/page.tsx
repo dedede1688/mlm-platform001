@@ -455,10 +455,30 @@ const handleDuplicate = async (product: Product) => {
     const data = await res.json()
     if (data.success && data.data?.id) {
       showMessage('success', `商品已复制：${data.data.name}`)
-      // 跳转到新商品的编辑页
-      setTimeout(() => {
-        window.location.href = `/admin/products/${data.data.id}/edit`
-      }, 500)
+      // 直接在当前页面打开新副本的编辑弹窗（而非跳转到不存在的 /edit 路由）
+      const newId = data.data.id
+      setEditingId(newId)
+      setFormData({
+        name: data.data.name,
+        description: product.description || '',
+        images: Array.isArray(product.images) ? product.images : [],
+        retailPrice: String(product.retailPrice),
+        memberPrice: String(product.memberPrice),
+        stock: '0', // 副本库存归零
+        isUpgradeProduct: product.isUpgradeProduct,
+        maxPointsRatio: String(product.maxPointsRatio),
+        benefits: Array.isArray(product.benefits) ? product.benefits : [],
+        status: 'draft', // 副本默认下架
+        sortOrder: String(product.sortOrder + 1),
+        categoryId: product.categoryId || '',
+        specs: Array.isArray(product.specs) ? product.specs : [],
+        research: product.research || '',
+        videoUrl: product.videoUrl || '',
+      })
+      setNewBenefit('')
+      setShowModal(true)
+      // 刷新列表以显示新副本
+      fetchProducts(token, pagination.page)
     } else {
       showMessage('error', data.error || '复制失败')
     }
