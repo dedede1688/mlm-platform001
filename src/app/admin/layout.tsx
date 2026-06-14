@@ -310,7 +310,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* 底部版权 */}
         <footer className="py-3 text-center text-xs text-gray-400 border-t border-gray-100 flex-shrink-0">
-          © 2026 敏维生物科技
+          © 2026 敏维科技
         </footer>
       </div>
     </div>

@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 });
 
 // 默认 SEO 配置（数据库未配置时的兜底值）
-const DEFAULT_SEO_TITLE = "敏维生物·健康商城";
-const DEFAULT_SEO_DESCRIPTION = "敏维生物健康商城，提供优质健康产品，多级分销电商平台";
-const DEFAULT_SEO_KEYWORDS = "健康商城,敏维生物,健康产品,分销平台";
+const DEFAULT_SEO_TITLE = "敏维科技";
+const DEFAULT_SEO_DESCRIPTION = "敏维科技健康商城，提供优质健康产品，多级分销电商平台";
+const DEFAULT_SEO_KEYWORDS = "健康商城,敏维科技,健康产品,分销平台";
 
 // 缓存 SEO 配置，避免每次请求都查询数据库
 let cachedSeoConfig: { title: string; description: string; keywords: string } | null = null;

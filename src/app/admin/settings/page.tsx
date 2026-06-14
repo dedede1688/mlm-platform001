@@ -178,13 +178,13 @@ interface SettingsData {
 }
 
 const defaultSettings: SettingsData = {
-  siteName: '敏维生物·健康商城',
+  siteName: '敏维科技',
   logoUrl: '/logo.png',
   contactPhone: '18566793066',
-  serviceEmail: 'service@minwei.com',
+  serviceEmail: '381901944@qq.com',
   serviceTime: '周一至周日 9:00-21:00',
-  companyName: '广州敏维生物科技有限公司',
-  companyAddress: '广州市花都区金谷南路9号',
+  companyName: '广州敏维科技有限公司',
+  companyAddress: '广州市花都区金谷南路',
   icp: '粤ICP备XXXXXXXX号',
   copyright: '2026',
   aboutUs: '',

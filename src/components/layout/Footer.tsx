@@ -16,12 +16,12 @@ interface PublicSettings {
 }
 
 const defaultSettings: PublicSettings = {
-  siteName: '敏维生物·健康商城',
+  siteName: '敏维科技',
   logoUrl: '/logo.svg',
   contactPhone: '18566793066',
   serviceTime: '周一至周日 9:00-21:00',
-  companyName: '广州敏维生物科技有限公司',
-  companyAddress: '广州市花都区金谷南路9号',  // 新增
+  companyName: '广州敏维科技有限公司',
+  companyAddress: '广州市花都区金谷南路',  // 新增
   icp: '粤ICP备XXXXXXXX号',
   copyright: '2026',
 }

@@ -19,11 +19,11 @@ interface PublicSettings {
 const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'goods_admin', 'goods_manager', 'finance_admin', 'finance_viewer', 'order_manager', 'user_manager', 'support_admin', 'auditor']
 
 const defaultSettings: PublicSettings = {
-  siteName: '敏维生物·健康商城',
+  siteName: '敏维科技',
   logoUrl: '/logo.svg',  // 兜底使用 svg（项目中已有）
   contactPhone: '18566793066',
   serviceTime: '周一至周日 9:00-21:00',
-  companyName: '广州敏维生物科技有限公司',
+  companyName: '广州敏维科技有限公司',
   icp: '粤ICP备XXXXXXXX号',
   copyright: '2026',
 }

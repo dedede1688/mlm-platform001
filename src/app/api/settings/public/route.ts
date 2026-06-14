@@ -28,12 +28,12 @@ export async function GET() {
       return NextResponse.json({
         success: true,
         data: {
-          siteName: '敏维生物·健康商城',
+          siteName: '敏维科技',
           logoUrl: '',
           contactPhone: '18566793066',
           serviceTime: '周一至周日 9:00-21:00',
-          companyName: '广州敏维生物科技有限公司',
-          companyAddress: '广州市花都区金谷南路9号',
+          companyName: '广州敏维科技有限公司',
+          companyAddress: '广州市花都区金谷南路',
           icp: '粤ICP备XXXXXXXX号',
           copyright: '2026',
           aboutUs: null,
@@ -53,13 +53,13 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: {
-        siteName: config.siteName ?? '敏维生物·健康商城',
+        siteName: config.siteName ?? '敏维科技',
         // logoUrl 为空时前端会用 logo.svg 兜底
         logoUrl: config.logoUrl ?? '',
         contactPhone: config.contactPhone ?? '18566793066',
         serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
-        companyName: config.companyName ?? '广州敏维生物科技有限公司',
-        companyAddress: config.companyAddress ?? '广州市花都区金谷南路9号',
+        companyName: config.companyName ?? '广州敏维科技有限公司',
+        companyAddress: config.companyAddress ?? '广州市花都区金谷南路',
         icp: config.icp ?? '粤ICP备XXXXXXXX号',
         copyright: config.copyright ?? '2026',
         aboutUs: config.aboutUs ?? null,
