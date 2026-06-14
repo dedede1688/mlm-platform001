@@ -88,7 +88,7 @@ export async function POST(
         retailPrice: originalProduct.retailPrice,
         memberPrice: originalProduct.memberPrice,
         stock: 0, // 库存归零
-        isUpgradeProduct: false, // 默认不是升级产品
+        isUpgradeProduct: originalProduct.isUpgradeProduct, // 继承原商品的升级标记
         maxPointsRatio: originalProduct.maxPointsRatio,
         benefits: originalProduct.benefits ? JSON.parse(JSON.stringify(originalProduct.benefits)) : null,
         specs: originalProduct.specs ? JSON.parse(JSON.stringify(originalProduct.specs)) : null,
