@@ -368,7 +368,8 @@ const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
         // 升级产品强制积分抵扣为0；普通产品默认0，最高不超过50
         maxPointsRatio: formData.isUpgradeProduct ? 0 : Math.min(50, parseInt(formData.maxPointsRatio) || 0),
         benefits: formData.benefits.length > 0 ? formData.benefits : null,
-        status: formData.status,
+        // 兜底校验：status 只能是 active 或 inactive（防止 draft 等非法值传入后端被拒绝）
+        status: formData.status === 'active' ? 'active' : 'inactive',
         sortOrder: parseInt(formData.sortOrder) || 0,
         categoryId: formData.categoryId || null,
         specs: formData.specs.filter(s => s.name.trim()).length > 0
