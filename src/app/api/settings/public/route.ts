@@ -34,6 +34,7 @@ export async function GET() {
           siteName: '敏维科技',
           logoUrl: '',
           contactPhone: '18566793066',
+          serviceEmail: '381901944@qq.com',
           serviceTime: '周一至周日 9:00-21:00',
           companyName: '广州敏维科技有限公司',
           companyAddress: '广州市花都区金谷南路',
@@ -60,6 +61,7 @@ export async function GET() {
         // logoUrl 为空时前端会用 logo.svg 兜底
         logoUrl: config.logoUrl ?? '',
         contactPhone: config.contactPhone ?? '18566793066',
+        serviceEmail: config.serviceEmail ?? '381901944@qq.com',
         serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
         companyName: config.companyName ?? '广州敏维科技有限公司',
         companyAddress: config.companyAddress ?? '广州市花都区金谷南路',

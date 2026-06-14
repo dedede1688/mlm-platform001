@@ -8,9 +8,10 @@ interface PublicSettings {
   siteName: string
   logoUrl: string
   contactPhone: string
+  serviceEmail: string
   serviceTime: string
   companyName: string
-  companyAddress: string  // 新增：从后台读取
+  companyAddress: string
   icp: string
   copyright: string
 }
@@ -19,9 +20,10 @@ const defaultSettings: PublicSettings = {
   siteName: '敏维科技',
   logoUrl: '/logo.svg',
   contactPhone: '18566793066',
+  serviceEmail: '381901944@qq.com',
   serviceTime: '周一至周日 9:00-21:00',
   companyName: '广州敏维科技有限公司',
-  companyAddress: '广州市花都区金谷南路',  // 新增
+  companyAddress: '广州市花都区金谷南路',
   icp: '粤ICP备XXXXXXXX号',
   copyright: '2026',
 }
@@ -70,6 +72,10 @@ export default function Footer() {
               <p className="flex items-center gap-2">
                 <Clock className="w-4 h-4 flex-shrink-0" />
                 {loading ? <span className="inline-block h-4 w-36 bg-gray-700 rounded animate-pulse" /> : s.serviceTime}
+              </p>
+              <p className="flex items-center gap-2">
+                <svg className="w-4 h-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                {loading ? <span className="inline-block h-4 w-32 bg-gray-700 rounded animate-pulse" /> : s.serviceEmail}
               </p>
             </div>
           </div>

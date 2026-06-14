@@ -102,6 +102,9 @@ export async function PUT(request: NextRequest) {
     // 调试日志：打印接收到的数据
     console.log('[Settings PUT] Received body:', JSON.stringify(body, null, 2))
 
+    // 辅助函数：trim 字符串值（防止用户输入带空格）
+    const trimVal = (v: string | undefined | null) => (typeof v === 'string' ? v.trim() : v)
+
     const {
       siteName,
       logoUrl,
@@ -132,26 +135,26 @@ export async function PUT(request: NextRequest) {
     })
 
     const updateData = {
-      siteName: siteName ?? undefined,
-      logoUrl: logoUrl ?? undefined,
-      contactPhone: contactPhone ?? undefined,
-      serviceEmail: serviceEmail ?? undefined,
-      serviceTime: serviceTime ?? undefined,
-      companyName: companyName ?? undefined,
-      companyAddress: companyAddress ?? undefined,
-      icp: icp ?? undefined,
-      copyright: copyright ?? undefined,
-      aboutUs: aboutUs ?? undefined,
-      termsHtml: termsHtml ?? undefined,
-      privacyHtml: privacyHtml ?? undefined,
+      siteName: trimVal(siteName),
+      logoUrl: trimVal(logoUrl),
+      contactPhone: trimVal(contactPhone),
+      serviceEmail: trimVal(serviceEmail),
+      serviceTime: trimVal(serviceTime),
+      companyName: trimVal(companyName),
+      companyAddress: trimVal(companyAddress),
+      icp: trimVal(icp),
+      copyright: trimVal(copyright),
+      aboutUs: trimVal(aboutUs),
+      termsHtml: trimVal(termsHtml),
+      privacyHtml: trimVal(privacyHtml),
       helpFaq: helpFaq ?? undefined,
-      seoTitle: seoTitle ?? undefined,
-      seoDescription: seoDescription ?? undefined,
-      seoKeywords: seoKeywords ?? undefined,
-      paymentProvider: paymentProvider ?? undefined,
-      paymentMerchantId: paymentMerchantId ?? undefined,
-      paymentSecret: paymentSecret ?? undefined,
-      paymentNotifyUrl: paymentNotifyUrl ?? undefined,
+      seoTitle: trimVal(seoTitle),
+      seoDescription: trimVal(seoDescription),
+      seoKeywords: trimVal(seoKeywords),
+      paymentProvider: trimVal(paymentProvider),
+      paymentMerchantId: trimVal(paymentMerchantId),
+      paymentSecret: trimVal(paymentSecret),
+      paymentNotifyUrl: trimVal(paymentNotifyUrl),
     }
 
     let config
