@@ -53,11 +53,11 @@ export class UserService {
       allDescendants = await prisma.$queryRaw<Array<{ id: string; parentId: string | null; position: number }>>`
         WITH RECURSIVE subtree AS (
           SELECT id, "parentId", position
-          FROM "User"
+          FROM "users"
           WHERE id = ${referrerId}::uuid
           UNION ALL
           SELECT u.id, u."parentId", u.position
-          FROM "User" u
+          FROM "users" u
           INNER JOIN subtree s ON u."parentId" = s.id
         )
         SELECT id, "parentId", position FROM subtree

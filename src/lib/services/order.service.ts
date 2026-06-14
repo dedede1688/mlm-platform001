@@ -133,7 +133,7 @@ export class OrderService {
       // 如果使用积分，原子扣减积分（防并发透支）
       if (actualPointsUsed > 0) {
         const result = await tx.$queryRaw<{ count: number }[]>`
-          UPDATE "User"
+          UPDATE "users"
           SET "unlockedPoints" = "unlockedPoints" - ${actualPointsUsed}
           WHERE id = ${userId}::uuid AND "unlockedPoints" >= ${actualPointsUsed}
           RETURNING 1 as count

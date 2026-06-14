@@ -10,7 +10,7 @@ export class WithdrawalService {
     const withdrawal = await prisma.$transaction(async (tx) => {
       // 原子扣减余额并增加冻结金额（防并发透支）
       const result = await tx.$queryRaw<{ count: number }[]>`
-        UPDATE "User"
+        UPDATE "users"
         SET balance = balance - ${amount},
             "frozenBalance" = "frozenBalance" + ${amount}
         WHERE id = ${userId}::uuid AND balance >= ${amount}
