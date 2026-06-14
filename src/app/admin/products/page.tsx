@@ -468,7 +468,7 @@ const handleDuplicate = async (product: Product) => {
         isUpgradeProduct: product.isUpgradeProduct,
         maxPointsRatio: String(product.maxPointsRatio),
         benefits: Array.isArray(product.benefits) ? product.benefits : [],
-        status: 'draft', // 副本默认下架
+        status: 'inactive', // 副本默认下架
         sortOrder: String(product.sortOrder + 1),
         categoryId: product.categoryId || '',
         specs: Array.isArray(product.specs) ? product.specs : [],
@@ -480,7 +480,7 @@ const handleDuplicate = async (product: Product) => {
       // 刷新列表以显示新副本
       fetchProducts(token, pagination.page)
     } else {
-      showMessage('error', data.error || '复制失败')
+      showMessage('error', data.message || data.error || '复制失败')
     }
   } catch {
     showMessage('error', '网络错误，请重试')

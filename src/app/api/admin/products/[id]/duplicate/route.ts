@@ -10,7 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
     if (authError || !admin) return authError!
 
     const { id } = await params
@@ -95,7 +95,7 @@ export async function POST(
         research: originalProduct.research,
         images: originalProduct.images ? JSON.parse(JSON.stringify(originalProduct.images)) : null,
         videoUrl: originalProduct.videoUrl,
-        status: 'draft', // 默认下架
+        status: 'inactive', // 副本默认下架（使用 inactive 而非 draft，确保前端兼容）
         sortOrder: originalProduct.sortOrder + 1,
         categoryId: originalProduct.categoryId,
       },
@@ -121,7 +121,7 @@ export async function POST(
   } catch (error) {
     console.error('复制商品失败:', error)
     return NextResponse.json(
-      { success: false, error: '复制商品失败' },
+      { success: false, message: '复制商品失败' },
       { status: 500 }
     )
   }

@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
     const isUpgrade = searchParams.get('isUpgrade')
     const status = searchParams.get('status') || ''
 
-    // 构建查询条件
-    const where: Record<string, unknown> = {}
+    // 构建查询条件（默认排除已软删除的商品）
+    const where: Record<string, unknown> = { status: { not: 'deleted' } }
     if (status) {
       where.status = status
     }
