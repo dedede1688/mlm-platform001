@@ -90,10 +90,10 @@ export async function POST(
         stock: 0, // 库存归零
         isUpgradeProduct: false, // 默认不是升级产品
         maxPointsRatio: originalProduct.maxPointsRatio,
-        benefits: originalProduct.benefits,
-        specs: originalProduct.specs,
+        benefits: originalProduct.benefits ? JSON.parse(JSON.stringify(originalProduct.benefits)) : null,
+        specs: originalProduct.specs ? JSON.parse(JSON.stringify(originalProduct.specs)) : null,
         research: originalProduct.research,
-        images: originalProduct.images,
+        images: originalProduct.images ? JSON.parse(JSON.stringify(originalProduct.images)) : null,
         videoUrl: originalProduct.videoUrl,
         status: 'draft', // 默认下架
         sortOrder: originalProduct.sortOrder + 1,
@@ -102,12 +102,13 @@ export async function POST(
     })
 
     // 4. 记录操作日志
-    await logOperation(
-      admin.id,
-      'duplicate_product',
-      `复制商品: ${originalProduct.name} → ${newProduct.id}`,
-      request
-    )
+    await logOperation({
+      userId: admin.id,
+      action: 'CREATE',
+      module: 'product',
+      targetId: newProduct.id,
+      newValue: { name: newProduct.name, originalId: id },
+    })
 
     return NextResponse.json({
       success: true,

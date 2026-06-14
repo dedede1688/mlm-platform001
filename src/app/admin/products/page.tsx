@@ -6,7 +6,7 @@ import Image from 'next/image'
 import {
   Package, Plus, Search, Edit2, Trash2, Loader2,
   ChevronLeft, ChevronRight, X, Image as ImageIcon, ToggleLeft, ToggleRight,
-  PlusCircle, MinusCircle, Copy
+  PlusCircle, MinusCircle, ClipboardCopy
 } from 'lucide-react'
 import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ImageUpload'
@@ -787,7 +787,7 @@ const handleDuplicate = async (product: Product) => {
                               disabled:opacity-50 disabled:cursor-not-allowed"
                             title="复制商品"
                           >
-                            <Copy className={`w-3.5 h-3.5 ${duplicatingId === product.id ? 'animate-spin' : ''}`} />
+                            <ClipboardCopy className={`w-3.5 h-3.5 ${duplicatingId === product.id ? 'animate-spin' : ''}`} />
                             {duplicatingId === product.id ? '复制中...' : '复制'}
                           </button>
                           <button
