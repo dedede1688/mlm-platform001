@@ -196,6 +196,11 @@ const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
     }
   }, [search, filterUpgrade, filterStatus])
 
+  // 提取纯文本摘要（去除 HTML 标码，用于列表展示）
+  const stripHtmlTags = (html: string): string => {
+    return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
+  }
+
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text })
     setTimeout(() => setMessage(null), 3000)
@@ -735,7 +740,15 @@ const handleDuplicate = async (product: Product) => {
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{product.name}</div>
                         {product.description && (
-                          <div className="text-xs text-gray-400 mt-0.5 line-clamp-1">{product.description}</div>
+                          (() => {
+                            const plainText = stripHtmlTags(product.description)
+                            const summary = plainText.length > 50 ? plainText.slice(0, 50) + '...' : plainText
+                            return (
+                              <div className="text-xs text-gray-400 mt-0.5 line-clamp-1" title={plainText}>
+                                {summary}
+                              </div>
+                            )
+                          })()
                         )}
                       </td>
                       {/* 分类 */}
@@ -788,10 +801,10 @@ const handleDuplicate = async (product: Product) => {
                       </td>
                       {/* 操作 */}
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
                           <button
                             onClick={() => toggleStatus(product)}
-                            className={`inline-flex items-center gap-1 px-2 py-1.5 text-sm rounded-lg transition-colors font-medium ${
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors font-medium ${
                               product.status === 'active'
                                 ? 'text-green-600 hover:bg-green-50'
                                 : 'text-gray-500 hover:bg-gray-50'
@@ -804,7 +817,7 @@ const handleDuplicate = async (product: Product) => {
                           <button
                             onClick={() => handleDuplicate(product)}
                             disabled={duplicatingId === product.id}
-                            className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-gray-600
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600
                               hover:bg-gray-100 rounded-lg transition-colors font-medium
                               disabled:opacity-50 disabled:cursor-not-allowed"
                             title="复制商品"
@@ -814,7 +827,7 @@ const handleDuplicate = async (product: Product) => {
                           </button>
                           <button
                             onClick={() => handleEdit(product)}
-                            className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-blue-600
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600
                               hover:bg-blue-50 rounded-lg transition-colors font-medium"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -822,7 +835,7 @@ const handleDuplicate = async (product: Product) => {
                           </button>
                           <button
                             onClick={() => setDeleteId(product.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-red-600
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600
                               hover:bg-red-50 rounded-lg transition-colors font-medium"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
