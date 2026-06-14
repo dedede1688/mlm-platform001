@@ -9,13 +9,15 @@ interface FaqItem {
   answer: string
 }
 
-const defaultFaqs: FaqItem[] = [
-  { question: "如何注册成为会员？", answer: `点击首页右上角"免费注册"，填写手机号和密码即可。注册后自动成为会员，享受会员价购物和推荐奖励。` },
-  { question: "什么是推荐奖和品牌管理奖？", answer: "推荐奖是直接推荐用户消费的20%；品牌管理奖是安置链下级消费的20%，需成为经销商后才能获得。" },
-  { question: "如何升级为经销商？", answer: "累计购买10件升级产品（品牌产品X），系统自动升级。升级后获得5000积分，并解锁品牌管理奖资格。" },
-  { question: "积分如何使用？", answer: "在购物时可使用积分抵扣，1积分=1元，每件商品有最高抵扣比例（通常50%）。积分也可转赠给其他会员。" },
-  { question: "如何联系客服？", answer: "客服电话：18566793066，服务时间：周一至周日 9:00-21:00。" }
-]
+function getDefaultHelpFaq(): FaqItem[] {
+  return [
+    { question: '如何注册成为会员？', answer: '点击右上角"注册"按钮，填写手机号和验证码即可完成注册。注册成功后即可登录并享受会员权益。' },
+    { question: '什么是推荐奖和品牌管理奖？', answer: '推荐奖：直接推荐用户消费获得的奖励。品牌管理奖：您推荐的用户再推荐他人时，您获得的间接奖励。两种奖励均可提现或抵扣消费。' },
+    { question: '如何升级为经销商？', answer: '累计推荐满 XX 人且自购消费满 XX 元后，可申请升级为经销商。经销商享受更高的佣金比例和团队管理权限。具体条件请联系客服咨询。' },
+    { question: '积分如何使用？', answer: '在购物时可使用积分抵扣，1 积分 = 1 元，每件商品有最高抵扣比例（通常 50%）。积分也可转赠其他会员。积分有效期一般为获得之日起 1 年内有效。' },
+    { question: '如何联系客服？', answer: '客服微信：xxx（请后台设置） | 工作时间：周一至周日 9:00-21:00 | 客服热线：18566793066' },
+  ]
+}
 
 export default function HelpPage() {
   const [faqs, setFaqs] = useState<FaqItem[]>([])
@@ -27,10 +29,10 @@ export default function HelpPage() {
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data) {
-          setFaqs(Array.isArray(data.data.helpFaq) && data.data.helpFaq.length > 0 ? data.data.helpFaq : defaultFaqs)
+          setFaqs((Array.isArray(data.data.helpFaq) && data.data.helpFaq.length > 0) ? data.data.helpFaq : getDefaultHelpFaq())
         }
       })
-      .catch(() => setFaqs(defaultFaqs))
+      .catch(() => setFaqs(getDefaultHelpFaq()))
       .finally(() => setLoading(false))
   }, [])
 

@@ -152,6 +152,31 @@ function getDefaultPrivacyHtml(): string {
   `
 }
 
+function getDefaultHelpFaq(): Array<{ question: string; answer: string }> {
+  return [
+    {
+      question: '如何注册成为会员？',
+      answer: '点击右上角"注册"按钮，填写手机号和验证码即可完成注册。注册成功后即可登录并享受会员权益。',
+    },
+    {
+      question: '什么是推荐奖和品牌管理奖？',
+      answer: '推荐奖：直接推荐用户消费获得的奖励。品牌管理奖：您推荐的用户再推荐他人时，您获得的间接奖励。两种奖励均可提现或抵扣消费。',
+    },
+    {
+      question: '如何升级为经销商？',
+      answer: '累计推荐满 XX 人且自购消费满 XX 元后，可申请升级为经销商。经销商享受更高的佣金比例和团队管理权限。具体条件请联系客服咨询。',
+    },
+    {
+      question: '积分如何使用？',
+      answer: '在购物时可使用积分抵扣，1 积分 = 1 元，每件商品有最高抵扣比例（通常 50%）。积分也可转赠其他会员。积分有效期一般为获得之日起 1 年内有效。',
+    },
+    {
+      question: '如何联系客服？',
+      answer: '客服微信：xxx（请后台设置） | 工作时间：周一至周日 9:00-21:00 | 客服热线：18566793066',
+    },
+  ]
+}
+
 // ---- Logo 上传组件 ----
 function LogoUploader({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [preview, setPreview] = useState<string | null>(value || null)
@@ -486,7 +511,7 @@ export default function AdminSettingsPage() {
   aboutUs: data.data.aboutUs || getDefaultAboutHtml(),
   termsHtml: data.data.termsHtml || getDefaultTermsHtml(),
   privacyHtml: data.data.privacyHtml || getDefaultPrivacyHtml(),
-          helpFaq: Array.isArray(data.data.helpFaq) ? data.data.helpFaq : defaultSettings.helpFaq,
+          helpFaq: (Array.isArray(data.data.helpFaq) && data.data.helpFaq.length > 0) ? data.data.helpFaq : getDefaultHelpFaq(),
           banners: Array.isArray(data.data.banners) ? data.data.banners : defaultSettings.banners,
           seoTitle: data.data.seoTitle ?? defaultSettings.seoTitle,
           seoDescription: data.data.seoDescription ?? defaultSettings.seoDescription,
