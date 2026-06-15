@@ -54,11 +54,11 @@ export class UserService {
         WITH RECURSIVE subtree AS (
           SELECT id, parent_id, position
           FROM "users"
-          WHERE id = '${referrerId.replace(/'/g, "''")}'::uuid
+          WHERE id = '${referrerId.replace(/'/g, "''")}'
           UNION ALL
           SELECT u.id, u.parent_id, u.position
           FROM "users" u
-          INNER JOIN subtree s ON u.parent_id::uuid = s.id::uuid
+          INNER JOIN subtree s ON u.parent_id = s.id
         )
         SELECT id, parent_id, position FROM subtree
       `)
