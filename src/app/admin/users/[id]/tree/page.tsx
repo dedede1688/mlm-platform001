@@ -42,23 +42,22 @@ interface ApiResponse {
   summary?: TreeSummary
 }
 
-// ---- 常量：等级配色（渐变背景 + 主色） ----
+// ---- 常量：8 级等级配色（主色 + 渐变浅色 + 深色边框） ----
 
 const LEVEL_NAMES: Record<number, string> = {
   0: '游客', 1: '会员', 2: '经销商', 3: '主任',
   4: '经理', 5: '总监', 6: '总裁', 7: '董事',
 }
 
-// 每个等级的主色 + 渐变浅色背景
-const LEVEL_PALETTE: Record<number, { color: string; bg: string }> = {
-  0: { color: '#9ca3af', bg: 'rgba(156,163,175,0.12)' },
-  1: { color: '#3b82f6', bg: 'rgba(59,130,246,0.10)' },
-  2: { color: '#22c55e', bg: 'rgba(34,197,94,0.10)' },
-  3: { color: '#eab308', bg: 'rgba(234,179,8,0.12)' },
-  4: { color: '#f97316', bg: 'rgba(249,115,22,0.10)' },
-  5: { color: '#a855f7', bg: 'rgba(168,85,247,0.10)' },
-  6: { color: '#ef4444', bg: 'rgba(239,68,68,0.10)' },
-  7: { color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+const LEVEL_PALETTE: Record<number, { color: string; bg: string; border: string }> = {
+  0: { color: '#9ca3af', bg: '#f3f4f6', border: '#9ca3af' },
+  1: { color: '#3b82f6', bg: '#eff6ff', border: '#60a5fa' },
+  2: { color: '#22c55e', bg: '#f0fdf4', border: '#4ade80' },
+  3: { color: '#eab308', bg: '#fefce8', border: '#facc15' },
+  4: { color: '#f97316', bg: '#fff7ed', border: '#fb923c' },
+  5: { color: '#a855f7', bg: '#faf5ff', border: '#c084fc' },
+  6: { color: '#ef4444', bg: '#fef2f2', border: '#f87171' },
+  7: { color: '#d97706', bg: '#fffbeb', border: '#f59e0b' },
 }
 
 function formatCurrency(n: number): string {
@@ -70,26 +69,32 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// ---- 节点卡片 HTML（三行布局） ----
+// ---- 节点短 ID（取后 4 位） ----
 
-function buildNodeLabel(node: TreeNode): string {
-  const p = LEVEL_PALETTE[node.level] || LEVEL_PALETTE[0]
-  const phoneTail = node.phone.slice(-4)
-  const name = node.nickname || '-'
-  const levelName = LEVEL_NAMES[node.level] || `Lv${node.level}`
-  const childCount = node.children.length
-
-  // 用 rich 文本实现多行卡片样式
-  return `{name|${node.nickname || '未设置'}}{phone|${phoneTail}}{level|${levelName} · ⬇${childCount}}`
+function shortId(phone: string): string {
+  return phone.slice(-4)
 }
 
-// ---- 转换为 ECharts 树数据（竖向 TB 思维导图） ----
+// ---- 转换为 ECharts 树数据（浮窗卡片 v23） ----
 
 function toEChartsTree(node: TreeNode): Record<string, unknown> {
   const p = LEVEL_PALETTE[node.level] || LEVEL_PALETTE[0]
+  const name = node.nickname || '-'
+  const levelName = LEVEL_NAMES[node.level] || `Lv${node.level}`
+  const childCount = node.children.length
+  const sales = formatCurrency(node.directSalesAmount)
+
+  // rich 文本标签：三段式布局
+  // 第1行：彩色圆点 + 短ID（小字）
+  // 第2行：昵称（粗体大字）
+  // 第3行：等级徽章 · 直推数 · 业绩
+  const labelStr =
+    `{dot|●}{sid|${shortId(node.phone)}}\n` +
+    `{name|${name}}\n` +
+    `{badge|${levelName} · ⬇${childCount} · ${sales}}`
 
   return {
-    name: buildNodeLabel(node),
+    name: labelStr,
     value: node.level,
     data: {
       id: node.id,
@@ -103,37 +108,60 @@ function toEChartsTree(node: TreeNode): Record<string, unknown> {
       childCount: node.children.length,
     },
     symbol: 'roundRect',
-    symbolSize: [130, 56],
+    symbolSize: [200, 90],           // ✅ 浮窗卡片尺寸
     itemStyle: {
-      color: p.bg,
-      borderColor: p.color,
-      borderWidth: 1.5,
-      borderRadius: 8,
+      color: p.bg,                   // ✅ 浅色渐变背景
+      borderColor: p.border,         // ✅ 彩色边框
+      borderWidth: 2,
+      borderRadius: 12,              // ✅ 圆角 12px
+      shadowColor: 'rgba(0,0,0,0.12)', // ✅ 阴影（立体感）
+      shadowBlur: 12,
+      shadowOffsetX: 0,
+      shadowOffsetY: 4,
     },
     label: {
       show: true,
       position: 'inside',
+      verticalAlign: 'middle',
+      align: 'center',
       formatter: (params: { name: string }) => params.name,
       rich: {
+        dot: {
+          fontSize: 10,
+          color: p.color,
+          lineHeight: 18,
+          width: 14,
+        },
+        sid: {
+          fontSize: 11,
+          color: '#9ca3af',
+          lineHeight: 18,
+        },
         name: {
-          fontSize: 13,
+          fontSize: 15,
           fontWeight: 'bold',
-          color: '#1f2937',
-          lineHeight: 20,
-          width: 110,
+          color: '#111827',
+          lineHeight: 24,
+          width: 180,
           overflow: 'truncate',
         },
-        phone: {
-          fontSize: 11,
+        badge: {
+          fontSize: 10,
           color: '#6b7280',
           lineHeight: 18,
         },
-        level: {
-          fontSize: 10,
-          color: '#9ca3af',
-          lineHeight: 16,
-        },
       },
+    },
+    emphasis: {
+      itemStyle: {
+        shadowColor: 'rgba(0,0,0,0.25)',
+        shadowBlur: 20,
+        shadowOffsetY: 8,            // ✅ 悬停上浮效果
+        borderColor: p.color,
+        borderWidth: 2.5,
+      },
+      scale: true,
+      scaleSize: 5,
     },
     children: node.children.map(c => toEChartsTree(c)),
   }
@@ -166,7 +194,7 @@ function buildTooltipHtml(d: {
   const body = rows.map(([label, value]) =>
     `<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">${label}</span><span style="font-weight:500">${value}</span></div>`
   ).join('')
-  return `<div style="font-size:13px;line-height:1.7;min-width:200px">
+  return `<div style="font-size:13px;line-height:1.7;min-width:220px">
     <div style="font-weight:600;font-size:14px;margin-bottom:4px;border-bottom:1px solid #e5e7eb;padding-bottom:4px">${name}</div>
     ${body}
     <div style="margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;text-align:center;color:#9ca3af;font-size:11px">点击查看详情</div>
@@ -187,10 +215,7 @@ function NodeDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* 头部 - 等级渐变色 */}
         <div className="px-6 py-5 text-white" style={{ background: `linear-gradient(135deg, ${p.color}, ${p.color}cc)` }}>
           <div className="flex items-start justify-between">
@@ -311,7 +336,7 @@ export default function ReferralTreePage() {
     chart.setOption({ series: [{ zoom: 1, center: undefined }] })
   }
 
-  // ---- ECharts 配置（竖向 TB 思维导图） ----
+  // ---- ECharts 配置（v23 终极版：浮窗卡片 + TB 思维导图） ----
 
   const chartOption = useMemo(() => {
     if (!tree) return {}
@@ -323,7 +348,7 @@ export default function ReferralTreePage() {
         borderWidth: 1,
         padding: [12, 16],
         textStyle: { color: '#374151' },
-        extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-radius: 8px;',
+        extraCssText: 'box-shadow: 0 6px 20px rgba(0,0,0,0.12); border-radius: 10px;',
         formatter: (params: { data: Record<string, unknown>; treeAncestors?: unknown[] }) => {
           const d = params.data as unknown as {
             id: string; phone: string; nickname: string | null; level: number
@@ -341,28 +366,28 @@ export default function ReferralTreePage() {
           data: [toEChartsTree(tree)],
           top: '2%',
           bottom: '2%',
-          left: '15%',
-          right: '15%',
+          left: '18%',
+          right: '18%',
           orient: 'TB',                    // ✅ 竖向 top → bottom
           layout: 'orthogonal',
           edgeShape: 'curve',             // ✅ 曲线连线
           edgeForkPosition: '63%',         // 分叉位置
-          nodeGap: 12,                     // ✅ 紧凑间距
+          nodeGap: 18,                     // ✅ 横向间距紧凑
           initialTreeDepth: -1,           // ✅ 全部展开
           expandAndCollapse: true,
           animationDuration: 550,
           animationDurationUpdate: 750,
           lineStyle: {
-            color: '#cbd5e1',            // ✅ 淡灰线条
-            width: 1.5,
+            color: '#94a3b8',            // ✅ 中灰线条
+            width: 2,                      // ✅ 加粗
             curveness: 0.5,
           },
           emphasis: {
             focus: 'descendant',
           },
           blur: {
-            itemStyle: { opacity: 0.4 },
-            lineStyle: { opacity: 0.15 },
+            itemStyle: { opacity: 0.35 },
+            lineStyle: { opacity: 0.12 },
           },
           label: {
             position: 'inside',
@@ -396,7 +421,7 @@ export default function ReferralTreePage() {
     return null
   }
 
-  // ---- 刷新按钮 ----
+  // 刷新按钮
   const handleReload = () => {
     if (token && userId) {
       setLoading(true)
@@ -517,7 +542,7 @@ export default function ReferralTreePage() {
               {name}
             </span>
           ))}
-          <span className="ml-2 text-gray-400">| 💡 单击查看详情 · 竖向思维导图</span>
+          <span className="ml-2 text-gray-400">| 💡 单击查看详情 · 浮窗卡片版</span>
         </div>
       </div>
 
@@ -537,7 +562,7 @@ export default function ReferralTreePage() {
           <ReactECharts
             ref={chartRef}
             option={chartOption}
-            style={{ height: '700px', width: '100%' }}
+            style={{ height: '800px', width: '100%' }}
             opts={{ renderer: 'canvas' }}
             onEvents={{ click: handleChartClick }}
           />
