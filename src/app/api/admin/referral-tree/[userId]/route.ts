@@ -11,6 +11,10 @@ interface TreeNode {
   level: number
   avatarUrl: string | null
   totalPoints: number
+  directSalesAmount: number
+  orderCount: number
+  teamCount: number
+  createdAt: string
   children: TreeNode[]
 }
 
@@ -21,7 +25,9 @@ interface FlatUser {
   level: number
   avatarUrl: string | null
   totalPoints: number
+  directSalesAmount: number
   referrerId: string | null
+  createdAt: Date
 }
 
 const MAX_NODES = 1000
@@ -50,7 +56,9 @@ export async function GET(
         level: true,
         avatarUrl: true,
         totalPoints: true,
+        directSalesAmount: true,
         referrerId: true,
+        createdAt: true,
       },
     })
 
@@ -62,7 +70,6 @@ export async function GET(
     }
 
     // 一次性查询所有以该用户为祖先的用户（通过 referrerId 逐级追溯）
-    // 策略：反复查询，每轮找出上一轮用户的直接推荐人，直到达到 maxLevel 或无更多用户
     const allUsers: FlatUser[] = [rootUser as FlatUser]
     const visitedIds = new Set<string>([userId])
     let currentLevelIds = [userId]
@@ -71,7 +78,6 @@ export async function GET(
     for (let depth = 0; depth < maxLevel; depth++) {
       if (currentLevelIds.length === 0) break
 
-      // 查询这些用户的直接下级
       const nextLevel = await prisma.user.findMany({
         where: {
           referrerId: { in: currentLevelIds },
@@ -83,14 +89,15 @@ export async function GET(
           level: true,
           avatarUrl: true,
           totalPoints: true,
+          directSalesAmount: true,
           referrerId: true,
+          createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
       })
 
       if (nextLevel.length === 0) break
 
-      // 检查节点数量上限
       const remaining = MAX_NODES - allUsers.length
       if (remaining <= 0) {
         truncated = true
@@ -113,6 +120,23 @@ export async function GET(
       currentLevelIds = toAdd.map(u => u.id)
     }
 
+    // 批量查询每个用户的订单数
+    const allUserIds = allUsers.map(u => u.id)
+    const orderCounts = await prisma.order.groupBy({
+      by: ['userId'],
+      where: { userId: { in: allUserIds }, status: { not: 'cancelled' } },
+      _count: { id: true },
+    })
+    const orderCountMap = new Map(orderCounts.map(o => [o.userId, o._count.id]))
+
+    // 批量查询每个用户的直接推荐人数（teamCount）
+    const referralCounts = await prisma.user.groupBy({
+      by: ['referrerId'],
+      where: { referrerId: { in: allUserIds } },
+      _count: { id: true },
+    })
+    const teamCountMap = new Map(referralCounts.map(r => [r.referrerId, r._count.id]))
+
     // 在内存中构建树
     const nodeMap = new Map<string, TreeNode>()
     for (const u of allUsers) {
@@ -123,6 +147,10 @@ export async function GET(
         level: u.level,
         avatarUrl: u.avatarUrl,
         totalPoints: u.totalPoints,
+        directSalesAmount: u.directSalesAmount,
+        orderCount: orderCountMap.get(u.id) ?? 0,
+        teamCount: teamCountMap.get(u.id) ?? 0,
+        createdAt: u.createdAt.toISOString(),
         children: [],
       })
     }
@@ -143,6 +171,12 @@ export async function GET(
       data: TreeNode | null
       truncated?: boolean
       nodeCount?: number
+      summary?: {
+        totalTeam: number
+        totalSales: number
+        totalOrders: number
+        maxLevelReached: number
+      }
     } = {
       success: true,
       data: root,
@@ -153,6 +187,16 @@ export async function GET(
       response.nodeCount = allUsers.length
     }
 
+    // 计算摘要信息（根用户的整个团队）
+    if (root) {
+      response.summary = {
+        totalTeam: countNodes(root) - 1, // 排除自己
+        totalSales: sumDirectSales(root),
+        totalOrders: sumOrderCounts(root),
+        maxLevelReached: getMaxDepth(root),
+      }
+    }
+
     return NextResponse.json(response)
   } catch (error) {
     console.error('获取推荐树失败:', error)
@@ -161,4 +205,26 @@ export async function GET(
       { status: 500 }
     )
   }
+}
+
+// ---- 辅助函数 ----
+
+function countNodes(node: TreeNode): number {
+  if (!node) return 0
+  return 1 + node.children.reduce((sum, c) => sum + countNodes(c), 0)
+}
+
+function sumDirectSales(node: TreeNode): number {
+  if (!node) return 0
+  return node.directSalesAmount + node.children.reduce((sum, c) => sum + sumDirectSales(c), 0)
+}
+
+function sumOrderCounts(node: TreeNode): number {
+  if (!node) return 0
+  return node.orderCount + node.children.reduce((sum, c) => sum + sumOrderCounts(c), 0)
+}
+
+function getMaxDepth(node: TreeNode, depth = 1): number {
+  if (!node || node.children.length === 0) return depth
+  return Math.max(...node.children.map(c => getMaxDepth(c, depth + 1)))
 }
