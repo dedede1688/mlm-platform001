@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Network, Loader2, ChevronLeft, ChevronRight, ChevronDown, Users
+  Network, Search, Loader2, ChevronLeft, Users, RefreshCw,
+  ZoomIn, ZoomOut, Maximize, ChevronDown, ChevronRight,
+  TrendingUp, ShoppingCart, Calendar, X
 } from 'lucide-react'
+import ReactECharts from 'echarts-for-react'
 
 // ---- 类型 ----
 
@@ -14,8 +17,32 @@ interface TreeNode {
   phone: string
   nickname: string | null
   level: number
+  avatarUrl: string | null
+  totalPoints: number
+  directSalesAmount: number
+  orderCount: number
+  teamCount: number
+  createdAt: string
   children: TreeNode[]
 }
+
+interface TreeSummary {
+  totalTeam: number
+  totalSales: number
+  totalOrders: number
+  maxLevelReached: number
+}
+
+interface ApiResponse {
+  success: boolean
+  data: TreeNode | null
+  error?: string
+  truncated?: boolean
+  nodeCount?: number
+  summary?: TreeSummary
+}
+
+// ---- 常量 ----
 
 const LEVEL_NAMES: Record<number, string> = {
   0: '游客', 1: '会员', 2: '经销商', 3: '主任',
@@ -23,79 +50,184 @@ const LEVEL_NAMES: Record<number, string> = {
 }
 
 const LEVEL_COLORS: Record<number, string> = {
-  0: 'bg-gray-100 text-gray-600 border-gray-200',
-  1: 'bg-blue-50 text-blue-700 border-blue-200',
-  2: 'bg-green-50 text-green-700 border-green-200',
-  3: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  4: 'bg-orange-50 text-orange-700 border-orange-200',
-  5: 'bg-purple-50 text-purple-700 border-purple-200',
-  6: 'bg-red-50 text-red-700 border-red-200',
-  7: 'bg-amber-50 text-amber-800 border-amber-200',
+  0: '#9ca3af', 1: '#3b82f6', 2: '#22c55e', 3: '#eab308',
+  4: '#f97316', 5: '#a855f7', 6: '#ef4444', 7: '#d97706',
 }
 
-const LEVEL_DOT_COLORS: Record<number, string> = {
-  0: 'bg-gray-400', 1: 'bg-blue-500', 2: 'bg-green-500', 3: 'bg-yellow-500',
-  4: 'bg-orange-500', 5: 'bg-purple-500', 6: 'bg-red-500', 7: 'bg-amber-600',
+function formatCurrency(n: number): string {
+  return `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// ---- 递归树节点组件 ----
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
-function TreeNodeItem({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
-  const [expanded, setExpanded] = useState(depth < 2)
-  const hasChildren = node.children.length > 0
+// ---- 转换为 ECharts 树数据 ----
+
+function toEChartsTree(node: TreeNode): Record<string, unknown> {
+  const color = LEVEL_COLORS[node.level] || '#6b7280'
+  const name = node.nickname
+    ? `${node.nickname}\n${node.phone}`
+    : node.phone
+
+  return {
+    name,
+    value: node.level,
+    data: {
+      id: node.id,
+      phone: node.phone,
+      nickname: node.nickname,
+      level: node.level,
+      directSalesAmount: node.directSalesAmount,
+      orderCount: node.orderCount,
+      teamCount: node.teamCount,
+      createdAt: node.createdAt,
+      childCount: node.children.length,
+    },
+    itemStyle: { borderColor: color, color: '#fff', borderWidth: 2 },
+    label: {
+      color,
+      fontSize: 12,
+      fontWeight: 500,
+    },
+    children: node.children.map(c => toEChartsTree(c)),
+  }
+}
+
+// ---- 统计节点 ----
+
+function countNodes(node: TreeNode | null): number {
+  if (!node) return 0
+  return 1 + node.children.reduce((sum, c) => sum + countNodes(c), 0)
+}
+
+// ---- Tooltip 格式化器 ----
+
+function buildTooltipHtml(d: {
+  id: string; phone: string; nickname: string | null; level: number
+  directSalesAmount: number; orderCount: number; teamCount: number
+  createdAt: string; childCount: number
+}, depth: number): string {
+  const lv = d.level
+  const name = (d.nickname || d.phone).replace(/\n/g, ' ')
+  const rows = [
+    ['等级', LEVEL_NAMES[lv] || String(lv)],
+    ['层级', `第 ${depth} 层`],
+    ['累计业绩', formatCurrency(d.directSalesAmount)],
+    ['订单数', String(d.orderCount)],
+    ['团队人数', String(d.teamCount)],
+    ['注册时间', formatDate(d.createdAt)],
+  ]
+  const body = rows.map(([label, value]) =>
+    `<div style="display:flex;justify-content:space-between"><span style="color:#6b7280">${label}</span><span style="font-weight:500">${value}</span></div>`
+  ).join('')
+  return `<div style="font-size:13px;line-height:1.7;min-width:200px">
+    <div style="font-weight:600;font-size:14px;margin-bottom:4px;border-bottom:1px solid #e5e7eb;padding-bottom:4px">${name}</div>
+    ${body}
+    <div style="margin-top:4px;padding-top:4px;border-top:1px dashed #e5e7eb;text-align:center;color:#9ca3af;font-size:11px">点击查看详情 / 双击折叠展开</div>
+  </div>`
+}
+
+// ---- 节点详情弹窗 ----
+
+function NodeDetailModal({
+  node,
+  onClose,
+}: {
+  node: NonNullable<ApiResponse['data']>
+  onClose: () => void
+}) {
+  if (!node) return null
 
   return (
-    <div className="ml-0">
-      <div className={`flex items-center gap-2 py-1.5 ${depth > 0 ? 'ml-6 border-l-2 border-gray-200 pl-4' : ''}`}>
-        {/* 展开/折叠 */}
-        {hasChildren ? (
-          <button onClick={() => setExpanded(!expanded)}
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 transition-colors flex-shrink-0">
-            {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-          </button>
-        ) : (
-          <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-          </span>
-        )}
-        {/* 节点内容 */}
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${LEVEL_COLORS[node.level] || 'bg-gray-50 border-gray-200'}`}>
-          <span className={`w-2 h-2 rounded-full ${LEVEL_DOT_COLORS[node.level] || 'bg-gray-400'}`} />
-          <span className="text-sm font-medium">{node.phone}</span>
-          {node.nickname && <span className="text-xs opacity-70">({node.nickname})</span>}
-          <span className="text-xs px-1.5 py-0.5 rounded bg-white/60 font-medium">{LEVEL_NAMES[node.level]}</span>
-          {hasChildren && <span className="text-xs opacity-60">[{node.children.length}]</span>}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-5 text-white">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-bold">
+                {node.nickname || node.phone}
+              </h3>
+              <p className="text-purple-100 text-sm mt-0.5">{node.phone}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-white/20 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/20">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: LEVEL_COLORS[node.level] }}
+            />
+            {LEVEL_NAMES[node.level] || `Lv${node.level}`}
+          </div>
+        </div>
+
+        {/* 业务数据 */}
+        <div className="p-6 space-y-4">
+          {/* 累计业绩 */}
+          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-200">
+            <div className="p-2 bg-green-500 rounded-lg">
+              <TrendingUp className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-green-600">累计业绩</p>
+              <p className="text-lg font-bold text-green-800">{formatCurrency(node.directSalesAmount)}</p>
+            </div>
+          </div>
+
+          {/* 数据网格 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-1.5 mb-1">
+                <ShoppingCart className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-500">订单数</span>
+              </div>
+              <p className="text-base font-bold text-gray-900">{node.orderCount}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Users className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-500">团队人数</span>
+              </div>
+              <p className="text-base font-bold text-gray-900">{node.teamCount}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-500">注册时间</span>
+              </div>
+              <p className="text-sm font-medium text-gray-900">{formatDate(node.createdAt)}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Network className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-500">直接下级</span>
+              </div>
+              <p className="text-base font-bold text-gray-900">{node.children?.length ?? 0}</p>
+            </div>
+          </div>
+
+          {/* 积分 */}
+          <div className="pt-2 border-t border-gray-100 flex justify-between text-sm text-gray-500">
+            <span>总积分</span>
+            <span className="font-medium text-gray-700">{node.totalPoints.toLocaleString()}</span>
+          </div>
         </div>
       </div>
-      {/* 子节点 */}
-      {expanded && hasChildren && (
-        <div>
-          {node.children.map(child => (
-            <TreeNodeItem key={child.id} node={child} depth={depth + 1} />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
 
-// ---- 图例 ----
-
-function Legend() {
-  return (
-    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-      <span className="font-medium text-gray-700">等级图例：</span>
-      {Object.entries(LEVEL_NAMES).map(([lv, name]) => (
-        <span key={lv} className="inline-flex items-center gap-1">
-          <span className={`w-2 h-2 rounded-full ${LEVEL_DOT_COLORS[Number(lv)]}`} />
-          {name}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-// ---- 主页面 ----
+// ---- 主组件 ----
 
 export default function ReferralTreePage() {
   const params = useParams()
@@ -103,10 +235,18 @@ export default function ReferralTreePage() {
 
   const [token, setToken] = useState<string | null>(null)
   const [tree, setTree] = useState<TreeNode | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [truncated, setTruncated] = useState(false)
+  const [nodeCount, setNodeCount] = useState(0)
+  const [summary, setSummary] = useState<TreeSummary | null>(null)
+  const [maxLevel, setMaxLevel] = useState(3)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // 获取 token
+  // 详情弹窗状态
+  const [detailNode, setDetailNode] = useState<TreeNode | null>(null)
+
+  const chartRef = useRef<ReactECharts>(null)
+
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
     if (storedToken) {
@@ -114,87 +254,333 @@ export default function ReferralTreePage() {
     }
   }, [])
 
-  // 加载树数据
+  // ---- 加载树（自动用 params.id） ----
+
   useEffect(() => {
-    if (!token) return
-    const fetchTree = async () => {
-      setLoading(true)
-      setError('')
+    if (!token || !userId) return
+    setLoading(true)
+    setError('')
+    setTree(null)
+    setSummary(null)
+    setDetailNode(null)
+
+    const loadTree = async () => {
       try {
-        const res = await fetch(`/api/admin/users/${userId}/referral-tree`, {
+        const res = await fetch(`/api/admin/referral-tree/${userId}?maxLevel=${maxLevel}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
-        const data = await res.json()
+        const data: ApiResponse = await res.json()
         if (data.success) {
           setTree(data.data)
+          setTruncated(data.truncated || false)
+          setNodeCount(data.nodeCount || countNodes(data.data))
+          if (data.summary) setSummary(data.summary)
         } else {
-          setError(data.message || '获取推荐树失败')
+          setError(data.error || '获取推荐树失败')
         }
       } catch {
-        setError('网络错误')
+        setError('网络错误，请重试')
       } finally {
         setLoading(false)
       }
     }
-    fetchTree()
-  }, [token, userId])
+    loadTree()
+  }, [token, userId, maxLevel])
 
-  // 统计节点数
-  const countNodes = (node: TreeNode | null): number => {
-    if (!node) return 0
-    return 1 + node.children.reduce((sum, c) => sum + countNodes(c), 0)
+  // ---- 缩放控制 ----
+
+  const handleZoom = (delta: number) => {
+    const chart = chartRef.current?.getEchartsInstance()
+    if (!chart) return
+    const option = chart.getOption() as { series: { zoom: number }[] }
+    const currentZoom = option?.series?.[0]?.zoom ?? 1
+    chart.setOption({ series: [{ zoom: currentZoom + delta }] })
   }
 
+  const handleReset = () => {
+    const chart = chartRef.current?.getEchartsInstance()
+    if (!chart) return
+    chart.setOption({ series: [{ zoom: 1, center: undefined }] })
+  }
+
+  // ---- ECharts 配置 ----
+
+  const chartOption = useMemo(() => {
+    if (!tree) return {}
+    return {
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: '#fff',
+        borderColor: '#e5e7eb',
+        borderWidth: 1,
+        padding: [12, 16],
+        textStyle: { color: '#374151' },
+        extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-radius: 8px;',
+        formatter: (params: { data: Record<string, unknown>; treeAncestors?: unknown[] }) => {
+          const d = params.data as unknown as {
+            id: string; phone: string; nickname: string | null; level: number
+            directSalesAmount: number; orderCount: number; teamCount: number
+            createdAt: string; childCount: number
+          } | undefined
+          if (!d?.id) return ''
+          const depth = params.treeAncestors?.length ?? 1
+          return buildTooltipHtml(d, depth)
+        },
+      },
+      series: [
+        {
+          type: 'tree',
+          data: [toEChartsTree(tree)],
+          top: '5%',
+          left: '12%',
+          bottom: '5%',
+          right: '20%',
+          symbolSize: 10,
+          orient: 'LR',
+          label: {
+            position: 'left',
+            verticalAlign: 'middle',
+            align: 'right',
+            fontSize: 12,
+            fontWeight: 500,
+          },
+          leaves: {
+            label: {
+              position: 'right',
+              verticalAlign: 'middle',
+              align: 'left',
+            },
+          },
+          emphasis: {
+            focus: 'descendant',
+          },
+          expandAndCollapse: true,
+          animationDuration: 550,
+          animationDurationUpdate: 750,
+          initialTreeDepth: 2,
+          lineStyle: {
+            color: '#d1d5db',
+            width: 1.5,
+            curveness: 0.5,
+          },
+        },
+      ],
+    }
+  }, [tree])
+
+  // ---- ECharts 点击事件 ----
+
+  const handleChartClick = (params: { data?: Record<string, unknown> }) => {
+    const d = params.data as unknown as { id: string } | undefined
+    if (d?.id) {
+      const found = findNodeById(tree, d.id)
+      if (found) setDetailNode(found)
+    }
+  }
+
+  function findNodeById(node: TreeNode | null, id: string): TreeNode | null {
+    if (!node) return null
+    if (node.id === id) return node
+    for (const child of node.children) {
+      const found = findNodeById(child, id)
+      if (found) return found
+    }
+    return null
+  }
+
+  // ---- 渲染 ----
   return (
     <>
       {/* 标题 */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/admin/users" className="text-gray-400 hover:text-gray-600 transition-colors">
           <ChevronLeft className="w-5 h-5" />
-          </Link>
-          <Network className="w-6 h-6 text-purple-600" />
-          <h1 className="text-2xl font-bold text-gray-900">推荐关系树</h1>
-          {tree && (
-            <span className="text-sm text-gray-500 ml-2">（共 {countNodes(tree)} 人，最多 3 层）</span>
-          )}
-        </div>
+        </Link>
+        <Network className="w-6 h-6 text-purple-600" />
+        <h1 className="text-2xl font-bold text-gray-900">推荐关系图</h1>
+      </div>
 
-        {/* 图例 */}
-        <div className="bg-white rounded-xl shadow-lg p-4 mb-6">
-          <Legend />
-        </div>
+      {/* 层级选择 */}
+      <div className="bg-white rounded-xl shadow-lg p-4 mb-4 flex items-center gap-4">
+        <span className="text-sm text-gray-700">展示层级：</span>
+        <select
+          value={maxLevel}
+          onChange={e => setMaxLevel(Number(e.target.value))}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+        >
+          {[1, 2, 3, 4, 5].map(n => (
+            <option key={n} value={n}>{n} 层</option>
+          ))}
+        </select>
+        <button
+          onClick={() => {
+            if (token && userId) {
+              setLoading(true)
+              setError('')
+              fetch(`/api/admin/referral-tree/${userId}?maxLevel=${maxLevel}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+                .then(r => r.json())
+                .then((data: ApiResponse) => {
+                  if (data.success) {
+                    setTree(data.data)
+                    setTruncated(data.truncated || false)
+                    setNodeCount(data.nodeCount || countNodes(data.data))
+                    if (data.summary) setSummary(data.summary)
+                  } else {
+                    setError(data.error || '获取推荐树失败')
+                  }
+                })
+                .catch(() => setError('网络错误'))
+                .finally(() => setLoading(false))
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          刷新
+        </button>
+      </div>
 
-        {/* 树内容 */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-500">加载中...</span>
+      {/* ===== 顶部摘要条 ===== */}
+      {summary && (
+        <div className="bg-gradient-to-r from-purple-50 via-blue-50 to-emerald-50 rounded-xl shadow-lg p-5 mb-4 border border-purple-100">
+          <div className="flex items-center gap-2 mb-3">
+            <Network className="w-5 h-5 text-purple-600" />
+            <span className="text-sm font-semibold text-purple-800">团队概览</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 text-center border border-white shadow-sm">
+              <div className="flex items-center justify-center gap-1 mb-1">
+                <Users className="w-4 h-4 text-blue-500" />
+                <span className="text-xs text-gray-500">团队总人数</span>
+              </div>
+              <p className="text-xl font-bold text-gray-900">{summary.totalTeam}</p>
             </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-20 text-red-500">
-              <Network className="w-12 h-12 mb-3 opacity-50" />
-              <p>{error}</p>
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 text-center border border-white shadow-sm">
+              <div className="flex items-center justify-center gap-1 mb-1">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs text-gray-500">团队总业绩</span>
+              </div>
+              <p className="text-xl font-bold text-emerald-600">{formatCurrency(summary.totalSales)}</p>
             </div>
-          ) : tree ? (
-            <div className="space-y-0">
-              <TreeNodeItem node={tree} />
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 text-center border border-white shadow-sm">
+              <div className="flex items-center justify-center gap-1 mb-1">
+                <ShoppingCart className="w-4 h-4 text-orange-500" />
+                <span className="text-xs text-gray-500">订单总数</span>
+              </div>
+              <p className="text-xl font-bold text-orange-600">{summary.totalOrders}</p>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-              <Users className="w-12 h-12 mb-3" />
-              <p>暂无数据</p>
+            <div className="bg-white/80 backdrop-blur rounded-lg p-3 text-center border border-white shadow-sm">
+              <div className="flex items-center justify-center gap-1 mb-1">
+                <ChevronRight className="w-4 h-4 text-purple-500" />
+                <span className="text-xs text-gray-500">最深层级</span>
+              </div>
+              <p className="text-xl font-bold text-purple-600">第 {summary.maxLevelReached} 层</p>
             </div>
-          )}
+          </div>
         </div>
+      )}
 
-        {/* 返回按钮 */}
-        <div className="flex justify-center mt-6">
-          <Link href="/admin/users"
-            className="inline-flex items-center gap-2 px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">
-            <ChevronLeft className="w-4 h-4" />返回会员管理
-          </Link>
+      {/* 状态栏 */}
+      {tree && (
+        <div className="bg-white rounded-xl shadow-lg p-4 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Users className="w-5 h-5 text-purple-600" />
+            <span className="text-sm text-gray-700">
+              共 {nodeCount} 人，{maxLevel} 层
+            </span>
+            {truncated && (
+              <span className="text-xs px-2 py-0.5 rounded bg-yellow-50 text-yellow-700 border border-yellow-200">
+                节点过多，仅显示部分
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleZoom(0.2)}
+              className="p-1.5 rounded border border-gray-300 hover:bg-gray-50 transition-colors"
+              title="放大"
+            >
+              <ZoomIn className="w-4 h-4 text-gray-600" />
+            </button>
+            <button
+              onClick={() => handleZoom(-0.2)}
+              className="p-1.5 rounded border border-gray-300 hover:bg-gray-50 transition-colors"
+              title="缩小"
+            >
+              <ZoomOut className="w-4 h-4 text-gray-600" />
+            </button>
+            <button
+              onClick={handleReset}
+              className="p-1.5 rounded border border-gray-300 hover:bg-gray-50 transition-colors"
+              title="重置视图"
+            >
+              <Maximize className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
         </div>
+      )}
+
+      {/* 图例 */}
+      <div className="bg-white rounded-xl shadow-lg p-4 mb-4">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+          <span className="font-medium text-gray-700">等级图例：</span>
+          {Object.entries(LEVEL_NAMES).map(([lv, name]) => (
+            <span key={lv} className="inline-flex items-center gap-1.5">
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: LEVEL_COLORS[Number(lv)] }}
+              />
+              {name}
+            </span>
+          ))}
+          <span className="ml-2 text-gray-400">| 💡 单击查看详情 · 双击折叠/展开</span>
+        </div>
+      </div>
+
+      {/* 图表区域 */}
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-32">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            <span className="ml-2 text-gray-500">加载推荐树...</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-32 text-red-500">
+            <Network className="w-12 h-12 mb-3 opacity-50" />
+            <p>{error}</p>
+          </div>
+        ) : tree ? (
+          <ReactECharts
+            ref={chartRef}
+            option={chartOption}
+            style={{ height: '650px', width: '100%' }}
+            opts={{ renderer: 'canvas' }}
+            onEvents={{
+              click: handleChartClick,
+            }}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-32 text-gray-400">
+            <Network className="w-12 h-12 mb-3" />
+            <p>暂无推荐数据</p>
+          </div>
+        )}
+      </div>
+
+      {/* 返回按钮 */}
+      <div className="flex justify-center mt-6">
+        <Link href="/admin/users"
+          className="inline-flex items-center gap-2 px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+          <ChevronLeft className="w-4 h-4" />返回会员管理
+        </Link>
+      </div>
+
+      {/* 节点详情弹窗 */}
+      {detailNode && (
+        <NodeDetailModal node={detailNode} onClose={() => setDetailNode(null)} />
+      )}
     </>
   )
 }
