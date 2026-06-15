@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 执行转赠
-    const result = await PointsService.transferPoints(user.userId, toUser.id, points, feePercent)
+    const result = await PointsService.transferPoints(user.userId, toUser.id, points, `积分转赠（手续费 ${feePercent}%）`)
 
     return NextResponse.json({
       success: true,

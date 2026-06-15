@@ -9,13 +9,13 @@ export class WithdrawalService {
     // 使用事务保证原子性：原子扣减余额 + 创建提现记录
     const withdrawal = await prisma.$transaction(async (tx) => {
       // 原子扣减余额并增加冻结金额（防并发透支）
-      const result = await tx.$queryRaw<{ count: number }[]>`
+      const result = await tx.$queryRawUnsafe<{ count: number }[]>(`
         UPDATE "users"
         SET balance = balance - ${amount},
             "frozen_balance" = "frozen_balance" + ${amount}
-        WHERE id = ${userId}::uuid AND balance >= ${amount}
+        WHERE id = '${userId.replace(/'/g, "''")}' AND balance >= ${amount}
         RETURNING 1 as count
-      `
+      `)
       
       if (result.length === 0) {
         throw new Error('余额不足')

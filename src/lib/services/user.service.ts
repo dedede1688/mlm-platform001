@@ -50,18 +50,18 @@ export class UserService {
     // 使用递归查询获取所有后代
     let allDescendants: Array<{ id: string; parent_id: string | null; position: number }>
     try {
-      allDescendants = await prisma.$queryRaw<Array<{ id: string; parent_id: string | null; position: number }>>`
+      allDescendants = await prisma.$queryRawUnsafe<Array<{ id: string; parent_id: string | null; position: number }>>(`
         WITH RECURSIVE subtree AS (
           SELECT id, parent_id, position
           FROM "users"
-          WHERE id = ${referrerId}::uuid
+          WHERE id = '${referrerId.replace(/'/g, "''")}'::uuid
           UNION ALL
           SELECT u.id, u.parent_id, u.position
           FROM "users" u
           INNER JOIN subtree s ON u.parent_id = s.id
         )
         SELECT id, parent_id, position FROM subtree
-      `
+      `)
     } catch (queryError) {
       console.error('findPlacementPosition query error:', queryError)
       throw new Error(`查询安置位置失败：${queryError instanceof Error ? queryError.message : '数据库查询异常'}`)
@@ -173,7 +173,12 @@ export class UserService {
       if (newLevel >= MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
         const pointsAmount = user.upgradeProductCount * 500
         if (pointsAmount > 0) {
-          await PointsService.grantPoints(userId, '', pointsAmount)
+          await PointsService.createPointsRecord({
+            userId,
+            type: 'reward',
+            amount: pointsAmount,
+            description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × 500）`,
+          })
         }
       }
 

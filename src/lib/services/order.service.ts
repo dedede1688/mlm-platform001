@@ -119,12 +119,12 @@ export class OrderService {
 
       // 原子扣减库存（防并发超卖）
       for (const item of items) {
-        const result = await tx.$queryRaw<{ count: number }[]>`
-          UPDATE "Product"
+        const result = await tx.$queryRawUnsafe<{ count: number }[]>(`
+          UPDATE "products"
           SET stock = stock - ${item.quantity}
-          WHERE id = ${item.productId}::uuid AND stock >= ${item.quantity}
+          WHERE id = '${item.productId.replace(/'/g, "''")}' AND stock >= ${item.quantity}
           RETURNING 1 as count
-        `
+        `)
         if (result.length === 0) {
           throw new Error(`商品 ${item.productId} 库存不足，请刷新页面重试`)
         }
@@ -132,12 +132,12 @@ export class OrderService {
 
       // 如果使用积分，原子扣减积分（防并发透支）
       if (actualPointsUsed > 0) {
-        const result = await tx.$queryRaw<{ count: number }[]>`
+        const result = await tx.$queryRawUnsafe<{ count: number }[]>(`
           UPDATE "users"
           SET "unlocked_points" = "unlocked_points" - ${actualPointsUsed}
-          WHERE id = ${userId}::uuid AND "unlocked_points" >= ${actualPointsUsed}
+          WHERE id = '${userId.replace(/'/g, "''")}' AND "unlocked_points" >= ${actualPointsUsed}
           RETURNING 1 as count
-        `
+        `)
         if (result.length === 0) {
           throw new Error('可用积分不足，请刷新页面重试')
         }
