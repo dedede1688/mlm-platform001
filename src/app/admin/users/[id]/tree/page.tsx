@@ -108,16 +108,16 @@ function toEChartsTree(node: TreeNode): Record<string, unknown> {
       childCount: node.children.length,
     },
     symbol: 'roundRect',
-    symbolSize: [200, 90],           // ✅ 浮窗卡片尺寸
+    symbolSize: [180, 80],           // ✅ v24 紧凑卡片尺寸
     itemStyle: {
-      color: p.bg,                   // ✅ 浅色渐变背景
-      borderColor: p.border,         // ✅ 彩色边框
+      color: '#ffffff',              // ✅ 白底
+      borderColor: p.color,         // ✅ 等级色描边
       borderWidth: 2,
-      borderRadius: 12,              // ✅ 圆角 12px
-      shadowColor: 'rgba(0,0,0,0.12)', // ✅ 阴影（立体感）
-      shadowBlur: 12,
+      borderRadius: 16,              // ✅ 圆角 16px
+      shadowColor: 'rgba(0,0,0,0.08)', // ✅ 轻阴影
+      shadowBlur: 8,
       shadowOffsetX: 0,
-      shadowOffsetY: 4,
+      shadowOffsetY: 2,
     },
     label: {
       show: true,
@@ -127,41 +127,41 @@ function toEChartsTree(node: TreeNode): Record<string, unknown> {
       formatter: (params: { name: string }) => params.name,
       rich: {
         dot: {
-          fontSize: 10,
+          fontSize: 9,
           color: p.color,
-          lineHeight: 18,
-          width: 14,
+          lineHeight: 16,
+          width: 12,
         },
         sid: {
-          fontSize: 11,
+          fontSize: 10,
           color: '#9ca3af',
-          lineHeight: 18,
+          lineHeight: 16,
         },
         name: {
-          fontSize: 15,
+          fontSize: 13,
           fontWeight: 'bold',
           color: '#111827',
-          lineHeight: 24,
-          width: 180,
+          lineHeight: 20,
+          width: 160,
           overflow: 'truncate',
         },
         badge: {
-          fontSize: 10,
+          fontSize: 9,
           color: '#6b7280',
-          lineHeight: 18,
+          lineHeight: 16,
         },
       },
     },
     emphasis: {
       itemStyle: {
-        shadowColor: 'rgba(0,0,0,0.25)',
-        shadowBlur: 20,
-        shadowOffsetY: 8,            // ✅ 悬停上浮效果
+        shadowColor: `${p.color}40`,     // ✅ 悬停等级色阴影
+        shadowBlur: 16,
+        shadowOffsetY: 4,
         borderColor: p.color,
         borderWidth: 2.5,
       },
       scale: true,
-      scaleSize: 5,
+      scaleSize: 4,
     },
     children: node.children.map(c => toEChartsTree(c)),
   }
@@ -366,21 +366,21 @@ export default function ReferralTreePage() {
           data: [toEChartsTree(tree)],
           top: '2%',
           bottom: '2%',
-          left: '18%',
-          right: '18%',
+          left: '15%',
+          right: '15%',
           orient: 'TB',                    // ✅ 竖向 top → bottom
           layout: 'orthogonal',
-          edgeShape: 'curve',             // ✅ 曲线连线
-          edgeForkPosition: '63%',         // 分叉位置
-          nodeGap: 18,                     // ✅ 横向间距紧凑
+          edgeShape: 'polyline',          // ✅ 折线（思维导图风格）
+          edgeForkPosition: '50%',         // 分叉位置居中
+          nodeGap: 12,                     // ✅ v24 更紧凑间距
           initialTreeDepth: -1,           // ✅ 全部展开
           expandAndCollapse: true,
-          animationDuration: 550,
-          animationDurationUpdate: 750,
+          animationDuration: 400,
+          animationDurationUpdate: 500,
           lineStyle: {
-            color: '#94a3b8',            // ✅ 中灰线条
-            width: 2,                      // ✅ 加粗
-            curveness: 0.5,
+            color: '#cbd5e1',            // ✅ 淡灰细线
+            width: 1.5,                    // ✅ 细线
+            curveness: 0,                  // ✅ 直角折线
           },
           emphasis: {
             focus: 'descendant',
@@ -542,7 +542,7 @@ export default function ReferralTreePage() {
               {name}
             </span>
           ))}
-          <span className="ml-2 text-gray-400">| 💡 单击查看详情 · 浮窗卡片版</span>
+          <span className="ml-2 text-gray-400">| 💡 单击查看详情 · 思维导图</span>
         </div>
       </div>
 
