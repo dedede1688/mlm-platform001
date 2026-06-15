@@ -58,7 +58,7 @@ export class UserService {
           UNION ALL
           SELECT u.id, u.parent_id, u.position
           FROM "users" u
-          INNER JOIN subtree s ON u.parent_id = s.id
+          INNER JOIN subtree s ON u.parent_id::uuid = s.id::uuid
         )
         SELECT id, parent_id, position FROM subtree
       `)
