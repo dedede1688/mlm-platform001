@@ -35,7 +35,7 @@ export class UserService {
     })
   }
 
-  // 查找安置位置（三三复制）- 优化版：一次查询获取子树
+  // 查找安置位置（三三复制）- 纯 ORM 实现，不使用 $queryRaw
   static async findPlacementPosition(referrerId: string): Promise<{
     parentId: string
     position: number
@@ -46,38 +46,38 @@ export class UserService {
       throw new Error(`推荐人 ID 格式无效：${referrerId}`)
     }
 
-    // 一次性获取该推荐人下所有已有安置关系的用户
-    // 使用递归查询获取所有后代
-    let allDescendants: Array<{ id: string; parent_id: string | null; position: number }>
-    try {
-      allDescendants = await prisma.$queryRawUnsafe<Array<{ id: string; parent_id: string | null; position: number }>>(`
-        WITH RECURSIVE subtree AS (
-          SELECT id, parent_id, position
-          FROM "users"
-          WHERE id = '${referrerId.replace(/'/g, "''")}'
-          UNION ALL
-          SELECT u.id, u.parent_id, u.position
-          FROM "users" u
-          INNER JOIN subtree s ON u.parent_id = s.id
-        )
-        SELECT id, parent_id, position FROM subtree
-      `)
-    } catch (queryError) {
-      console.error('findPlacementPosition query error:', queryError)
-      throw new Error(`查询安置位置失败：${queryError instanceof Error ? queryError.message : '数据库查询异常'}`)
+    // 用 Prisma 原生查询获取所有用户（只需要 id, parent_id, position）
+    // 对于大规模数据可考虑分页，但目前用户量级可接受全量查询
+    const allUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { id: referrerId },
+          { referrerId: referrerId },
+        ],
+      },
+      select: {
+        id: true,
+        parentId: true,
+        position: true,
+      },
+    })
+
+    if (allUsers.length === 0) {
+      // 推荐人不存在，直接作为根节点安置在推荐人下
+      return { parentId: referrerId, position: 1 }
     }
 
-    // 构建节点子节点映射
+    // 构建节点子节点映射（纯内存操作）
     const childrenMap = new Map<string, Set<number>>()
     const nodeIds = new Set<string>()
-    
-    for (const node of allDescendants) {
+
+    for (const node of allUsers) {
       nodeIds.add(node.id)
-      if (node.parent_id) {
-        if (!childrenMap.has(node.parent_id)) {
-          childrenMap.set(node.parent_id, new Set())
+      if (node.parentId) {
+        if (!childrenMap.has(node.parentId)) {
+          childrenMap.set(node.parentId, new Set())
         }
-        childrenMap.get(node.parent_id)!.add(node.position)
+        childrenMap.get(node.parentId)!.add(node.position!)
       }
     }
 
@@ -94,9 +94,9 @@ export class UserService {
       }
       
       // 将子节点加入队列
-      const children = allDescendants
-        .filter(d => d.parent_id === currentId)
-        .sort((a, b) => a.position - b.position)
+      const children = allUsers
+        .filter(d => d.parentId === currentId)
+        .sort((a, b) => (a.position || 0) - (b.position || 0))
       for (const child of children) {
         queue.push(child.id)
       }

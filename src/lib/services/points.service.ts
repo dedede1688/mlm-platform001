@@ -73,23 +73,27 @@ export class PointsService {
     // 使用事务确保原子性
     await prisma.$transaction(async (tx) => {
       // 原子扣减转出方积分（防并发透支）
-      const fromResult = await tx.$queryRawUnsafe<{ count: number }[]>(`
-        UPDATE "users"
-        SET "unlocked_points" = "unlocked_points" - ${totalDeduction}
-        WHERE id = '${fromUserId.replace(/'/g, "''")}' AND "unlocked_points" >= ${totalDeduction}
-        RETURNING 1 as count
-      `)
+      const fromResult = await tx.user.updateMany({
+        where: {
+          id: fromUserId,
+          unlockedPoints: { gte: totalDeduction },
+        },
+        data: {
+          unlockedPoints: { decrement: totalDeduction },
+        },
+      })
 
-      if (fromResult.length === 0) {
+      if (fromResult.count === 0) {
         throw new Error('可用积分不足（包括手续费）')
       }
 
       // 原子增加接收方积分
-      await tx.$queryRawUnsafe(`
-        UPDATE "users"
-        SET "unlocked_points" = "unlocked_points" + ${amount}
-        WHERE id = '${toUserId.replace(/'/g, "''")}'
-      `)
+      await tx.user.update({
+        where: { id: toUserId },
+        data: {
+          unlockedPoints: { increment: amount },
+        },
+      })
 
       // 查询用户信息用于创建记录
       const [toUser] = await tx.user.findMany({
