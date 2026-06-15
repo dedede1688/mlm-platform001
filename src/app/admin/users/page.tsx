@@ -19,7 +19,7 @@ interface UserRow {
   totalPoints: number
   unlockedPoints: number
   lockedPoints: number
-  referrerId: string | null
+  referrer: { id: string; nickname: string | null; phone: string } | null
   parentId: string | null
   position: number | null
   upgradeProductCount: number
@@ -423,6 +423,7 @@ export default function AdminUsersPage() {
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">手机号</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">昵称</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">推荐人</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">等级</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">余额</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">总积分</th>
@@ -436,6 +437,18 @@ export default function AdminUsersPage() {
                     <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-sm text-gray-900">{u.phone}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{u.nickname || '-'}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {u.referrer ? (
+                          <span className="text-gray-700">
+                            {u.referrer.nickname || '-'}
+                            <span className="text-gray-400 text-xs ml-1">
+                              ({u.referrer.phone.slice(-4)})
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[u.level] || 'bg-gray-100 text-gray-500'}`}>
                           {LEVEL_NAMES[u.level]}

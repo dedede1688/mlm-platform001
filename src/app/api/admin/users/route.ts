@@ -55,6 +55,9 @@ export async function GET(request: NextRequest) {
           status: true,
           createdAt: true,
           updatedAt: true,
+          referrer: {
+            select: { id: true, nickname: true, phone: true },
+          },
           _count: {
             select: { referrals: true },
           },
@@ -66,8 +69,12 @@ export async function GET(request: NextRequest) {
     // 格式化返回数据
     const data = users.map(u => ({
       ...u,
+      referrer: u.referrer
+        ? { id: u.referrer.id, nickname: u.referrer.nickname, phone: u.referrer.phone }
+        : null,
       directReferralCount: u._count.referrals,
       _count: undefined,
+      referrerId: undefined,
     }))
 
     return NextResponse.json({
