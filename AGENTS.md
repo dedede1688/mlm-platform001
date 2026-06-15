@@ -256,6 +256,7 @@ git log origin/main --oneline -1
 | v6 | 操作列排版 + description 修复 | `3f53bc4` |
 | v7 | 文字竖排 + 高度统一 + 间距 | `bed3802` |
 | v12 | 注册 500 修复：$queryRaw 表名/列名/uuid/Prisma 字段名 | `1edd3fa` |
+| v17 | **注册 500 最终修复：彻底移除 $queryRawUnsafe，改用 Prisma 原生 ORM** | `84bafac` |
 
 **v6 + v7 教训**：
 - 总结出 2 条铁律（commit/push 验证、UI 改动必须本地截图）
@@ -266,6 +267,105 @@ git log origin/main --oneline -1
 - 总结出铁律 4：`$queryRaw` 错误链必须一次修到底
 - Prisma 模型名 ≠ 数据库表名，camelCase ≠ snake_case，必须逐层验证
 - 字段名以 `schema.prisma` 为准，不能靠直觉猜
+
+---
+
+### 铁律 5：$queryRaw / $queryRawUnsafe 是最后手段（v17 实战总结，2026-06-15 写入）
+
+**核心教训（注册 500 修复的最终结论）**：
+
+Prisma 6 的 `$queryRaw` 和 `$queryRawUnsafe` 在 Vercel + Supabase (PostgreSQL) 环境下
+存在**不可预测的类型处理行为**。即使本地 build 通过、代码逻辑正确，
+部署后仍可能报 `text = uuid` 等类型错误。
+
+**7 个版本的血泪时间线**：
+
+| 版本 | commit | 尝试 | 结果 | 耗时 |
+|------|--------|------|------|------|
+| v0 | `f29deb2` | 增强错误信息返回 | ✅ 暴露了真实错误 | 5min |
+| v1 | `0b1f879` | `"User"` → `"users"` 表名 | ❌ 还 500 | 10min |
+| v2 | `74886bc` | camelCase → snake_case 列名 | ❌ 还 500 | 15min |
+| v3 | `1edd3fa` | 加 `'${id}'::uuid` 类型转换 | ❌ **更离谱：text = uuid** | 20min |
+| v4-v6 | `beb6441`→`3ed89d6`→`c6b6d56` | WHERE/JOIN 加 ::uuid → 去掉 ::uuid | ❌ **同样的错** | 40min |
+| **v7** | **`84bafac`** | **彻底删除 $queryRawUnsafe，改用 Prisma 原生 ORM** | **✅ 成功！** | 15min |
+
+**总耗时：约 2 小时，7 个版本，6 次失败推送**
+
+#### 根因分析（5 层深挖）
+
+```
+第 1 层（表面现象）：POST /api/register 返回 500
+         ↓
+第 2 层（错误信息）：prisma.$queryRaw() invocation failed
+         ↓
+第 3 层（SQL 错误）：relation "User" does not exist / column "parentId" does not exist
+         ↓
+第 4 层（命名不匹配）：
+         - Prisma 模型名 "User" ≠ PostgreSQL 实际表名 "users"
+         - Prisma 字段名 "parentId" ≠ PostgreSQL 实际列名 "parent_id"
+         - 这是因为 Prisma 用 @map() 做映射，但 $queryRaw 绕过了这个映射
+         ↓
+第 5 层（类型系统冲突）：
+         - $queryRawUnsafe 的模板字面量 ${var} 在 Prisma 6 中不是纯字符串替换
+         - Prisma 内部可能对参数做了额外包装/转义
+         - 导致 PostgreSQL 收到的参数类型是 text 而非预期的 uuid
+         - 即使加 ::uuid 也不行，因为外层已经被包成了 text
+         ↓
+第 6 层（根本原因）：
+         **$queryRaw / $queryRawUnsafe 在 Prisma 6 + Vercel + Supabase 组合下
+          存在未文档化的类型处理行为，无法可靠使用**
+```
+
+#### 走过的弯路（自我批评）
+
+**弯路 1：在第 3 次失败时没有果断重构**
+- v3（`1edd3fa`）已经暴露出 `text = uuid` 类型错误
+- 我选择了"继续在 SQL 层面修补"而不是"换技术路线"
+- 如果当时直接改用 Prisma 原生 ORM，可以节省后面 4 个版本（~1.5 小时）
+
+**弯路 2：过度相信"::uuid 能解决一切"**
+- v4 加了 `::uuid` → 失败
+- v5 给 JOIN ON 也加了 `::uuid` → 还是失败
+- v6 去掉所有 `::uuid` 靠隐式转换 → **还是同样的错误！**
+- 这说明问题根本不在 `::uuid`，而是 `$queryRawUnsafe` 这个 API 本身
+
+**弯路 3：每次修完就 push，没有等 build 到 0 错误再全面检查**
+- 铁律 4 已经写了"$queryRaw 错误链必须一次修到底"
+- 但我自己没执行好——v3-v6 都是在"修了一层"后就推送了
+
+**如果重来会怎么做**：
+1. 看到 `text = uuid` 错误 → **立即放弃 `$queryRawUnsafe`**，改用原生 ORM
+2. 递归 CTE SQL → 用 `findMany` + 内存 BFS 替代
+3. 原子 UPDATE → 用 `updateMany({ where: { ..., field: { gte: ... } } })` 替代
+4. 全部改完 → build 0 错误 → 推送 → 一次性成功
+
+#### 强制规则
+
+1. **默认禁止使用 `$queryRaw` / `$queryRawUnsafe`**
+   - 只有当 Prisma 原生 ORM **完全无法实现**时才考虑原始 SQL
+   - 使用前必须：记录原因、review 通过、胡子哥确认
+
+2. **原子操作用 `updateMany` + 条件 where 替代 `$queryRawUnsafe`**
+   ```typescript
+   // ✅ 正确：Prisma 原生，类型安全
+   const result = await tx.user.updateMany({
+     where: { id: userId, unlockedPoints: { gte: amount } },
+     data: { unlockedPoints: { decrement: amount } },
+   })
+   if (result.count === 0) throw new Error('余额不足')
+
+   // ❌ 禁止：$queryRawUnsafe 类型不可控
+   await tx.$queryRawUnsafe(`UPDATE "users" SET ... WHERE id = '${userId}'...`)
+   ```
+
+3. **递归查询用 `findMany` + 内存遍历替代 CTE**
+   - 对于当前用户量级（< 10万），内存操作性能完全够用
+   - 如果未来数据量增长到百万级，再考虑用数据库视图或存储过程
+
+**v17 真实事故**：
+- v3 到 v6 共 4 次推送全部失败，每次都让胡子哥测试注册看到 500
+- 最终 v7 彻底换 ORM 方案，一次成功
+- 教训：**方向错了越努力越浪费**
 
 ---
 
