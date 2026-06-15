@@ -13,7 +13,7 @@ export class WithdrawalService {
         UPDATE "users"
         SET balance = balance - ${amount},
             "frozen_balance" = "frozen_balance" + ${amount}
-        WHERE id = '${userId.replace(/'/g, "''")}' AND balance >= ${amount}
+        WHERE id = '${userId.replace(/'/g, "''")}'::uuid AND balance >= ${amount}
         RETURNING 1 as count
       `)
       

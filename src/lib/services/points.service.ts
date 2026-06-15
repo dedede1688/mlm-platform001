@@ -76,7 +76,7 @@ export class PointsService {
       const fromResult = await tx.$queryRawUnsafe<{ count: number }[]>(`
         UPDATE "users"
         SET "unlocked_points" = "unlocked_points" - ${totalDeduction}
-        WHERE id = '${fromUserId.replace(/'/g, "''")}' AND "unlocked_points" >= ${totalDeduction}
+        WHERE id = '${fromUserId.replace(/'/g, "''")}'::uuid AND "unlocked_points" >= ${totalDeduction}
         RETURNING 1 as count
       `)
 
@@ -88,7 +88,7 @@ export class PointsService {
       await tx.$queryRawUnsafe(`
         UPDATE "users"
         SET "unlocked_points" = "unlocked_points" + ${amount}
-        WHERE id = '${toUserId.replace(/'/g, "''")}'
+        WHERE id = '${toUserId.replace(/'/g, "''")}'::uuid
       `)
 
       // 查询用户信息用于创建记录
