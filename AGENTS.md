@@ -63,6 +63,36 @@ apply only to this repo. Anything cross-project belongs in
 
 ---
 
+### 铁律 4：$queryRaw 错误链必须一次修到底（v12 实战总结，2026-06-15 写入）
+
+**核心教训**：`$queryRaw` / `$queryRawUnsafe` 的错误是**链式暴露**的——
+每修好一层，build 才会暴露下一层。**不能只修表面错误就推送**。
+
+**注册 500 错误的真实迭代链**（5 轮）：
+
+| 轮次 | 错误信息 | 根因 | 修复 |
+|------|---------|------|------|
+| 第 1 轮 | `relation "User" does not exist` | Prisma 模型名 ≠ 数据库表名 | `"User"` → `"users"` |
+| 第 2 轮 | `column "parentId" does not exist` | camelCase 字段名 ≠ snake_case 列名 | `parentId` → `parent_id` 等 |
+| 第 3 轮 | **`text = uuid HINT`** | `${var}::uuid` 模板字面量类型不匹配 | 改用 `$queryRawUnsafe` + `'${id}'::uuid` 手动拼接 |
+| 第 4 轮 | `sql` 导入不存在 / TS 类型报错 | Prisma 6 的 `sql` 模板标签 TS 定义缺失 | 移除 `sql` 标签，统一 `$queryRawUnsafe` |
+| 第 5 轮 | 连锁类型错误（`points`/`balance`/`grantPoints`/`dailyUnlock`） | Prisma schema 字段名与代码不一致 | 全部对齐 schema（`totalPoints` 替代 `points`，补全必填字段等） |
+
+**强制规则**：
+
+1. **每次 `$queryRaw` 相关修复后，必须跑 build 直到 0 错误**
+2. **如果 build 报错和 SQL/Prisma 类型相关，说明还有下一层问题**
+3. **涉及 service 文件时，必须检查所有调用方的方法签名是否匹配**
+4. **字段名必须以 `prisma/schema.prisma` 为准，不能用直觉猜**
+
+**v12 真实事故**：
+- 修完第 1 轮（表名）就 push → 部署后还是 500
+- 修完第 2 轮（列名）就 push → 还是 500
+- 修完第 3 轮（uuid 类型）就 push → build 直接失败（TS 类型）
+- 前后共 5 轮迭代、2 小时才彻底解决
+
+---
+
 ## 📁 项目关键信息
 
 - **路径**：`D:\mlm-platform-source\mlm-platform`（**不是** `D:\mlm-platform-A`）
@@ -225,11 +255,17 @@ git log origin/main --oneline -1
 | v5-修复 5 | status 兜底 | - |
 | v6 | 操作列排版 + description 修复 | `3f53bc4` |
 | v7 | 文字竖排 + 高度统一 + 间距 | `bed3802` |
+| v12 | 注册 500 修复：$queryRaw 表名/列名/uuid/Prisma 字段名 | `1edd3fa` |
 
 **v6 + v7 教训**：
 - 总结出 2 条铁律（commit/push 验证、UI 改动必须本地截图）
 - 商品 description HTML 漏出 = 真实事故（v6 暴露）
 - 操作列排版规范固化（v7 确定）
+
+**v12 教训**：
+- 总结出铁律 4：`$queryRaw` 错误链必须一次修到底
+- Prisma 模型名 ≠ 数据库表名，camelCase ≠ snake_case，必须逐层验证
+- 字段名以 `schema.prisma` 为准，不能靠直觉猜
 
 ---
 
