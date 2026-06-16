@@ -71,14 +71,45 @@ export interface ReferralTreeViewProps {
 
 // ---- 常量 ----
 
-// v30 统一节点尺寸常量（铁律 11：3 处必须用同一值）
-// 内容最宽：● + 11位手机号(82px) + padding(16px) ≈ 102px → 取 100px
-const NODE_WIDTH = 100
+// v31 自适应宽度工具函数（铁律 11：3 处必须用同一个 getNodeSize）
 
-function getNodeHeight(isRoot: boolean, depth: number): number {
-  if (isRoot) return 64
-  if (depth <= 1) return 54
-  return 46
+/** 估算单个字符的渲染宽度 */
+function estimateCharWidth(ch: string, fontSize: number): number {
+  if (/[\u4e00-\u9fa5]/.test(ch)) return fontSize        // 中文 = fontSize
+  else if (/[0-9]/.test(ch)) return fontSize * 0.6   // 数字
+  else if (/[a-zA-Z]/.test(ch)) return fontSize * 0.55 // 英文
+  else return fontSize * 0.5                              // 其他符号
+}
+
+/** 估算整段文本的渲染宽度 */
+function estimateTextWidth(text: string, fontSize: number): number {
+  let w = 0
+  for (const ch of text) w += estimateCharWidth(ch, fontSize)
+  return w
+}
+
+const NODE_PADDING_X = 10   // 左右内边距
+const MIN_NODE_WIDTH = 80    // 最小宽度防止太窄
+
+/** 根据节点数据动态计算尺寸（铁律 11：唯一尺寸来源） */
+function getNodeSize(data: ReferralNodeData): { width: number; height: number } {
+  const levelName = LEVEL_NAMES[data.level] || `Lv${data.level}`
+
+  // 各行字体大小
+  const fsPhone = 10
+  const fsName = data.isRoot ? 14 : (data.depth <= 1 ? 13 : 11)
+  const fsBadge = data.isRoot ? 10 : 9
+
+  // 三行内容宽度估算
+  const line1 = 10 + estimateTextWidth(data.phoneFull || '', fsPhone)              // ● + 手机号
+  const line2 = estimateTextWidth(data.nickname || '-', fsName)                     // 昵称
+  const line3 = estimateTextWidth(`${levelName} ⬇${data.childCount} ${data.salesAmount}`, fsBadge) + 14  // 等级 + 直推 + 业绩
+
+  const contentWidth = Math.max(line1, line2, line3)
+  const width = Math.max(contentWidth + NODE_PADDING_X * 2, MIN_NODE_WIDTH)
+  const height = data.isRoot ? 64 : (data.depth <= 1 ? 54 : 46)
+
+  return { width, height }
 }
 
 const LEVEL_NAMES: Record<number, string> = {
@@ -114,9 +145,8 @@ function ReferralNode({ data }: NodeProps) {
   const p = LEVEL_PALETTE[data.level] || LEVEL_PALETTE[0]
   const levelName = LEVEL_NAMES[data.level] || `Lv${data.level}`
 
-  // v30：统一用 NODE_WIDTH 常量 + getNodeHeight（铁律 11）
-  const width = NODE_WIDTH
-  const height = getNodeHeight(data.isRoot, data.depth)
+  // v31：自适应宽度（铁律 11：唯一尺寸来源 = getNodeSize）
+  const { width, height } = getNodeSize(data)
   const fontSizeName = data.isRoot ? 12 : data.depth <= 1 ? 11 : 10
   const fontSizeBadge = data.isRoot ? 9 : 8
 
@@ -211,9 +241,8 @@ function getLayoutedElements(
   })
 
   for (const node of nodes) {
-    // v30：统一用 NODE_WIDTH + getNodeHeight（铁律 11）
-    const w = NODE_WIDTH
-    const h = getNodeHeight(!!node.data?.isRoot, node.data?.depth ?? 0)
+    // v31：统一用 getNodeSize（铁律 11）
+    const { width: w, height: h } = getNodeSize(node.data!)
     dagreGraph.setNode(node.id, { width: w, height: h })
   }
 
@@ -225,9 +254,8 @@ function getLayoutedElements(
 
   const layoutedNodes = nodes.map((node) => {
     const nwp = dagreGraph.node(node.id)
-    // v30：统一用 NODE_WIDTH + getNodeHeight（铁律 11）
-    const w = NODE_WIDTH
-    const h = getNodeHeight(!!node.data?.isRoot, node.data?.depth ?? 0)
+    // v31：统一用 getNodeSize（铁律 11）
+    const { width: w, height: h } = getNodeSize(node.data!)
     return {
       ...node,
       targetPosition: isHorizontal ? Position.Left : Position.Top,
