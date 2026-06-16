@@ -55,6 +55,8 @@ interface ReferralNodeData {
   salesAmount: string
   isRoot: boolean
   depth: number
+  _dimmed?: boolean          // v33: hover 路径外节点变灰
+  _onHover?: (id: string | null) => void  // v33: hover 回调
 }
 
 export interface ReferralTreeViewProps {
@@ -147,6 +149,8 @@ function ReferralNode({ data }: NodeProps) {
 
   // v32：root 节点（自己）特殊标识
   const isSelf = data.isRoot
+  // v33：hover 路径外变灰
+  const isDimmed = data._dimmed ?? false
 
   // v31：自适应宽度（铁律 11：唯一尺寸来源 = getNodeSize）
   const { width, height } = getNodeSize(data)
@@ -178,11 +182,12 @@ function ReferralNode({ data }: NodeProps) {
         alignItems: 'center',
         textAlign: 'center',
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
+        transition: 'all 0.2s ease',
+        opacity: isDimmed ? 0.25 : 1,     // v33：路径外节点变灰
         ...selfStyle,
       }}
-      onMouseEnter={(e) => { if (!isSelf) (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
-      onMouseLeave={(e) => { if (!isSelf) (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
+      onMouseEnter={() => { data._onHover?.(data.id) }}   // v33：hover 触发高亮
+      onMouseLeave={() => { data._onHover?.(null) }}       // v33：离开取消
     >
       <Handle type="target" position={Position.Top}
         style={{ background: isSelf ? '#f59e0b' : p.color, border: 'none', width: 5, height: 5 }} />
@@ -371,12 +376,37 @@ function ReferralTreeInner(props: ReferralTreeViewProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<ReferralNodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const flowRef = useRef<any>(null)
+  // v33：hover 高亮状态
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+
+  // v33：计算从 nodeId 到 root 的路径上所有节点 ID
+  function getPathToRoot(nodeId: string | null, treeData: TreeNode | null): Set<string> {
+    const path = new Set<string>()
+    if (!nodeId || !treeData) return path
+
+    function walk(node: TreeNode, target: string): boolean {
+      path.add(node.id)
+      if (node.id === target) return true
+      for (const child of node.children) {
+        if (walk(child, target)) return true
+      }
+      path.delete(node.id)
+      return false
+    }
+
+    walk(treeData, nodeId)
+    return path
+  }
 
   // 数据变化时重新布局
   useEffect(() => {
     if (!data) { setNodes([]); setEdges([]); return }
     const { nodes: rawNodes, edges: rawEdges } = treeToNodesAndEdges(data, 0, undefined, compact)
     const layouted = getLayoutedElements(rawNodes, rawEdges, 'TB')
+    // v33：注入 _onHover 回调到每个节点的 data 中
+    layouted.nodes.forEach(n => {
+      n.data._onHover = setHoveredNodeId
+    })
     setNodes(layouted.nodes)
     setEdges(layouted.edges)
 
@@ -384,6 +414,37 @@ function ReferralTreeInner(props: ReferralTreeViewProps) {
       flowRef.current?.fitView({ padding: 0.12, includeHiddenNodes: true })
     }, 100)
   }, [data, compact])
+
+  // v33：监听 hoveredNodeId 变化，更新节点透明度和边样式
+  useEffect(() => {
+    if (!hoveredNodeId) {
+      // 无 hover → 恢复所有节点和边为正常状态
+      setNodes(prev => prev.map(n => ({ ...n, data: { ...n.data, _dimmed: false } })))
+      setEdges(prev => prev.map(e => ({ ...e, style: { stroke: '#cbd5e1', strokeWidth: 1.5, opacity: 1 } })))
+      return
+    }
+
+    const pathIds = getPathToRoot(hoveredNodeId, data)
+
+    setNodes(prev => prev.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
+        _dimmed: !pathIds.has(n.id),
+        _onHover: setHoveredNodeId,  // 确保回调始终存在
+      },
+    })))
+
+    setEdges(prev => prev.map(e => {
+      const inPath = pathIds.has(e.source) && pathIds.has(e.target)
+      return {
+        ...e,
+        style: inPath
+          ? { stroke: '#3b82f6', strokeWidth: 2.5, opacity: 1 }    // 蓝色高亮
+          : { stroke: '#cbd5e1', strokeWidth: 1.5, opacity: 0.25 }, // 灰色暗淡
+      }
+    }))
+  }, [hoveredNodeId, data])
 
   // 点击节点
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
