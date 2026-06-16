@@ -48,6 +48,7 @@ export interface TreeSummary {
 interface ReferralNodeData {
   label: string
   phoneTail: string
+  phoneFull?: string   // v28: 完整手机号
   nickname: string | null
   level: number
   childCount: number
@@ -104,8 +105,9 @@ function ReferralNode({ data }: NodeProps) {
   const levelName = LEVEL_NAMES[data.level] || `Lv${data.level}`
 
   const isCompact = (data as any)._compact ?? false
-  const width = data.isRoot ? (isCompact ? 170 : 200) : data.depth <= 1 ? (isCompact ? 145 : 170) : (isCompact ? 125 : 145)
-  const height = data.isRoot ? (isCompact ? 60 : 68) : data.depth <= 1 ? (isCompact ? 48 : 56) : (isCompact ? 42 : 48)
+  // v28: 加宽节点以容纳完整手机号 + 居中布局
+  const width = data.isRoot ? (isCompact ? 200 : 220) : data.depth <= 1 ? (isCompact ? 180 : 200) : (isCompact ? 160 : 180)
+  const height = data.isRoot ? (isCompact ? 64 : 72) : data.depth <= 1 ? (isCompact ? 52 : 60) : (isCompact ? 46 : 52)
   const fontSizeName = data.isRoot ? (isCompact ? 13 : 14) : data.depth <= 1 ? (isCompact ? 12 : 13) : (isCompact ? 10 : 11)
   const fontSizeBadge = data.isRoot ? (isCompact ? 9 : 10) : (isCompact ? 8 : 9)
 
@@ -122,6 +124,8 @@ function ReferralNode({ data }: NodeProps) {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
+        alignItems: 'center',
+        textAlign: 'center',
         cursor: 'pointer',
         transition: 'all 0.15s ease',
       }}
@@ -131,10 +135,10 @@ function ReferralNode({ data }: NodeProps) {
       <Handle type="source" position={Position.Bottom}
         style={{ background: p.color, border: 'none', width: 5, height: 5 }} />
 
-      {/* 第1行 */}
+      {/* 第1行：完整手机号（v28） */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
         <span style={{ fontSize: 8, color: p.color }}>●</span>
-        <span style={{ fontSize: 9, color: '#9ca3af' }}>{data.phoneTail}</span>
+        <span style={{ fontSize: 10, color: '#4b5563' }}>{data.phoneFull || data.phoneTail}</span>
       </div>
 
       {/* 第2行 */}
@@ -190,15 +194,16 @@ function getLayoutedElements(
   const isHorizontal = direction === 'LR'
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: 30,
+    nodesep: 40,
     ranksep: 50,
-    marginx: 15,
-    marginy: 15,
+    marginx: 20,
+    marginy: 20,
   })
 
   for (const node of nodes) {
-    const w = node.data?.isRoot ? 180 : node.data?.depth && node.data.depth > 1 ? 120 : 150
-    const h = node.data?.isRoot ? 65 : node.data?.depth && node.data.depth > 1 ? 40 : 52
+    // v28: 同步加宽 dagre 布局尺寸
+    const w = node.data?.isRoot ? 200 : node.data?.depth && node.data.depth > 1 ? 160 : 180
+    const h = node.data?.isRoot ? 68 : node.data?.depth && node.data.depth > 1 ? 46 : 56
     dagreGraph.setNode(node.id, { width: w, height: h })
   }
 
@@ -234,8 +239,9 @@ function treeToNodesAndEdges(
   compact: boolean = false
 ): { nodes: Node<ReferralNodeData>[]; edges: Edge[] } {
   const nodeData: ReferralNodeData = {
-    label: treeNode.nickname || treeNode.phone.slice(-4),
+    label: treeNode.nickname || treeNode.phone,
     phoneTail: treeNode.phone.slice(-4),
+    phoneFull: treeNode.phone,  // v28: 完整手机号
     nickname: treeNode.nickname,
     level: treeNode.level,
     childCount: treeNode.children.length,
