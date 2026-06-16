@@ -6,6 +6,7 @@ import {
   Users, Search, Loader2, ChevronLeft, ChevronRight,
   X, Eye, Network, ChevronDown, ChevronUp
 } from 'lucide-react'
+import ReferralTreePanel from '@/components/ReferralTreePanel'
 
 // ---- 类型定义 ----
 
@@ -107,9 +108,13 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [filterLevel, setFilterLevel] = useState('')
 
-  // 详情弹窗
-  const [detailUser, setDetailUser] = useState<UserDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
+// 详情弹窗
+const [detailUser, setDetailUser] = useState<UserDetail | null>(null)
+const [detailLoading, setDetailLoading] = useState(false)
+
+// 浮动推荐树面板 (v27)
+const [treeUserId, setTreeUserId] = useState<string | null>(null)
+const [treeUserName, setTreeUserName] = useState<string>('')
 
   // 等级调整
   const [newLevel, setNewLevel] = useState<number>(0)
@@ -464,10 +469,10 @@ export default function AdminUsersPage() {
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
                             <Eye className="w-3.5 h-3.5" />详情
                           </button>
-                          <Link href={`/admin/users/${u.id}/tree`}
+                          <button onClick={() => { setTreeUserId(u.id); setTreeUserName(u.nickname || u.phone.slice(-4)) }}
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium">
                             <Network className="w-3.5 h-3.5" />推荐树
-                          </Link>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -834,10 +839,10 @@ export default function AdminUsersPage() {
 
               {/* 推荐树按钮 */}
               <div className="flex justify-center">
-                <Link href={`/admin/users/${detailUser.id}/tree`}
+                <button onClick={() => { setTreeUserId(detailUser.id); setTreeUserName(detailUser.nickname || detailUser.phone.slice(-4)) }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm">
                   <Network className="w-4 h-4" />查看推荐关系树
-                </Link>
+                </button>
               </div>
             </div>
 
@@ -857,6 +862,14 @@ export default function AdminUsersPage() {
             <Loader2 className="w-5 h-5 animate-spin text-blue-600" /><span className="text-gray-600">加载中...</span>
           </div>
         </div>
+      )}
+      {/* v27 浮动推荐树面板 */}
+      {treeUserId && (
+        <ReferralTreePanel
+          userId={treeUserId}
+          userName={treeUserName}
+          onClose={() => setTreeUserId(null)}
+        />
       )}
     </>
   )
