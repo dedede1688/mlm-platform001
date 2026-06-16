@@ -29,7 +29,7 @@ async function buildReferralTree(userId: string, depth: number, maxDepth: number
 
   // 获取直接推荐的下级
   const referrals = await prisma.user.findMany({
-    where: { referrerId: userId, status: { not: 'deleted' } },
+    where: { parentId: userId, status: { not: 'deleted' } },
     select: { id: true },
     orderBy: { createdAt: 'asc' },
   })

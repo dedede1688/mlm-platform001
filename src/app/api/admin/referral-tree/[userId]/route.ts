@@ -26,7 +26,7 @@ interface FlatUser {
   avatarUrl: string | null
   totalPoints: number
   directSalesAmount: number
-  referrerId: string | null
+  parentId: string | null
   createdAt: Date
 }
 
@@ -57,7 +57,7 @@ export async function GET(
         avatarUrl: true,
         totalPoints: true,
         directSalesAmount: true,
-        referrerId: true,
+        parentId: true,
         createdAt: true,
       },
     })
@@ -69,7 +69,7 @@ export async function GET(
       )
     }
 
-    // 一次性查询所有以该用户为祖先的用户（通过 referrerId 逐级追溯）
+    // 一次性查询所有以该用户为祖先的用户（通过 parentId 逐级追溯，构建安置树）
     const allUsers: FlatUser[] = [rootUser as FlatUser]
     const visitedIds = new Set<string>([userId])
     let currentLevelIds = [userId]
@@ -80,7 +80,7 @@ export async function GET(
 
       const nextLevel = await prisma.user.findMany({
         where: {
-          referrerId: { in: currentLevelIds },
+          parentId: { in: currentLevelIds },
         },
         select: {
           id: true,
@@ -90,7 +90,7 @@ export async function GET(
           avatarUrl: true,
           totalPoints: true,
           directSalesAmount: true,
-          referrerId: true,
+          parentId: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
@@ -129,13 +129,13 @@ export async function GET(
     })
     const orderCountMap = new Map(orderCounts.map(o => [o.userId, o._count.id]))
 
-    // 批量查询每个用户的直接推荐人数（teamCount）
+    // 批量查询每个用户的直接下级安置人数（teamCount，基于 parentId）
     const referralCounts = await prisma.user.groupBy({
-      by: ['referrerId'],
-      where: { referrerId: { in: allUserIds } },
+      by: ['parentId'],
+      where: { parentId: { in: allUserIds } },
       _count: { id: true },
     })
-    const teamCountMap = new Map(referralCounts.map(r => [r.referrerId, r._count.id]))
+    const teamCountMap = new Map(referralCounts.map(r => [r.parentId, r._count.id]))
 
     // 在内存中构建树
     const nodeMap = new Map<string, TreeNode>()
@@ -161,25 +161,25 @@ export async function GET(
       const node = nodeMap.get(u.id)!
       if (u.id === userId) {
         root = node
-      } else if (u.referrerId && nodeMap.has(u.referrerId)) {
-        nodeMap.get(u.referrerId)!.children.push(node)
+      } else if (u.parentId && nodeMap.has(u.parentId)) {
+        nodeMap.get(u.parentId)!.children.push(node)
       }
     }
 
-    // v32：查询父链（ancestors）— 从当前 root 向上追溯，最多 10 层防死循环
+    // v34：查询父链（ancestors）— 从当前 root 向上追溯安置父节点，最多 10 层防死循环
     const ancestors: { id: string; nickname: string | null; phone: string }[] = []
-    let currentAncestorId: string | null = rootUser.referrerId
+    let currentAncestorId: string | null = rootUser.parentId
     const visitedAncestorIds = new Set<string>()
     for (let i = 0; i < 10 && currentAncestorId; i++) {
       if (visitedAncestorIds.has(currentAncestorId)) break // 防环
       visitedAncestorIds.add(currentAncestorId)
       const parent = await prisma.user.findUnique({
         where: { id: currentAncestorId },
-        select: { id: true, phone: true, nickname: true, referrerId: true },
+        select: { id: true, phone: true, nickname: true, parentId: true },
       })
       if (!parent) break
       ancestors.unshift({ id: parent.id, nickname: parent.nickname, phone: parent.phone }) // 从顶级到当前 root 的父
-      currentAncestorId = parent.referrerId
+      currentAncestorId = parent.parentId
     }
 
     const response: {
@@ -218,7 +218,7 @@ export async function GET(
     // v32：返回父链 + root 的直接父节点 ID（用于"返回上级"按钮）
     if (ancestors.length > 0) {
       response.ancestors = ancestors
-      response.rootParentId = rootUser.referrerId
+      response.rootParentId = rootUser.parentId
     }
 
     return NextResponse.json(response)
