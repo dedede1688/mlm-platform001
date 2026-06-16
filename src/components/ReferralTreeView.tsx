@@ -105,9 +105,9 @@ function ReferralNode({ data }: NodeProps) {
   const levelName = LEVEL_NAMES[data.level] || `Lv${data.level}`
 
   const isCompact = (data as any)._compact ?? false
-  // v28: 加宽节点以容纳完整手机号 + 居中布局
-  const width = data.isRoot ? (isCompact ? 200 : 220) : data.depth <= 1 ? (isCompact ? 180 : 200) : (isCompact ? 160 : 180)
-  const height = data.isRoot ? (isCompact ? 64 : 72) : data.depth <= 1 ? (isCompact ? 52 : 60) : (isCompact ? 46 : 52)
+  // v29: 紧凑化 — 解决 v28 左右空白过多
+  const width = data.isRoot ? (isCompact ? 165 : 180) : data.depth <= 1 ? (isCompact ? 155 : 170) : (isCompact ? 140 : 150)
+  const height = data.isRoot ? (isCompact ? 62 : 70) : data.depth <= 1 ? (isCompact ? 50 : 58) : (isCompact ? 44 : 50)
   const fontSizeName = data.isRoot ? (isCompact ? 13 : 14) : data.depth <= 1 ? (isCompact ? 12 : 13) : (isCompact ? 10 : 11)
   const fontSizeBadge = data.isRoot ? (isCompact ? 9 : 10) : (isCompact ? 8 : 9)
 
@@ -116,7 +116,7 @@ function ReferralNode({ data }: NodeProps) {
       style={{
         width,
         height,
-        padding: '4px 8px',
+        padding: '5px 8px',
         background: '#ffffff',
         border: `1.5px solid ${p.color}`,
         borderRadius: 8,
@@ -194,16 +194,16 @@ function getLayoutedElements(
   const isHorizontal = direction === 'LR'
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: 40,
-    ranksep: 50,
-    marginx: 20,
-    marginy: 20,
+    nodesep: 25,
+    ranksep: 40,
+    marginx: 10,
+    marginy: 10,
   })
 
   for (const node of nodes) {
-    // v28: 同步加宽 dagre 布局尺寸
-    const w = node.data?.isRoot ? 200 : node.data?.depth && node.data.depth > 1 ? 160 : 180
-    const h = node.data?.isRoot ? 68 : node.data?.depth && node.data.depth > 1 ? 46 : 56
+    // v29: 同步紧凑化 dagre 布局尺寸
+    const w = node.data?.isRoot ? 170 : node.data?.depth && node.data.depth > 1 ? 140 : 160
+    const h = node.data?.isRoot ? 66 : node.data?.depth && node.data.depth > 1 ? 46 : 54
     dagreGraph.setNode(node.id, { width: w, height: h })
   }
 
