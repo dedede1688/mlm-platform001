@@ -71,6 +71,16 @@ export interface ReferralTreeViewProps {
 
 // ---- 常量 ----
 
+// v30 统一节点尺寸常量（铁律 11：3 处必须用同一值）
+// 内容最宽：● + 11位手机号(82px) + padding(16px) ≈ 102px → 取 100px
+const NODE_WIDTH = 100
+
+function getNodeHeight(isRoot: boolean, depth: number): number {
+  if (isRoot) return 64
+  if (depth <= 1) return 54
+  return 46
+}
+
 const LEVEL_NAMES: Record<number, string> = {
   0: '游客', 1: '会员', 2: '经销商', 3: '主任',
   4: '经理', 5: '总监', 6: '总裁', 7: '董事',
@@ -104,12 +114,11 @@ function ReferralNode({ data }: NodeProps) {
   const p = LEVEL_PALETTE[data.level] || LEVEL_PALETTE[0]
   const levelName = LEVEL_NAMES[data.level] || `Lv${data.level}`
 
-  const isCompact = (data as any)._compact ?? false
-  // v29: 紧凑化 — 解决 v28 左右空白过多
-  const width = data.isRoot ? (isCompact ? 165 : 180) : data.depth <= 1 ? (isCompact ? 155 : 170) : (isCompact ? 140 : 150)
-  const height = data.isRoot ? (isCompact ? 62 : 70) : data.depth <= 1 ? (isCompact ? 50 : 58) : (isCompact ? 44 : 50)
-  const fontSizeName = data.isRoot ? (isCompact ? 13 : 14) : data.depth <= 1 ? (isCompact ? 12 : 13) : (isCompact ? 10 : 11)
-  const fontSizeBadge = data.isRoot ? (isCompact ? 9 : 10) : (isCompact ? 8 : 9)
+  // v30：统一用 NODE_WIDTH 常量 + getNodeHeight（铁律 11）
+  const width = NODE_WIDTH
+  const height = getNodeHeight(data.isRoot, data.depth)
+  const fontSizeName = data.isRoot ? 12 : data.depth <= 1 ? 11 : 10
+  const fontSizeBadge = data.isRoot ? 9 : 8
 
   return (
     <div
@@ -194,16 +203,17 @@ function getLayoutedElements(
   const isHorizontal = direction === 'LR'
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: 25,
-    ranksep: 40,
-    marginx: 10,
-    marginy: 10,
+    // v30：进一步紧凑间距
+    nodesep: 16,
+    ranksep: 36,
+    marginx: 8,
+    marginy: 8,
   })
 
   for (const node of nodes) {
-    // v29: 同步紧凑化 dagre 布局尺寸
-    const w = node.data?.isRoot ? 170 : node.data?.depth && node.data.depth > 1 ? 140 : 160
-    const h = node.data?.isRoot ? 66 : node.data?.depth && node.data.depth > 1 ? 46 : 54
+    // v30：统一用 NODE_WIDTH + getNodeHeight（铁律 11）
+    const w = NODE_WIDTH
+    const h = getNodeHeight(!!node.data?.isRoot, node.data?.depth ?? 0)
     dagreGraph.setNode(node.id, { width: w, height: h })
   }
 
@@ -215,8 +225,9 @@ function getLayoutedElements(
 
   const layoutedNodes = nodes.map((node) => {
     const nwp = dagreGraph.node(node.id)
-    const w = node.data?.isRoot ? 180 : node.data?.depth && node.data.depth > 1 ? 120 : 150
-    const h = node.data?.isRoot ? 65 : node.data?.depth && node.data.depth > 1 ? 40 : 52
+    // v30：统一用 NODE_WIDTH + getNodeHeight（铁律 11）
+    const w = NODE_WIDTH
+    const h = getNodeHeight(!!node.data?.isRoot, node.data?.depth ?? 0)
     return {
       ...node,
       targetPosition: isHorizontal ? Position.Left : Position.Top,
