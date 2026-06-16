@@ -32,6 +32,13 @@ function formatCurrency(n: number): string {
   return `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// v32：父链节点类型
+interface AncestorNode {
+  id: string
+  nickname: string | null
+  phone: string
+}
+
 interface ApiResponse {
   success: boolean
   data: TreeNode | null
@@ -39,6 +46,8 @@ interface ApiResponse {
   truncated?: boolean
   nodeCount?: number
   summary?: TreeSummary
+  ancestors?: AncestorNode[]   // v32：父链
+  rootParentId?: string | null   // v32：root 的直接父节点 ID
 }
 
 // ============================================================
@@ -46,6 +55,9 @@ interface ApiResponse {
 // ============================================================
 
 export default function ReferralTreePanel({ userId, userName, onClose }: ReferralTreePanelProps) {
+  // v32：currentUserId 支持点击节点切换视角
+  const [currentUserId, setCurrentUserId] = useState<string>(userId)
+  const [currentUserName, setCurrentUserName] = useState<string>(userName || userId.slice(-4))
   const [token, setToken] = useState<string | null>(null)
   const [treeData, setTreeData] = useState<TreeNode | null>(null)
   const [summary, setSummary] = useState<TreeSummary | null>(null)
@@ -54,6 +66,8 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [maxLevel, setMaxLevel] = useState(3)
+  const [ancestors, setAncestors] = useState<AncestorNode[]>([])   // v32：父链
+  const [rootParentId, setRootParentId] = useState<string | null>(null) // v32
 
   // 获取 token
   useEffect(() => {
@@ -61,14 +75,14 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (t) setToken(t)
   }, [])
 
-  // 加载数据
+  // v32：加载数据（监听 currentUserId 变化自动重新加载）
   useEffect(() => {
-    if (!token || !userId) return
+    if (!token || !currentUserId) return
     setLoading(true)
     setError('')
     setTreeData(null)
 
-    fetch(`/api/admin/referral-tree/${userId}?maxLevel=${maxLevel}`, {
+    fetch(`/api/admin/referral-tree/${currentUserId}?maxLevel=${maxLevel}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -78,13 +92,16 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
           setTruncated(data.truncated || false)
           setNodeCount(data.nodeCount ?? 0)
           if (data.summary) setSummary(data.summary)
+          // v32：保存父链信息
+          setAncestors(data.ancestors || [])
+          setRootParentId(data.rootParentId ?? null)
         } else {
           setError(data.error || '获取推荐树失败')
         }
       })
       .catch(() => setError('网络错误'))
       .finally(() => setLoading(false))
-  }, [token, userId, maxLevel])
+  }, [token, currentUserId, maxLevel])
 
   // ESC 关闭
   useEffect(() => {
@@ -97,10 +114,10 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
 
   // 刷新
   const handleReload = () => {
-    if (!token || !userId) return
+    if (!token || !currentUserId) return
     setLoading(true)
     setError('')
-    fetch(`/api/admin/referral-tree/${userId}?maxLevel=${maxLevel}`, {
+    fetch(`/api/admin/referral-tree/${currentUserId}?maxLevel=${maxLevel}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -118,9 +135,26 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
       .finally(() => setLoading(false))
   }
 
-  // 节点点击 → 暂不处理（可扩展）
-  const handleNodeClick = useCallback((_node: TreeNode) => {
-    // v27.1 可扩展为节点详情弹窗
+  // v32：节点点击 → 切换视角到该用户
+  const handleNodeClick = useCallback((node: TreeNode) => {
+    setCurrentUserId(node.id)
+    setCurrentUserName(node.nickname || node.phone.slice(-4))
+  }, [])
+
+  // v32：返回上级
+  const handleGoUp = useCallback(() => {
+    if (!rootParentId) return
+    const parent = ancestors.find(a => a.id === rootParentId)
+    if (parent) {
+      setCurrentUserId(parent.id)
+      setCurrentUserName(parent.nickname || parent.phone.slice(-4))
+    }
+  }, [rootParentId, ancestors])
+
+  // v32：面包屑点击某级
+  const handleBreadcrumbClick = useCallback((ancestor: AncestorNode) => {
+    setCurrentUserId(ancestor.id)
+    setCurrentUserName(ancestor.nickname || ancestor.phone.slice(-4))
   }, [])
 
   return (
@@ -142,7 +176,7 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
           <div className="flex items-center gap-3">
             <Network className="w-5 h-5 text-white/90" />
             <h2 className="text-base font-bold text-white">
-              推荐关系图 — {userName || userId.slice(-4)}
+              推荐关系图 — {currentUserName}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -168,6 +202,41 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
             </button>
           </div>
         </div>
+
+        {/* ===== v32：面包屑导航 ===== */}
+        {ancestors.length > 0 && (
+          <div className="px-4 py-2 shrink-0 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-100 flex items-center gap-1.5 flex-wrap">
+            {/* ← 返回上级按钮 */}
+            <button
+              onClick={handleGoUp}
+              disabled={!rootParentId}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                rootParentId
+                  ? 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50 hover:border-amber-300 cursor-pointer shadow-sm'
+                  : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
+              }`}
+            >
+              ← 返回
+            </button>
+            {/* 父链路径 */}
+            {ancestors.map((ancestor, idx) => (
+              <span key={ancestor.id} className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleBreadcrumbClick(ancestor)}
+                  className="px-2 py-0.5 rounded text-xs text-gray-600 hover:bg-amber-100 hover:text-amber-800 transition-colors"
+                >
+                  {ancestor.nickname || ancestor.phone.slice(-4)}
+                </button>
+                {idx < ancestors.length - 1 && <span className="text-gray-300">→</span>}
+              </span>
+            ))}
+            <span className="text-gray-300">→</span>
+            {/* 当前节点（金色高亮） */}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800 border border-amber-300 shadow-sm">
+              👑 {currentUserName}
+            </span>
+          </div>
+        )}
 
         {/* ===== 摘要条 ===== */}
         {summary && (

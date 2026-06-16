@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Network, Loader2, ChevronLeft, Users, RefreshCw,
@@ -20,6 +20,13 @@ import ReferralTreeView, {
 
 // ---- 类型 ----
 
+// v32：父链节点类型
+interface AncestorNode {
+  id: string
+  nickname: string | null
+  phone: string
+}
+
 interface ApiResponse {
   success: boolean
   data: TreeNode | null
@@ -27,6 +34,8 @@ interface ApiResponse {
   truncated?: boolean
   nodeCount?: number
   summary?: TreeSummary
+  ancestors?: AncestorNode[]   // v32：父链
+  rootParentId?: string | null   // v32：root 的直接父节点 ID
 }
 
 // ---- 节点详情弹窗 ----
@@ -97,6 +106,7 @@ function NodeDetailModal({
 
 export default function ReferralTreePage() {
   const params = useParams()
+  const router = useRouter()    // v32：用于节点点击跳转
   const userId = params.id as string
 
   const [token, setToken] = useState<string | null>(null)
@@ -108,6 +118,8 @@ export default function ReferralTreePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [detailNode, setDetailNode] = useState<TreeNode | null>(null)
+  const [ancestors, setAncestors] = useState<AncestorNode[]>([])   // v32
+  const [rootParentId, setRootParentId] = useState<string | null>(null) // v32
 
   useEffect(() => {
     const t = localStorage.getItem('token')
@@ -131,6 +143,9 @@ export default function ReferralTreePage() {
           setTruncated(data.truncated || false)
           setNodeCount(data.nodeCount ?? 0)
           if (data.summary) setSummary(data.summary)
+          // v32：保存父链信息
+          setAncestors(data.ancestors || [])
+          setRootParentId(data.rootParentId ?? null)
         } else {
           setError(data.error || '获取推荐树失败')
         }
@@ -170,6 +185,28 @@ export default function ReferralTreePage() {
         <Network className="w-6 h-6 text-purple-600" />
         <h1 className="text-2xl font-bold text-gray-900">推荐关系图</h1>
       </div>
+
+      {/* v32：面包屑导航（父链溯源） */}
+      {ancestors.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl shadow-sm p-3 mb-4 flex items-center gap-2 flex-wrap border border-amber-100">
+          <span className="text-xs text-gray-500 font-medium">溯源路径：</span>
+          {ancestors.map((ancestor, idx) => (
+            <span key={ancestor.id} className="flex items-center gap-1.5">
+              <Link
+                href={`/admin/users/${ancestor.id}/tree`}
+                className="px-2 py-0.5 rounded text-xs text-gray-600 hover:bg-amber-100 hover:text-amber-800 transition-colors"
+              >
+                {ancestor.nickname || ancestor.phone.slice(-4)}
+              </Link>
+              {idx < ancestors.length - 1 && <span className="text-gray-300">→</span>}
+            </span>
+          ))}
+          <span className="text-gray-300">→</span>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800 border border-amber-300 shadow-sm">
+            👑 当前用户
+          </span>
+        </div>
+      )}
 
       {/* 工具栏 */}
       <div className="bg-white rounded-xl shadow-lg p-4 mb-4 flex items-center gap-4 flex-wrap">
@@ -259,7 +296,10 @@ export default function ReferralTreePage() {
           error={error}
           compact={false}
           height={750}
-          onNodeClick={(node) => setDetailNode(node)}
+          onNodeClick={(node) => {
+            // v32：点击节点 → 跳转到该用户的推荐树页面
+            router.push(`/admin/users/${node.id}/tree`)
+          }}
         />
       </div>
 

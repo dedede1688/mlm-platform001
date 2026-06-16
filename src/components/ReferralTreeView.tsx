@@ -145,10 +145,24 @@ function ReferralNode({ data }: NodeProps) {
   const p = LEVEL_PALETTE[data.level] || LEVEL_PALETTE[0]
   const levelName = LEVEL_NAMES[data.level] || `Lv${data.level}`
 
+  // v32：root 节点（自己）特殊标识
+  const isSelf = data.isRoot
+
   // v31：自适应宽度（铁律 11：唯一尺寸来源 = getNodeSize）
   const { width, height } = getNodeSize(data)
-  const fontSizeName = data.isRoot ? 12 : data.depth <= 1 ? 11 : 10
-  const fontSizeBadge = data.isRoot ? 9 : 8
+  const fontSizeName = isSelf ? 13 : data.depth <= 1 ? 11 : 10
+  const fontSizeBadge = isSelf ? 10 : 9
+
+  // v32：root 节点金色样式
+  const selfStyle = isSelf ? {
+    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+    border: '3px solid #f59e0b',
+    boxShadow: '0 6px 16px rgba(245, 158, 11, 0.25)',
+  } : {
+    background: '#ffffff',
+    border: `1.5px solid ${p.color}`,
+    boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
+  }
 
   return (
     <div
@@ -156,10 +170,8 @@ function ReferralNode({ data }: NodeProps) {
         width,
         height,
         padding: '5px 8px',
-        background: '#ffffff',
-        border: `1.5px solid ${p.color}`,
         borderRadius: 8,
-        boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -167,17 +179,39 @@ function ReferralNode({ data }: NodeProps) {
         textAlign: 'center',
         cursor: 'pointer',
         transition: 'all 0.15s ease',
+        ...selfStyle,
       }}
+      onMouseEnter={(e) => { if (!isSelf) (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
+      onMouseLeave={(e) => { if (!isSelf) (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
     >
       <Handle type="target" position={Position.Top}
-        style={{ background: p.color, border: 'none', width: 5, height: 5 }} />
+        style={{ background: isSelf ? '#f59e0b' : p.color, border: 'none', width: 5, height: 5 }} />
       <Handle type="source" position={Position.Bottom}
-        style={{ background: p.color, border: 'none', width: 5, height: 5 }} />
+        style={{ background: isSelf ? '#f59e0b' : p.color, border: 'none', width: 5, height: 5 }} />
+
+      {/* v32：root 节点 👑 自己 徽章 */}
+      {isSelf && (
+        <div style={{
+          position: 'absolute',
+          top: -11,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+          color: '#fff',
+          borderRadius: 10,
+          padding: '2px 8px',
+          fontSize: 9,
+          fontWeight: 700,
+          whiteSpace: 'nowrap',
+          boxShadow: '0 2px 6px rgba(245, 158, 11, 0.35)',
+          zIndex: 10,
+        }}>👑 自己</div>
+      )}
 
       {/* 第1行：完整手机号（v28） */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-        <span style={{ fontSize: 8, color: p.color }}>●</span>
-        <span style={{ fontSize: 10, color: '#4b5563' }}>{data.phoneFull || data.phoneTail}</span>
+        <span style={{ fontSize: 8, color: isSelf ? '#d97706' : p.color }}>●</span>
+        <span style={{ fontSize: 10, color: isSelf ? '#92400e' : '#4b5563', fontWeight: isSelf ? 600 : 400 }}>{data.phoneFull || data.phoneTail}</span>
       </div>
 
       {/* 第2行 */}

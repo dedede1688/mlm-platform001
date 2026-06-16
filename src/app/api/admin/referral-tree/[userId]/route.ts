@@ -166,6 +166,22 @@ export async function GET(
       }
     }
 
+    // v32：查询父链（ancestors）— 从当前 root 向上追溯，最多 10 层防死循环
+    const ancestors: { id: string; nickname: string | null; phone: string }[] = []
+    let currentAncestorId: string | null = rootUser.referrerId
+    const visitedAncestorIds = new Set<string>()
+    for (let i = 0; i < 10 && currentAncestorId; i++) {
+      if (visitedAncestorIds.has(currentAncestorId)) break // 防环
+      visitedAncestorIds.add(currentAncestorId)
+      const parent = await prisma.user.findUnique({
+        where: { id: currentAncestorId },
+        select: { id: true, phone: true, nickname: true, referrerId: true },
+      })
+      if (!parent) break
+      ancestors.unshift({ id: parent.id, nickname: parent.nickname, phone: parent.phone }) // 从顶级到当前 root 的父
+      currentAncestorId = parent.referrerId
+    }
+
     const response: {
       success: boolean
       data: TreeNode | null
@@ -177,6 +193,8 @@ export async function GET(
         totalOrders: number
         maxLevelReached: number
       }
+      ancestors?: { id: string; nickname: string | null; phone: string }[]
+      rootParentId?: string | null
     } = {
       success: true,
       data: root,
@@ -195,6 +213,12 @@ export async function GET(
         totalOrders: sumOrderCounts(root),
         maxLevelReached: getMaxDepth(root),
       }
+    }
+
+    // v32：返回父链 + root 的直接父节点 ID（用于"返回上级"按钮）
+    if (ancestors.length > 0) {
+      response.ancestors = ancestors
+      response.rootParentId = rootUser.referrerId
     }
 
     return NextResponse.json(response)
