@@ -6,8 +6,8 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 const apiCache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_TTL = 30 * 1000
 
-function getCacheKey(userId: string, maxLevel: number): string {
-  return `${userId}:${maxLevel}`
+function getCacheKey(userId: string, maxLevel: number, mode: string, boundaryDown: number): string {
+  return `${userId}:${maxLevel}:${mode}:${boundaryDown}`
 }
 
 function getCached(key: string): any | null {
@@ -67,7 +67,8 @@ export async function GET(
   const { searchParams } = new URL(request.url)
   const maxLevel = Math.min(Math.max(Number(searchParams.get('maxLevel')) || 3, 1), 5)
   const mode = searchParams.get('mode') || 'root'  // v39: 'root' | 'boundary'
-  const cacheKey = getCacheKey(userId, maxLevel)
+  const boundaryDownLevel = Number(searchParams.get('boundaryDown')) || 2  // v40: 向下剪枝层数
+  const cacheKey = getCacheKey(userId, maxLevel, mode, boundaryDownLevel)
   const cached = getCached(cacheKey)
   if (cached) {
     return NextResponse.json(cached)
@@ -283,6 +284,7 @@ export async function GET(
       rootParentId?: string | null
       focusUserId?: string           // v39: 原始请求的 userId（前端 focus 用）
       boundaryParentId?: string | null  // v39: 原始 userId 的直接父级（前端剪枝用）
+      boundaryDownLevel?: number        // v40: 向下剪枝层数
     } = {
       success: true,
       data: root,
@@ -309,9 +311,10 @@ export async function GET(
       response.rootParentId = rootUser.parentId
     }
 
-    // v39: 返回焦点信息供前端剪枝
+    // v39/v40: 返回焦点信息供前端剪枝
     response.focusUserId = originalUserId
     response.boundaryParentId = rootUser.parentId
+    response.boundaryDownLevel = boundaryDownLevel
 
     // v38: 写入缓存
     apiCache.set(cacheKey, { data: response, timestamp: Date.now() })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, Network, Users, TrendingUp, ShoppingCart, Loader2, RefreshCw } from 'lucide-react'
 import ReferralTreeView, {
   TreeNode,
@@ -50,13 +50,14 @@ interface ApiResponse {
   rootParentId?: string | null   // v32：root 的直接父节点 ID
   focusUserId?: string           // v39: 原始请求的 userId（前端 focus 用）
   boundaryParentId?: string | null  // v39: 原始 userId 的直接父级（前端剪枝用）
+  boundaryDownLevel?: number        // v40: 向下剪枝层数
 }
 
 // ============================================================
 // 主组件：浮动面板
 // ============================================================
 
-// v39: 树节点查找辅助函数
+// v40: 树节点查找辅助函数
 function findNodeById(node: TreeNode | null, id: string): TreeNode | null {
   if (!node) return null
   if (node.id === id) return node
@@ -65,6 +66,17 @@ function findNodeById(node: TreeNode | null, id: string): TreeNode | null {
     if (f) return f
   }
   return null
+}
+
+// v40: 向下剪枝 — 只保留 maxDepth 层子树
+function pruneDownward(node: TreeNode, maxDepth: number, currentDepth: number = 0): TreeNode {
+  if (currentDepth >= maxDepth) {
+    return { ...node, children: [] }
+  }
+  return {
+    ...node,
+    children: node.children.map(c => pruneDownward(c, maxDepth, currentDepth + 1))
+  }
 }
 export default function ReferralTreePanel({ userId, userName, onClose }: ReferralTreePanelProps) {
   // v32：focusUserId 支持点击节点切换视角
@@ -88,24 +100,17 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (t) setToken(t)
   }, [])
 
-  // v39: 单次 fetch 模式 — 合并 v37 的两次串行为一次 API 调用
-  // API 端通过 mode=boundary 参数智能选择视角，返回完整树+剪枝信息
-  const fetchTargetRef = useRef(focusUserId || userId)
-
+  // v40: 单次 fetch 模式 — 去掉 v37/v39 的 useRef hack，直接用 focusUserId 作为依赖
   useEffect(() => {
-    fetchTargetRef.current = focusUserId || userId
-  }, [focusUserId, userId])
-
-  useEffect(() => {
-    const targetId = fetchTargetRef.current
+    const targetId = focusUserId
     if (!token || !targetId) return
 
     setLoading(true)
     setError('')
     setTreeData(null)
 
-    // v39: 单次请求，mode=boundary 让 API 返回顶级祖先视角的完整树
-    fetch(`/api/admin/referral-tree/${targetId}?maxLevel=${maxLevel}&mode=boundary`, {
+    // v40: 单次请求，mode=boundary + boundaryDown=2
+    fetch(`/api/admin/referral-tree/${targetId}?maxLevel=${maxLevel}&mode=boundary&boundaryDown=2`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -119,22 +124,27 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
         setAncestors(data.ancestors || [])
         setRootParentId(data.rootParentId ?? null)
 
-        // v39: 内存剪枝 — 如果 API 返回的是祖先视角的完整树，只保留 focus 路径
+        // v40: 内存剪枝 — 边界 = 焦点 + 直接父 + 向下 downLevel 层（焦点+子+孙）
         let finalData = data.data
-        if (data.focusUserId && data.boundaryParentId && finalData && finalData.id !== data.focusUserId) {
-          // 找到 boundaryParentId 对应的节点（它是 focusUserId 的直接父）
-          const parentNode = findNodeById(finalData, data.boundaryParentId)
-          if (parentNode && parentNode.children) {
-            const targetNode = parentNode.children.find(c => c.id === data.focusUserId)
-            if (targetNode) {
-              finalData = {
-                ...parentNode,
-                children: [{ ...targetNode, children: [] }],
+        const focusId = data.focusUserId
+        const parentId = data.boundaryParentId
+        const downLevel = data.boundaryDownLevel ?? 2
+
+        if (focusId && finalData) {
+          if (parentId) {
+            // 非顶级焦点：剪枝到「父 + 焦点(向下 downLevel 层)」
+            const parentNode = findNodeById(finalData, parentId)
+            if (parentNode) {
+              const focusNode = findNodeById(finalData, focusId)
+              if (focusNode) {
+                finalData = {
+                  ...parentNode,
+                  children: [pruneDownward(focusNode, downLevel)],
+                }
               }
-            } else {
-              finalData = { ...parentNode, children: [] }
             }
           }
+          // 顶级焦点（无 parentId）：不剪枝，保留完整子树（v32 退化行为）
         }
 
         setTreeData(finalData)
@@ -147,7 +157,7 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
         setError('网络错误')
         setLoading(false)
       })
-  }, [token, maxLevel, fetchTargetRef.current])
+  }, [token, focusUserId, maxLevel])
 
   // ESC 关闭
   useEffect(() => {
@@ -158,28 +168,14 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  // 刷新
-  const handleReload = () => {
-    if (!token || !focusUserId) return
-    setLoading(true)
-    setError('')
-    fetch(`/api/admin/referral-tree/${focusUserId}?maxLevel=${maxLevel}&mode=boundary`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then((data: ApiResponse) => {
-        if (data.success) {
-          setTreeData(data.data)
-          setTruncated(data.truncated || false)
-          setNodeCount(data.nodeCount ?? 0)
-          if (data.summary) setSummary(data.summary)
-        } else {
-          setError(data.error || '获取推荐树失败')
-        }
-      })
-      .catch(() => setError('网络错误'))
-      .finally(() => setLoading(false))
-  }
+  // v40: 刷新 — 只改 focusUserId 触发 useEffect 重跑
+  const handleReload = useCallback(() => {
+    if (!focusUserId) return
+    // 强制触发 useEffect：先清空再设回同一个值
+    const currentFocus = focusUserId
+    setFocusUserId('')
+    setTimeout(() => setFocusUserId(currentFocus), 0)
+  }, [focusUserId])
 
   // v32：节点点击 → 切换视角到该用户
   // v35: click node  only switch focus (no re-fetch)
