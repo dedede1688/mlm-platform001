@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPermission } from '@/lib/utils/admin-auth'
+// ---- v38: 内存缓存 (30s TTL) ----
+
+const apiCache = new Map<string, { data: any; timestamp: number }>()
+const CACHE_TTL = 30 * 1000
+
+function getCacheKey(userId: string, maxLevel: number): string {
+  return `${userId}:${maxLevel}`
+}
+
+function getCached(key: string): any | null {
+  const entry = apiCache.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    apiCache.delete(key)
+    return null
+  }
+  return entry.data
+}
 
 // ---- 类型 ----
 
@@ -44,10 +62,17 @@ export async function GET(
   const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
   if (authError || !admin) return authError!
 
+  // v38: 缓存检查
+  const { userId } = await params
+  const { searchParams } = new URL(request.url)
+  const maxLevel = Math.min(Math.max(Number(searchParams.get('maxLevel')) || 3, 1), 5)
+  const cacheKey = getCacheKey(userId, maxLevel)
+  const cached = getCached(cacheKey)
+  if (cached) {
+    return NextResponse.json(cached)
+  }
+
   try {
-    const { userId } = await params
-    const { searchParams } = new URL(request.url)
-    const maxLevel = Math.min(Math.max(Number(searchParams.get('maxLevel')) || 3, 1), 5)
 
     // 查询根用户
     const rootUser = await prisma.user.findUnique({
@@ -125,36 +150,33 @@ export async function GET(
       currentLevelIds = toAdd.map(u => u.id)
     }
 
-    // 批量查询每个用户的订单数
+    // v38: 并行查询 — 三个独立 DB 查询同时执行
     const allUserIds = allUsers.map(u => u.id)
-    const orderCounts = await prisma.order.groupBy({
-      by: ['userId'],
-      where: { userId: { in: allUserIds }, status: { not: 'cancelled' } },
-      _count: { id: true },
-    })
-    const orderCountMap = new Map(orderCounts.map(o => [o.userId, o._count.id]))
-
-    // 批量查询每个用户的直接下级安置人数（teamCount，基于 parentId）
-    const referralCounts = await prisma.user.groupBy({
-      by: ['parentId'],
-      where: { parentId: { in: allUserIds } },
-      _count: { id: true },
-    })
-    const teamCountMap = new Map(referralCounts.map(r => [r.parentId, r._count.id]))
-
-    // v37：批量查询所有节点的推荐人简略信息
     const allReferrerIds = allUsers
       .map(u => u.referrerId)
       .filter((id): id is string => !!id && allUsers.some(u => u.id === id))
 
-    let referrerInfoMap = new Map<string, { id: string; nickname: string | null; phone: string }>()
-    if (allReferrerIds.length > 0) {
-      const referrers = await prisma.user.findMany({
-        where: { id: { in: allReferrerIds } },
+    const [orderCounts, referralCounts, referrers] = await Promise.all([
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: { userId: { in: allUserIds }, status: { not: 'cancelled' } },
+        _count: { id: true },
+      }),
+      prisma.user.groupBy({
+        by: ['parentId'],
+        where: { parentId: { in: allUserIds } },
+        _count: { id: true },
+      }),
+      // 推荐人信息查询（无 referrerId 时传空数组避免无效查询）
+      prisma.user.findMany({
+        where: { id: { in: allReferrerIds.length > 0 ? allReferrerIds : ['__empty__'] } },
         select: { id: true, nickname: true, phone: true },
-      })
-      referrerInfoMap = new Map(referrers.map(r => [r.id, r]))
-    }
+      }),
+    ])
+
+    const orderCountMap = new Map(orderCounts.map(o => [o.userId, o._count.id]))
+    const teamCountMap = new Map(referralCounts.map(r => [r.parentId, r._count.id]))
+    const referrerInfoMap = new Map(referrers.map(r => [r.id, r]))
 
     // 在内存中构建树
     const nodeMap = new Map<string, TreeNode>()
@@ -242,6 +264,8 @@ export async function GET(
       response.rootParentId = rootUser.parentId
     }
 
+    // v38: 写入缓存
+    apiCache.set(cacheKey, { data: response, timestamp: Date.now() })
     return NextResponse.json(response)
   } catch (error) {
     console.error('获取推荐树失败:', error)
