@@ -66,6 +66,7 @@ export async function GET(
   const { userId } = await params
   const { searchParams } = new URL(request.url)
   const maxLevel = Math.min(Math.max(Number(searchParams.get('maxLevel')) || 3, 1), 5)
+  const mode = searchParams.get('mode') || 'root'  // v39: 'root' | 'boundary'
   const cacheKey = getCacheKey(userId, maxLevel)
   const cached = getCached(cacheKey)
   if (cached) {
@@ -98,10 +99,52 @@ export async function GET(
       )
     }
 
+    // v39: mode=boundary — 从顶级祖先视角构建完整树（一次请求搞定前后端剪枝所需数据）
+    let actualRootId = userId
+    let originalUserId = userId  // v39: 记录原始请求的 userId（focus 用）
+
+    if (mode === 'boundary' && rootUser.parentId) {
+      // 先查父链找到顶级祖先
+      let ancId: string | null = rootUser.parentId
+      const visitedAnc = new Set<string>()
+      const tempAncestors: Array<{id: string; nickname: string | null; phone: string}> = []
+      for (let i = 0; i < 10 && ancId; i++) {
+        if (visitedAnc.has(ancId)) break
+        visitedAnc.add(ancId)
+        const anc: { id: string; nickname: string | null; phone: string; parentId: string | null } | null = await prisma.user.findUnique({
+          where: { id: ancId },
+          select: { id: true, nickname: true, phone: true, parentId: true },
+        })
+        if (!anc) break
+        tempAncestors.unshift({ id: anc.id, nickname: anc.nickname, phone: anc.phone })
+        ancId = anc.parentId
+      }
+      // 用顶级祖先作为树的根（如果有的话）
+      if (tempAncestors.length > 0) {
+        actualRootId = tempAncestors[0].id
+      }
+    }
+
+    // 如果 actualRootId != userId，需要重新查 rootUser 为 actualRootId
+    let effectiveRootUser = rootUser
+    if (actualRootId !== userId) {
+      const queried = await prisma.user.findUnique({
+        where: { id: actualRootId },
+        select: {
+          id: true, phone: true, nickname: true, level: true, avatarUrl: true,
+          totalPoints: true, directSalesAmount: true, parentId: true, referrerId: true, createdAt: true,
+        },
+      })
+      if (!queried) {
+        return NextResponse.json({ success: false, error: '根用户不存在' }, { status: 404 })
+      }
+      effectiveRootUser = queried
+    }
+
     // 一次性查询所有以该用户为祖先的用户（通过 parentId 逐级追溯，构建安置树）
-    const allUsers: FlatUser[] = [rootUser as FlatUser]
-    const visitedIds = new Set<string>([userId])
-    let currentLevelIds = [userId]
+    const allUsers: FlatUser[] = [effectiveRootUser as FlatUser]
+    const visitedIds = new Set<string>([actualRootId])
+    let currentLevelIds = [actualRootId]
     let truncated = false
 
     for (let depth = 0; depth < maxLevel; depth++) {
@@ -202,7 +245,7 @@ export async function GET(
     let root: TreeNode | null = null
     for (const u of allUsers) {
       const node = nodeMap.get(u.id)!
-      if (u.id === userId) {
+      if (u.id === actualRootId) {
         root = node
       } else if (u.parentId && nodeMap.has(u.parentId)) {
         nodeMap.get(u.parentId)!.children.push(node)
@@ -238,6 +281,8 @@ export async function GET(
       }
       ancestors?: { id: string; nickname: string | null; phone: string }[]
       rootParentId?: string | null
+      focusUserId?: string           // v39: 原始请求的 userId（前端 focus 用）
+      boundaryParentId?: string | null  // v39: 原始 userId 的直接父级（前端剪枝用）
     } = {
       success: true,
       data: root,
@@ -263,6 +308,10 @@ export async function GET(
       response.ancestors = ancestors
       response.rootParentId = rootUser.parentId
     }
+
+    // v39: 返回焦点信息供前端剪枝
+    response.focusUserId = originalUserId
+    response.boundaryParentId = rootUser.parentId
 
     // v38: 写入缓存
     apiCache.set(cacheKey, { data: response, timestamp: Date.now() })

@@ -48,12 +48,24 @@ interface ApiResponse {
   summary?: TreeSummary
   ancestors?: AncestorNode[]   // v32：父链
   rootParentId?: string | null   // v32：root 的直接父节点 ID
+  focusUserId?: string           // v39: 原始请求的 userId（前端 focus 用）
+  boundaryParentId?: string | null  // v39: 原始 userId 的直接父级（前端剪枝用）
 }
 
 // ============================================================
 // 主组件：浮动面板
 // ============================================================
 
+// v39: 树节点查找辅助函数
+function findNodeById(node: TreeNode | null, id: string): TreeNode | null {
+  if (!node) return null
+  if (node.id === id) return node
+  for (const child of node.children) {
+    const f = findNodeById(child, id)
+    if (f) return f
+  }
+  return null
+}
 export default function ReferralTreePanel({ userId, userName, onClose }: ReferralTreePanelProps) {
   // v32：focusUserId 支持点击节点切换视角
   // v35: focus state (no re-fetch)
@@ -76,9 +88,8 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (t) setToken(t)
   }, [])
 
-  // v37: 边界=1 模式 — 只显示焦点用户 + 直接父节点（2节点）
-  // v35的"切focus不重新fetch"在此失效（边界=1需要重新fetch），这是有意取舍
-  // 用 useRef 跟踪实际要 fetch 的 targetId，避免 setFocusUserId 触发无限循环
+  // v39: 单次 fetch 模式 — 合并 v37 的两次串行为一次 API 调用
+  // API 端通过 mode=boundary 参数智能选择视角，返回完整树+剪枝信息
   const fetchTargetRef = useRef(focusUserId || userId)
 
   useEffect(() => {
@@ -93,53 +104,36 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     setError('')
     setTreeData(null)
 
-    // 第1步：拿焦点用户自身数据获取 parentId
-    fetch(`/api/admin/referral-tree/${targetId}?maxLevel=1`, {
+    // v39: 单次请求，mode=boundary 让 API 返回顶级祖先视角的完整树
+    fetch(`/api/admin/referral-tree/${targetId}?maxLevel=${maxLevel}&mode=boundary`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then((firstData: ApiResponse) => {
-        if (!firstData.success) {
-          setError(firstData.error || '获取推荐树失败')
+      .then((data: ApiResponse) => {
+        if (!data.success) {
+          setError(data.error || '获取推荐树失败')
           setLoading(false)
           return
         }
 
-        const parentId = firstData.rootParentId ?? null
-        setAncestors(firstData.ancestors || [])
-        setRootParentId(parentId)
+        setAncestors(data.ancestors || [])
+        setRootParentId(data.rootParentId ?? null)
 
-        if (!parentId) {
-          // v37 顶级退化：无父节点 → 显示完整子树（保留v32行为）
-          return fetch(`/api/admin/referral-tree/${targetId}?maxLevel=${maxLevel}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-        }
-
-        // v37 有直接父 → 拿父节点的边界=1图（只包含父+直接子）
-        return fetch(`/api/admin/referral-tree/${parentId}?maxLevel=1`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      })
-      .then(res => res ? res.json() : null)
-      .then((data: ApiResponse | null) => {
-        if (!data || !data.success) {
-          setError(data?.error || '获取推荐树失败')
-          setLoading(false)
-          return
-        }
-
-        // v37：边界=1 组装 — 父节点只保留 targetId 作为其直接子（剪枝其他兄弟）
+        // v39: 内存剪枝 — 如果 API 返回的是祖先视角的完整树，只保留 focus 路径
         let finalData = data.data
-        if (finalData && finalData.id !== targetId && finalData.children) {
-          const userNode = finalData.children.find(c => c.id === targetId)
-          if (userNode) {
-            finalData = {
-              ...finalData,
-              children: [{ ...userNode, children: [] }],
+        if (data.focusUserId && data.boundaryParentId && finalData && finalData.id !== data.focusUserId) {
+          // 找到 boundaryParentId 对应的节点（它是 focusUserId 的直接父）
+          const parentNode = findNodeById(finalData, data.boundaryParentId)
+          if (parentNode && parentNode.children) {
+            const targetNode = parentNode.children.find(c => c.id === data.focusUserId)
+            if (targetNode) {
+              finalData = {
+                ...parentNode,
+                children: [{ ...targetNode, children: [] }],
+              }
+            } else {
+              finalData = { ...parentNode, children: [] }
             }
-          } else {
-            finalData = { ...finalData, children: [] }
           }
         }
 
@@ -169,7 +163,7 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (!token || !focusUserId) return
     setLoading(true)
     setError('')
-    fetch(`/api/admin/referral-tree/${focusUserId}?maxLevel=${maxLevel}`, {
+    fetch(`/api/admin/referral-tree/${focusUserId}?maxLevel=${maxLevel}&mode=boundary`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
