@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Network, Users, TrendingUp, ShoppingCart, Loader2, RefreshCw } from 'lucide-react'
 import ReferralTreeView, {
   TreeNode,
@@ -78,16 +78,23 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
 
   // v37: 边界=1 模式 — 只显示焦点用户 + 直接父节点（2节点）
   // v35的"切focus不重新fetch"在此失效（边界=1需要重新fetch），这是有意取舍
+  // 用 useRef 跟踪实际要 fetch 的 targetId，避免 setFocusUserId 触发无限循环
+  const fetchTargetRef = useRef(focusUserId || userId)
+
   useEffect(() => {
-    if (!token || !userId) return
+    fetchTargetRef.current = focusUserId || userId
+  }, [focusUserId, userId])
+
+  useEffect(() => {
+    const targetId = fetchTargetRef.current
+    if (!token || !targetId) return
 
     setLoading(true)
     setError('')
     setTreeData(null)
-    setFocusUserId(userId)
 
-    // 第1步：拿 userId 自身数据获取 parentId
-    fetch(`/api/admin/referral-tree/${userId}?maxLevel=1`, {
+    // 第1步：拿焦点用户自身数据获取 parentId
+    fetch(`/api/admin/referral-tree/${targetId}?maxLevel=1`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -104,7 +111,7 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
 
         if (!parentId) {
           // v37 顶级退化：无父节点 → 显示完整子树（保留v32行为）
-          return fetch(`/api/admin/referral-tree/${userId}?maxLevel=${maxLevel}`, {
+          return fetch(`/api/admin/referral-tree/${targetId}?maxLevel=${maxLevel}`, {
             headers: { Authorization: `Bearer ${token}` },
           }).then(r => r.json())
         }
@@ -122,10 +129,10 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
           return
         }
 
-        // v37：边界=1 组装 — 父节点只保留 userId 作为其直接子（剪枝其他兄弟）
+        // v37：边界=1 组装 — 父节点只保留 targetId 作为其直接子（剪枝其他兄弟）
         let finalData = data.data
-        if (finalData && finalData.id !== userId && finalData.children) {
-          const userNode = finalData.children.find(c => c.id === userId)
+        if (finalData && finalData.id !== targetId && finalData.children) {
+          const userNode = finalData.children.find(c => c.id === targetId)
           if (userNode) {
             finalData = {
               ...finalData,
@@ -146,7 +153,7 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
         setError('网络错误')
         setLoading(false)
       })
-  }, [token, userId, focusUserId, maxLevel])
+  }, [token, maxLevel, fetchTargetRef.current])
 
   // ESC 关闭
   useEffect(() => {
