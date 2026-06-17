@@ -87,7 +87,8 @@ export default function OrdersPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        setOrders(data.data || [])
+        // v43-1 修复：data.data 是 {orders, pagination} 对象，orders 才是数组
+        setOrders(data.data?.orders || [])
       }
     } catch (err) {
       console.error('获取订单列表失败:', err)
