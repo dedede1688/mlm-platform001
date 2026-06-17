@@ -36,6 +36,8 @@ export interface TreeNode {
   teamCount: number
   createdAt: string
   children: TreeNode[]
+  referrerId: string | null     // v37
+  referrerInfo: { id: string; nickname: string | null; phoneTail: string } | null  // v37
 }
 
 export interface TreeSummary {
@@ -58,6 +60,7 @@ interface ReferralNodeData {
   isPreviousRoot?: boolean    // v35
   _dimmed?: boolean          // v33: hover 路径外节点变灰
   _onHover?: (id: string | null) => void  // v33: hover 回调
+  referrerInfo?: { id: string; nickname: string | null; phoneTail: string } | null  // v37
 }
 
 export interface ReferralTreeViewProps {
@@ -104,15 +107,19 @@ function getNodeSize(data: ReferralNodeData): { width: number; height: number } 
   const fsPhone = 10
   const fsName = data.isRoot ? 14 : (data.depth <= 1 ? 13 : 11)
   const fsBadge = data.isRoot ? 10 : 9
+  const fsReferrer = 8  // v37
 
-  // 三行内容宽度估算
-  const line1 = 10 + estimateTextWidth(data.phoneFull || '', fsPhone)              // ● + 手机号
-  const line2 = estimateTextWidth(data.nickname || '-', fsName)                     // 昵称
-  const line3 = estimateTextWidth(`${levelName} ⬇${data.childCount} ${data.salesAmount}`, fsBadge) + 14  // 等级 + 直推 + 业绩
+  // 四行内容宽度估算 (v37: 加推荐人第4行)
+  const line1 = 10 + estimateTextWidth(data.phoneFull || '', fsPhone)
+  const line2 = estimateTextWidth(data.nickname || '-', fsName)
+  const line3 = estimateTextWidth(`${levelName} ⬇${data.childCount} ${data.salesAmount}`, fsBadge) + 14
+  const line4 = data.referrerInfo
+    ? 16 + estimateTextWidth(`📌 推荐人：${data.referrerInfo.nickname || '-'} (${data.referrerInfo.phoneTail})`, fsReferrer)
+    : 0
 
-  const contentWidth = Math.max(line1, line2, line3)
+  const contentWidth = Math.max(line1, line2, line3, line4)
   const width = Math.max(contentWidth + NODE_PADDING_X * 2, MIN_NODE_WIDTH)
-  const height = data.isRoot ? 64 : (data.depth <= 1 ? 54 : 46)
+  const height = data.isRoot ? 75 : (data.depth <= 1 ? 65 : 56)  // v37 调整
 
   return { width, height }
 }
@@ -262,6 +269,22 @@ function ReferralNode({ data }: NodeProps) {
         <span>⬇{data.childCount}</span>
         <span>{data.salesAmount}</span>
       </div>
+
+      {/* v37 第4行：推荐人 */}
+      {data.referrerInfo && (
+        <div style={{
+          fontSize: 8,
+          color: isSelf ? '#92400e' : '#9ca3af',
+          marginTop: 2,
+          lineHeight: 1.2,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          maxWidth: '100%',
+        }}>
+          U0001f4cc 推荐人：{data.referrerInfo.nickname || '-'}({data.referrerInfo.phoneTail})
+        </div>
+      )}
     </div>
   )
 }
@@ -285,7 +308,7 @@ function getLayoutedElements(
     rankdir: direction,
     // v30：进一步紧凑间距
     nodesep: 16,
-    ranksep: 36,
+    ranksep: 44,  // v37
     marginx: 8,
     marginy: 8,
   })
@@ -339,6 +362,7 @@ function treeToNodesAndEdges(
     salesAmount: formatCurrency(treeNode.directSalesAmount),
     isRoot: treeNode.id === focusId,
     depth,
+    referrerInfo: treeNode.referrerInfo ?? null,  // v37
   }
 
   // 注入 compact 标记到 data

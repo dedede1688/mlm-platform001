@@ -16,6 +16,8 @@ interface TreeNode {
   teamCount: number
   createdAt: string
   children: TreeNode[]
+  referrerId: string | null     // v37
+  referrerInfo: { id: string; nickname: string | null; phoneTail: string } | null  // v37
 }
 
 interface FlatUser {
@@ -27,6 +29,7 @@ interface FlatUser {
   totalPoints: number
   directSalesAmount: number
   parentId: string | null
+  referrerId: string | null   // v37
   createdAt: Date
 }
 
@@ -58,6 +61,7 @@ export async function GET(
         totalPoints: true,
         directSalesAmount: true,
         parentId: true,
+        referrerId: true,
         createdAt: true,
       },
     })
@@ -91,6 +95,7 @@ export async function GET(
           totalPoints: true,
           directSalesAmount: true,
           parentId: true,
+          referrerId: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
@@ -137,6 +142,20 @@ export async function GET(
     })
     const teamCountMap = new Map(referralCounts.map(r => [r.parentId, r._count.id]))
 
+    // v37：批量查询所有节点的推荐人简略信息
+    const allReferrerIds = allUsers
+      .map(u => u.referrerId)
+      .filter((id): id is string => !!id && allUsers.some(u => u.id === id))
+
+    let referrerInfoMap = new Map<string, { id: string; nickname: string | null; phone: string }>()
+    if (allReferrerIds.length > 0) {
+      const referrers = await prisma.user.findMany({
+        where: { id: { in: allReferrerIds } },
+        select: { id: true, nickname: true, phone: true },
+      })
+      referrerInfoMap = new Map(referrers.map(r => [r.id, r]))
+    }
+
     // 在内存中构建树
     const nodeMap = new Map<string, TreeNode>()
     for (const u of allUsers) {
@@ -152,6 +171,8 @@ export async function GET(
         teamCount: teamCountMap.get(u.id) ?? 0,
         createdAt: u.createdAt.toISOString(),
         children: [],
+        referrerId: u.referrerId,
+        referrerInfo: (() => { const ref = referrerInfoMap.get(u.referrerId || ''); return ref ? { id: ref.id, nickname: ref.nickname, phoneTail: ref.phone.slice(-4) } : null })(),
       })
     }
 

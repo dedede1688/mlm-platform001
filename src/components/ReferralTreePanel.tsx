@@ -76,15 +76,17 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (t) setToken(t)
   }, [])
 
-  // v36: 两阶段加载 — 先拿父链，再拿顶级祖先视角完整图
+  // v37: 边界=1 模式 — 只显示焦点用户 + 直接父节点（2节点）
+  // v35的"切focus不重新fetch"在此失效（边界=1需要重新fetch），这是有意取舍
   useEffect(() => {
     if (!token || !userId) return
 
     setLoading(true)
     setError('')
     setTreeData(null)
+    setFocusUserId(userId)
 
-    // 第1阶段：拿被点击用户的 ancestors（maxLevel=1 足够）
+    // 第1步：拿 userId 自身数据获取 parentId
     fetch(`/api/admin/referral-tree/${userId}?maxLevel=1`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -96,33 +98,55 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
           return
         }
 
-        // 取最高级祖先（ancestors[0]），没有则用被点击用户本身
-        const anc = firstData.ancestors || []
-        const topId = anc.length > 0 ? anc[0].id : userId
+        const parentId = firstData.rootParentId ?? null
+        setAncestors(firstData.ancestors || [])
+        setRootParentId(parentId)
 
-        // 保存父链信息用于面包屑
-        setAncestors(anc)
-        setRootParentId(firstData.rootParentId ?? null)
+        if (!parentId) {
+          // v37 顶级退化：无父节点 → 显示完整子树（保留v32行为）
+          return fetch(`/api/admin/referral-tree/${userId}?maxLevel=${maxLevel}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => r.json())
+        }
 
-        // 第2阶段：拿 topAncestor 视角的完整图
-        return fetch(`/api/admin/referral-tree/${topId}?maxLevel=${maxLevel}`, {
+        // v37 有直接父 → 拿父节点的边界=1图（只包含父+直接子）
+        return fetch(`/api/admin/referral-tree/${parentId}?maxLevel=1`, {
           headers: { Authorization: `Bearer ${token}` },
-        })
+        }).then(r => r.json())
       })
       .then(res => res ? res.json() : null)
       .then((data: ApiResponse | null) => {
-        if (data && data.success) {
-          setTreeData(data.data)
-          setTruncated(data.truncated || false)
-          setNodeCount(data.nodeCount ?? 0)
-          if (data.summary) setSummary(data.summary)
-        } else if (data && !data.success) {
-          setError(data.error || '获取完整树失败')
+        if (!data || !data.success) {
+          setError(data?.error || '获取推荐树失败')
+          setLoading(false)
+          return
         }
+
+        // v37：边界=1 组装 — 父节点只保留 userId 作为其直接子（剪枝其他兄弟）
+        let finalData = data.data
+        if (finalData && finalData.id !== userId && finalData.children) {
+          const userNode = finalData.children.find(c => c.id === userId)
+          if (userNode) {
+            finalData = {
+              ...finalData,
+              children: [{ ...userNode, children: [] }],
+            }
+          } else {
+            finalData = { ...finalData, children: [] }
+          }
+        }
+
+        setTreeData(finalData)
+        setTruncated(data.truncated || false)
+        setNodeCount(data.nodeCount ?? 0)
+        if (data.summary) setSummary(data.summary)
+        setLoading(false)
       })
-      .catch(() => setError('网络错误'))
-      .finally(() => setLoading(false))
-  }, [token, userId, maxLevel])
+      .catch(() => {
+        setError('网络错误')
+        setLoading(false)
+      })
+  }, [token, userId, focusUserId, maxLevel])
 
   // ESC 关闭
   useEffect(() => {
