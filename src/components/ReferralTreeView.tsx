@@ -124,7 +124,7 @@ function getNodeSize(data: ReferralNodeData): { width: number; height: number } 
 
   const contentWidth = Math.max(line1, line2, line3, line4)
   const width = Math.max(contentWidth + NODE_PADDING_X * 2, MIN_NODE_WIDTH)
-  const height = data.isRoot ? 75 : (data.depth <= 1 ? 65 : 56)  // v37 调整
+  const height = data.isRoot ? 80 : (data.depth <= 1 ? 70 : 60)  // v42 +5px 修复推荐人截断
 
   return { width, height }
 }
@@ -279,6 +279,7 @@ function ReferralNode({ data }: NodeProps) {
       </div>
 
       {/* v37 第4行：推荐人 */}
+      {/* v37 第4行：推荐人（v42 加 overflow 兜底）*/}
       {data.referrerInfo && (
         <div style={{
           fontSize: 8,
@@ -290,7 +291,7 @@ function ReferralNode({ data }: NodeProps) {
           whiteSpace: 'nowrap',
           maxWidth: '100%',
         }}>
-          U0001f4cc 推荐人：{data.referrerInfo.nickname || '-'}({data.referrerInfo.phoneTail})
+          📌 推荐人：{data.referrerInfo.nickname || '-'}({data.referrerInfo.phoneTail})
         </div>
       )}
     </div>
@@ -316,7 +317,7 @@ function getLayoutedElements(
     rankdir: direction,
     // v30：进一步紧凑间距
     nodesep: 16,
-    ranksep: 44,  // v37
+    ranksep: 48,  // v42 +4 适配节点高度
     marginx: 8,
     marginy: 8,
   })
