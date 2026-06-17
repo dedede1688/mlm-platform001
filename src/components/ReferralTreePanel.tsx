@@ -76,28 +76,48 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (t) setToken(t)
   }, [])
 
-  // v32：加载数据（监听 focusUserId 变化自动重新加载）
+  // v36: 两阶段加载 — 先拿父链，再拿顶级祖先视角完整图
   useEffect(() => {
-    if (!token || !focusUserId) return
+    if (!token || !userId) return
+
     setLoading(true)
     setError('')
     setTreeData(null)
 
-    fetch(`/api/admin/referral-tree/${focusUserId}?maxLevel=${maxLevel}`, {
+    // 第1阶段：拿被点击用户的 ancestors（maxLevel=1 足够）
+    fetch(`/api/admin/referral-tree/${userId}?maxLevel=1`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then((data: ApiResponse) => {
-        if (data.success) {
+      .then((firstData: ApiResponse) => {
+        if (!firstData.success) {
+          setError(firstData.error || '获取推荐树失败')
+          setLoading(false)
+          return
+        }
+
+        // 取最高级祖先（ancestors[0]），没有则用被点击用户本身
+        const anc = firstData.ancestors || []
+        const topId = anc.length > 0 ? anc[0].id : userId
+
+        // 保存父链信息用于面包屑
+        setAncestors(anc)
+        setRootParentId(firstData.rootParentId ?? null)
+
+        // 第2阶段：拿 topAncestor 视角的完整图
+        return fetch(`/api/admin/referral-tree/${topId}?maxLevel=${maxLevel}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      })
+      .then(res => res ? res.json() : null)
+      .then((data: ApiResponse | null) => {
+        if (data && data.success) {
           setTreeData(data.data)
           setTruncated(data.truncated || false)
           setNodeCount(data.nodeCount ?? 0)
           if (data.summary) setSummary(data.summary)
-          // v32：保存父链信息
-          setAncestors(data.ancestors || [])
-          setRootParentId(data.rootParentId ?? null)
-        } else {
-          setError(data.error || '获取推荐树失败')
+        } else if (data && !data.success) {
+          setError(data.error || '获取完整树失败')
         }
       })
       .catch(() => setError('网络错误'))
