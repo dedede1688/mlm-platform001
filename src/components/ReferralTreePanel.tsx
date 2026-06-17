@@ -113,13 +113,13 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
           // v37 顶级退化：无父节点 → 显示完整子树（保留v32行为）
           return fetch(`/api/admin/referral-tree/${targetId}?maxLevel=${maxLevel}`, {
             headers: { Authorization: `Bearer ${token}` },
-          }).then(r => r.json())
+          })
         }
 
         // v37 有直接父 → 拿父节点的边界=1图（只包含父+直接子）
         return fetch(`/api/admin/referral-tree/${parentId}?maxLevel=1`, {
           headers: { Authorization: `Bearer ${token}` },
-        }).then(r => r.json())
+        })
       })
       .then(res => res ? res.json() : null)
       .then((data: ApiResponse | null) => {
