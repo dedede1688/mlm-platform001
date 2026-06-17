@@ -55,6 +55,7 @@ interface ReferralNodeData {
   salesAmount: string
   isRoot: boolean
   depth: number
+  isPreviousRoot?: boolean    // v35
   _dimmed?: boolean          // v33: hover 路径外节点变灰
   _onHover?: (id: string | null) => void  // v33: hover 回调
 }
@@ -69,6 +70,8 @@ export interface ReferralTreeViewProps {
   compact?: boolean          // 紧凑模式（浮动面板用）
   height?: number           // 图表高度，默认 600
   onNodeClick?: (node: TreeNode) => void
+  focusUserId?: string          // v35: external focus control
+  onFocusChange?: (userId: string) => void  // v35: focus change callback
 }
 
 // ---- 常量 ----
@@ -147,26 +150,34 @@ function ReferralNode({ data }: NodeProps) {
   const p = LEVEL_PALETTE[data.level] || LEVEL_PALETTE[0]
   const levelName = LEVEL_NAMES[data.level] || `Lv${data.level}`
 
-  // v32：root 节点（自己）特殊标识
+  // v35: three-state node style
   const isSelf = data.isRoot
-  // v33：hover 路径外变灰
+  const isPrevious = data.isPreviousRoot ?? false
   const isDimmed = data._dimmed ?? false
+  let nodeStyle
+  if (isSelf) {
+    nodeStyle = {
+      background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+      border: '3px solid #f59e0b',
+      boxShadow: '0 6px 16px rgba(245, 158, 11, 0.25)'
+    }
+  } else if (isPrevious) {
+    nodeStyle = {
+      background: '#e5e7eb',
+      border: '1.5px dashed #9ca3af',
+      boxShadow: 'none'
+    }
+  } else {
+    nodeStyle = {
+      background: '#ffffff',
+      border: `1.5px solid `,
+      boxShadow: '0 1px 6px rgba(0,0,0,0.08)'
+    }
+  }
 
-  // v31：自适应宽度（铁律 11：唯一尺寸来源 = getNodeSize）
   const { width, height } = getNodeSize(data)
   const fontSizeName = isSelf ? 13 : data.depth <= 1 ? 11 : 10
   const fontSizeBadge = isSelf ? 10 : 9
-
-  // v32：root 节点金色样式
-  const selfStyle = isSelf ? {
-    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-    border: '3px solid #f59e0b',
-    boxShadow: '0 6px 16px rgba(245, 158, 11, 0.25)',
-  } : {
-    background: '#ffffff',
-    border: `1.5px solid ${p.color}`,
-    boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
-  }
 
   return (
     <div
@@ -184,7 +195,7 @@ function ReferralNode({ data }: NodeProps) {
         cursor: 'pointer',
         transition: 'all 0.2s ease',
         opacity: isDimmed ? 0.25 : 1,     // v33：路径外节点变灰
-        ...selfStyle,
+        ...nodeStyle,
       }}
       onMouseEnter={() => { data._onHover?.(data.id) }}   // v33：hover 触发高亮
       onMouseLeave={() => { data._onHover?.(null) }}       // v33：离开取消
@@ -312,6 +323,8 @@ function getLayoutedElements(
 
 function treeToNodesAndEdges(
   treeNode: TreeNode,
+  focusId: string,
+  previousFocusId: string | null,
   depth: number = 0,
   parentId?: string,
   compact: boolean = false
@@ -324,7 +337,7 @@ function treeToNodesAndEdges(
     level: treeNode.level,
     childCount: treeNode.children.length,
     salesAmount: formatCurrency(treeNode.directSalesAmount),
-    isRoot: depth === 0,
+    isRoot: treeNode.id === focusId,
     depth,
   }
 
@@ -353,7 +366,7 @@ function treeToNodesAndEdges(
   }
 
   for (const child of treeNode.children) {
-    const result = treeToNodesAndEdges(child, depth + 1, treeNode.id, compact)
+    const result = treeToNodesAndEdges(child, focusId, previousFocusId, depth + 1, treeNode.id, compact)
     nodes.push(...result.nodes)
     edges.push(...result.edges)
   }
@@ -371,7 +384,7 @@ function countNodesFn(node: TreeNode | null): number {
 // ============================================================
 
 function ReferralTreeInner(props: ReferralTreeViewProps) {
-  const { data, summary, nodeCount, truncated, loading, error, compact = false, height = 600, onNodeClick } = props
+  const { data, summary, nodeCount, truncated, loading, error, compact = false, height = 600, onNodeClick, focusUserId, onFocusChange } = props
 
   const [nodes, setNodes, onNodesChange] = useNodesState<ReferralNodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -379,8 +392,22 @@ function ReferralTreeInner(props: ReferralTreeViewProps) {
   // v33：hover 高亮状态
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
 
+  const [currentFocusId, setCurrentFocusId] = useState<string>(
+    focusUserId || props.data?.id || ''
+  )
+  const [previousFocusId, setPreviousFocusId] = useState<string | null>(null)
+  const dataRef = useRef<TreeNode | null>(null)
+
   // v33：计算从 nodeId 到 root 的路径上所有节点 ID
-  function getPathToRoot(nodeId: string | null, treeData: TreeNode | null): Set<string> {
+    // v35: sync external focusUserId changes
+  useEffect(() => {
+    if (focusUserId && focusUserId !== currentFocusId) {
+      setPreviousFocusId(currentFocusId)
+      setCurrentFocusId(focusUserId)
+    }
+  }, [focusUserId])
+
+function getPathToRoot(nodeId: string | null, treeData: TreeNode | null): Set<string> {
     const path = new Set<string>()
     if (!nodeId || !treeData) return path
 
@@ -400,8 +427,10 @@ function ReferralTreeInner(props: ReferralTreeViewProps) {
 
   // 数据变化时重新布局
   useEffect(() => {
-    if (!data) { setNodes([]); setEdges([]); return }
-    const { nodes: rawNodes, edges: rawEdges } = treeToNodesAndEdges(data, 0, undefined, compact)
+    if (!data || !currentFocusId) { setNodes([]); setEdges([]); return }
+    const { nodes: rawNodes, edges: rawEdges } = treeToNodesAndEdges(
+      data, currentFocusId, previousFocusId, 0, undefined, compact
+    )
     const layouted = getLayoutedElements(rawNodes, rawEdges, 'TB')
     // v33：注入 _onHover 回调到每个节点的 data 中
     layouted.nodes.forEach(n => {
@@ -411,9 +440,12 @@ function ReferralTreeInner(props: ReferralTreeViewProps) {
     setEdges(layouted.edges)
 
     setTimeout(() => {
-      flowRef.current?.fitView({ padding: 0.12, includeHiddenNodes: true })
+      if (dataRef.current !== data) {
+      dataRef.current = data
+      setTimeout(() => flowRef.current?.fitView({ padding: 0.12 }), 100)
+    }
     }, 100)
-  }, [data, compact])
+  }, [data, currentFocusId, previousFocusId, compact])
 
   // v33：监听 hoveredNodeId 变化，更新节点透明度和边样式
   useEffect(() => {
@@ -448,11 +480,15 @@ function ReferralTreeInner(props: ReferralTreeViewProps) {
 
   // 点击节点
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    if (data && onNodeClick) {
+    if (!data) return
+    setPreviousFocusId(currentFocusId)
+    setCurrentFocusId(node.id)
+    onFocusChange?.(node.id)
+    if (onNodeClick) {
       const found = findNodeById(data, node.id)
       if (found) onNodeClick(found)
     }
-  }, [data, onNodeClick])
+  }, [data, currentFocusId, onFocusChange, onNodeClick])
 
   function findNodeById(node: TreeNode | null, id: string): TreeNode | null {
     if (!node) return null

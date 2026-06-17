@@ -55,8 +55,9 @@ interface ApiResponse {
 // ============================================================
 
 export default function ReferralTreePanel({ userId, userName, onClose }: ReferralTreePanelProps) {
-  // v32：currentUserId 支持点击节点切换视角
-  const [currentUserId, setCurrentUserId] = useState<string>(userId)
+  // v32：focusUserId 支持点击节点切换视角
+  // v35: focus state (no re-fetch)
+  const [focusUserId, setFocusUserId] = useState<string>(userId)
   const [currentUserName, setCurrentUserName] = useState<string>(userName || userId.slice(-4))
   const [token, setToken] = useState<string | null>(null)
   const [treeData, setTreeData] = useState<TreeNode | null>(null)
@@ -75,14 +76,14 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (t) setToken(t)
   }, [])
 
-  // v32：加载数据（监听 currentUserId 变化自动重新加载）
+  // v32：加载数据（监听 focusUserId 变化自动重新加载）
   useEffect(() => {
-    if (!token || !currentUserId) return
+    if (!token || !focusUserId) return
     setLoading(true)
     setError('')
     setTreeData(null)
 
-    fetch(`/api/admin/referral-tree/${currentUserId}?maxLevel=${maxLevel}`, {
+    fetch(`/api/admin/referral-tree/${focusUserId}?maxLevel=${maxLevel}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -101,7 +102,7 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
       })
       .catch(() => setError('网络错误'))
       .finally(() => setLoading(false))
-  }, [token, currentUserId, maxLevel])
+  }, [token, userId, maxLevel])
 
   // ESC 关闭
   useEffect(() => {
@@ -114,10 +115,10 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
 
   // 刷新
   const handleReload = () => {
-    if (!token || !currentUserId) return
+    if (!token || !focusUserId) return
     setLoading(true)
     setError('')
-    fetch(`/api/admin/referral-tree/${currentUserId}?maxLevel=${maxLevel}`, {
+    fetch(`/api/admin/referral-tree/${focusUserId}?maxLevel=${maxLevel}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -136,8 +137,9 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
   }
 
   // v32：节点点击 → 切换视角到该用户
+  // v35: click node  only switch focus (no re-fetch)
   const handleNodeClick = useCallback((node: TreeNode) => {
-    setCurrentUserId(node.id)
+    setFocusUserId(node.id)
     setCurrentUserName(node.nickname || node.phone.slice(-4))
   }, [])
 
@@ -146,14 +148,14 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
     if (!rootParentId) return
     const parent = ancestors.find(a => a.id === rootParentId)
     if (parent) {
-      setCurrentUserId(parent.id)
+      setFocusUserId(parent.id)
       setCurrentUserName(parent.nickname || parent.phone.slice(-4))
     }
   }, [rootParentId, ancestors])
 
   // v32：面包屑点击某级
   const handleBreadcrumbClick = useCallback((ancestor: AncestorNode) => {
-    setCurrentUserId(ancestor.id)
+    setFocusUserId(ancestor.id)
     setCurrentUserName(ancestor.nickname || ancestor.phone.slice(-4))
   }, [])
 
@@ -301,6 +303,8 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
             compact={true}
             height={480}
             onNodeClick={handleNodeClick}
+            focusUserId={focusUserId}
+            onFocusChange={(id)=>setFocusUserId(id)}
           />
         </div>
       </div>
