@@ -36,6 +36,7 @@ interface TreeNode {
   children: TreeNode[]
   referrerId: string | null     // v37
   referrerInfo: { id: string; nickname: string | null; phoneTail: string } | null  // v37
+  referralCount: number  // v41: 直推推荐人数
 }
 
 interface FlatUser {
@@ -200,7 +201,8 @@ export async function GET(
       .map(u => u.referrerId)
       .filter((id): id is string => !!id && allUsers.some(u => u.id === id))
 
-    const [orderCounts, referralCounts, referrers] = await Promise.all([
+    // v41: 并行查询 — 四个独立 DB 查询同时执行（新增第4个：直推人数）
+    const [orderCounts, referralCounts, referrers, referrerCounts] = await Promise.all([
       prisma.order.groupBy({
         by: ['userId'],
         where: { userId: { in: allUserIds }, status: { not: 'cancelled' } },
@@ -216,11 +218,18 @@ export async function GET(
         where: { id: { in: allReferrerIds.length > 0 ? allReferrerIds : ['__empty__'] } },
         select: { id: true, nickname: true, phone: true },
       }),
+      // v41 新增：按 referrerId 统计直推人数
+      prisma.user.groupBy({
+        by: ['referrerId'],
+        where: { referrerId: { in: allUserIds } },
+        _count: { id: true },
+      }),
     ])
 
     const orderCountMap = new Map(orderCounts.map(o => [o.userId, o._count.id]))
     const teamCountMap = new Map(referralCounts.map(r => [r.parentId, r._count.id]))
     const referrerInfoMap = new Map(referrers.map(r => [r.id, r]))
+    const referrerCountMap = new Map(referrerCounts.map(r => [r.referrerId, r._count.id]))  // v41
 
     // 在内存中构建树
     const nodeMap = new Map<string, TreeNode>()
@@ -239,6 +248,7 @@ export async function GET(
         children: [],
         referrerId: u.referrerId,
         referrerInfo: (() => { const ref = referrerInfoMap.get(u.referrerId || ''); return ref ? { id: ref.id, nickname: ref.nickname, phoneTail: ref.phone.slice(-4) } : null })(),
+        referralCount: referrerCountMap.get(u.id) ?? 0,  // v41
       })
     }
 

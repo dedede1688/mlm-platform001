@@ -38,6 +38,7 @@ export interface TreeNode {
   children: TreeNode[]
   referrerId: string | null     // v37
   referrerInfo: { id: string; nickname: string | null; phoneTail: string } | null  // v37
+  referralCount: number        // v41: 直推推荐人数
 }
 
 export interface TreeSummary {
@@ -61,6 +62,7 @@ interface ReferralNodeData {
   _dimmed?: boolean          // v33: hover 路径外节点变灰
   _onHover?: (id: string | null) => void  // v33: hover 回调
   referrerInfo?: { id: string; nickname: string | null; phoneTail: string } | null  // v37
+  referralCount?: number   // v41: 直推推荐人数
 }
 
 export interface ReferralTreeViewProps {
@@ -109,10 +111,13 @@ function getNodeSize(data: ReferralNodeData): { width: number; height: number } 
   const fsBadge = data.isRoot ? 10 : 9
   const fsReferrer = 8  // v37
 
-  // 四行内容宽度估算 (v37: 加推荐人第4行)
+  // 四行内容宽度估算 (v41: 加推荐人第4行 + 👥直推人数)
   const line1 = 10 + estimateTextWidth(data.phoneFull || '', fsPhone)
   const line2 = estimateTextWidth(data.nickname || '-', fsName)
-  const line3 = estimateTextWidth(`${levelName} ⬇${data.childCount} ${data.salesAmount}`, fsBadge) + 14
+  // v41: line3 可能包含 👥N（约 28px 宽）
+  const hasReferralCount = data.referralCount !== undefined && data.referralCount > 0
+  const line3Base = `${levelName} ⬇${data.childCount} ${data.salesAmount}`
+  const line3 = estimateTextWidth(line3Base, fsBadge) + 14 + (hasReferralCount ? 28 : 0)
   const line4 = data.referrerInfo
     ? 16 + estimateTextWidth(`📌 推荐人：${data.referrerInfo.nickname || '-'} (${data.referrerInfo.phoneTail})`, fsReferrer)
     : 0
@@ -267,6 +272,9 @@ function ReferralNode({ data }: NodeProps) {
           fontWeight: 500,
         }}>{levelName}</span>
         <span>⬇{data.childCount}</span>
+        {data.referralCount !== undefined && data.referralCount > 0 && (
+          <span style={{ color: '#f59e0b', fontWeight: 500 }}>👥{data.referralCount}</span>
+        )}
         <span>{data.salesAmount}</span>
       </div>
 
@@ -363,6 +371,7 @@ function treeToNodesAndEdges(
     isRoot: treeNode.id === focusId,
     depth,
     referrerInfo: treeNode.referrerInfo ?? null,  // v37
+    referralCount: treeNode.referralCount ?? 0,  // v41
   }
 
   // 注入 compact 标记到 data
