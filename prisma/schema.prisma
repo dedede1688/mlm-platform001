@@ -43,6 +43,7 @@ model User {
   referrals              User[]         @relation("ReferrerRelation")
   withdrawals            Withdrawal[]
   refundRequests         RefundRequest[]
+  paymentPasswordHash     String?   @map("payment_password_hash")   // v43-2: 支付密码 hash（bcryptjs）
 
   @@index([referrerId])
   @@index([parentId])
@@ -117,6 +118,10 @@ model Order {
   user           User        @relation(fields: [userId], references: [id])
   rewards        Reward[]
   refundRequests RefundRequest[]
+  recipientName        String?   @map("recipient_name")       // v43-2: 收货人姓名
+  recipientPhone       String?   @map("recipient_phone")      // v43-2: 收货人电话
+  shippingAddress      String?   @map("shipping_address")     // v43-2: 收货地址
+  paymentVerified      Boolean  @default(false) @map("payment_verified") // v43-2: 支付密码是否验证通过
 
   @@index([userId])
   @@index([status])
