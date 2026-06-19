@@ -9,7 +9,7 @@ import {
   X, Loader2, FlaskConical, CheckCircle2
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
-import { CheckoutDialog, CheckoutInput, CheckoutProduct } from '@/components/checkout/CheckoutDialog'
+import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress } from '@/components/checkout/CheckoutDialog'
 
 // ---- 类型 ----
 
@@ -119,16 +119,34 @@ export default function ProductDetailPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('desc')
   // v43-4-修复: checkout 弹窗状态
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  // v43-5: 用户地址簿
+  const [addresses, setAddresses] = useState<SavedAddress[]>([])
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
     if (storedToken) {
       setToken(storedToken)
       fetchUser(storedToken)
+      fetchAddresses(storedToken)
     }
     // 无论是否登录都获取商品信息
     fetchProduct(storedToken)
   }, [id])
+
+  // v43-5: 加载用户地址簿
+  const fetchAddresses = async (authToken: string) => {
+    try {
+      const res = await fetch('/api/user/addresses', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) setAddresses(data.data || [])
+      }
+    } catch (error) {
+      console.error('获取地址列表失败:', error)
+    }
+  }
 
   const fetchUser = async (authToken: string) => {
     try {
@@ -265,6 +283,37 @@ export default function ProductDetailPage() {
       return null
     } finally {
       setBuying(false)
+    }
+  }
+
+  // v43-5: 下单成功后保存地址到地址簿
+  const handleSaveAddress = async (data: {
+    recipientName: string
+    phone: string
+    province: string
+    city: string
+    district: string
+    detailAddress: string
+  }): Promise<boolean> => {
+    if (!token) return false
+    try {
+      const res = await fetch('/api/user/addresses', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...data, isDefault: addresses.length === 0 }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        await fetchAddresses(token)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('保存地址失败:', error)
+      return false
     }
   }
 
@@ -722,6 +771,8 @@ export default function ProductDetailPage() {
         onConfirm={handleCheckoutConfirm}
         defaultPhone={user?.phone || ''}
         hasPaymentPassword={user?.hasPaymentPassword || false}
+        existingAddresses={addresses}
+        onSaveAddress={handleSaveAddress}
       />
     </div>
   )
