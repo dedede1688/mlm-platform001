@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ShoppingCart, Trash2, ShoppingBag, ArrowRight, Loader2, Coins } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
-import { CheckoutDialog, CheckoutInput, CheckoutProduct } from '@/components/checkout/CheckoutDialog'
+import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress } from '@/components/checkout/CheckoutDialog'
 
 interface CartProduct {
   id: string
@@ -46,6 +46,8 @@ export default function CartPage() {
 
   // v43-4-修复: checkout 弹窗（用公共组件，弹窗内部管理输入字段）
   const [checkoutItem, setCheckoutItem] = useState<CartItem | null>(null)
+  // v43-5: 用户地址簿
+  const [addresses, setAddresses] = useState<SavedAddress[]>([])
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -56,6 +58,7 @@ export default function CartPage() {
     setToken(storedToken)
     fetchCart(storedToken)
     fetchUserInfo(storedToken)
+    fetchAddresses(storedToken)
   }, [router])
 
   const fetchUserInfo = async (authToken: string) => {
@@ -85,6 +88,21 @@ export default function CartPage() {
     const maxFromUser = userInfo?.unlockedPoints ?? 0
     return Math.min(maxFromPrice, maxFromUser)
   }, [userInfo])
+
+  // v43-5: 加载用户地址簿
+  const fetchAddresses = async (authToken: string) => {
+    try {
+      const res = await fetch('/api/user/addresses', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) setAddresses(data.data || [])
+      }
+    } catch (error) {
+      console.error('获取地址列表失败:', error)
+    }
+  }
 
   const fetchCart = async (authToken: string) => {
     try {
@@ -229,6 +247,36 @@ export default function CartPage() {
 
   const handleCheckoutClose = () => {
     setCheckoutItem(null)
+  }
+
+  // v43-5: 下单成功后保存地址到地址簿
+  const handleSaveAddress = async (data: {
+    recipientName: string
+    phone: string
+    province: string
+    city: string
+    district: string
+    detailAddress: string
+  }): Promise<boolean> => {
+    if (!token) return false
+    try {
+      const res = await fetch('/api/user/addresses', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...data, isDefault: addresses.length === 0 }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        await fetchAddresses(token)
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
   }
 
   if (loading) {
@@ -433,6 +481,8 @@ export default function CartPage() {
         onConfirm={handleCheckoutConfirm}
         defaultPhone={userInfo?.phone || ''}
         hasPaymentPassword={userInfo?.hasPaymentPassword || false}
+        existingAddresses={addresses}
+        onSaveAddress={handleSaveAddress}
       />
     </div>
   )

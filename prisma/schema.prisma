@@ -37,6 +37,7 @@ model User {
   orders                 Order[]
   pointsRecords          PointsRecord[]
   rewards                Reward[]
+  addresses              Address[]
   parent                 User?          @relation("ParentRelation", fields: [parentId], references: [id])
   children               User[]         @relation("ParentRelation")
   referrer               User?          @relation("ReferrerRelation", fields: [referrerId], references: [id])
@@ -376,6 +377,26 @@ model RefundRequest {
   @@index([orderId])
   @@index([status])
   @@map("refund_requests")
+}
+
+model Address {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  recipientName String   @map("recipient_name")
+  phone         String
+  province      String   // 省
+  city          String   // 市
+  district      String   // 区
+  detailAddress String   @map("detail_address")
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isDefault])
+  @@map("addresses")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

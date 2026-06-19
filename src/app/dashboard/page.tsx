@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
-  TrendingUp, Award, Clock
+  TrendingUp, Award, Clock, MapPin
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 
@@ -275,13 +275,20 @@ export default function DashboardPage() {
             {/* 快捷入口 */}
             <div>
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">快捷入口</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 <QuickLink
                   href="/dashboard/orders"
                   icon={<ShoppingBag className="w-6 h-6" />}
                   label="我的订单"
                   desc="查看订单记录"
                   color="text-blue-600 bg-blue-50"
+                />
+                <QuickLink
+                  href="/dashboard/addresses"
+                  icon={<MapPin className="w-6 h-6" />}
+                  label="收货地址"
+                  desc="管理收货地址"
+                  color="text-rose-600 bg-rose-50"
                 />
                 <QuickLink
                   href="/dashboard/rewards"
