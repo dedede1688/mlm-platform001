@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ShoppingCart, Trash2, ShoppingBag, ArrowRight, Loader2, Coins } from 'lucide-react'
+import { ShoppingCart, Trash2, ShoppingBag, ArrowRight, Loader2, Coins, X, MapPin, User, Phone, Lock } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 
 interface CartProduct {
@@ -40,6 +40,15 @@ export default function CartPage() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   // 每个购物车项的积分使用量，key 为 cartItemId
   const [pointsMap, setPointsMap] = useState<Record<string, number>>({})
+
+  // v43-4: checkout 弹窗状态
+  const [checkoutItem, setCheckoutItem] = useState<CartItem | null>(null)
+  const [recipientName, setRecipientName] = useState('')
+  const [recipientPhone, setRecipientPhone] = useState('')
+  const [shippingAddress, setShippingAddress] = useState('')
+  const [payPassword, setPayPassword] = useState('')
+  const [showPayPwd, setShowPayPwd] = useState(false)
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -120,8 +129,8 @@ export default function CartPage() {
     }
   }
 
-  // 单品购买：创建订单 → 支付 → 删除购物车项
-  const handleBuyNow = async (item: CartItem) => {
+  // v43-4: 打开 checkout 弹窗（替代原来的直接购买流程）
+  const handleBuyNow = (item: CartItem) => {
     if (!token) {
       router.push('/login')
       return
@@ -143,10 +152,41 @@ export default function CartPage() {
       return
     }
 
-    setBuyingId(item.id)
+    // 打开弹窗
+    setCheckoutItem(item)
+    setRecipientName('')
+    setRecipientPhone('')
+    setShippingAddress('')
+    setPayPassword('')
+  }
 
+  // v43-4: 提交 checkout 弹窗（创建订单 + 验证支付密码）
+  const handleCheckoutSubmit = async () => {
+    if (!checkoutItem || !token) return
+
+    // 校验收货信息
+    if (!recipientName.trim()) {
+      toast.error('请输入收件人姓名')
+      return
+    }
+    if (!recipientPhone.trim() || !/^1\d{10}$/.test(recipientPhone.trim())) {
+      toast.error('请输入正确的手机号')
+      return
+    }
+    if (!shippingAddress.trim()) {
+      toast.error('请输入详细地址')
+      return
+    }
+    if (!/^\d{6}$/.test(payPassword)) {
+      toast.error('支付密码必须为 6 位数字')
+      return
+    }
+
+    setCheckoutSubmitting(true)
     try {
-      // 1. 创建订单
+      const pointsUsed = pointsMap[checkoutItem.id] || 0
+
+      // 1. 创建订单（带收货信息）
       const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: {
@@ -154,14 +194,17 @@ export default function CartPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          items: [{ productId: item.product.id, quantity: 1 }],
+          items: [{ productId: checkoutItem.product.id, quantity: 1 }],
           pointsUsed,
+          recipientName: recipientName.trim(),
+          recipientPhone: recipientPhone.trim(),
+          shippingAddress: shippingAddress.trim(),
         }),
       })
 
       if (!orderRes.ok) {
-        const orderData = await orderRes.json()
-        toast.error(orderData.error || '创建订单失败')
+        const errData = await orderRes.json()
+        toast.error(errData.error || '创建订单失败')
         return
       }
 
@@ -173,38 +216,43 @@ export default function CartPage() {
         return
       }
 
-      // 2. 模拟支付
-      const payRes = await fetch(`/api/orders/${orderId}/pay`, {
+      // 2. 验证支付密码 + 标记已支付
+      const verifyRes = await fetch(`/api/orders/${orderId}/verify-payment`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: payPassword }),
       })
 
-      if (!payRes.ok) {
-        const payData = await payRes.json()
-        toast.error(payData.error || '支付失败')
+      if (!verifyRes.ok) {
+        const verifyErr = await verifyRes.json()
+        toast.error(verifyErr.error || '支付验证失败')
         return
       }
 
-      // 3. 支付成功，从购物车删除该商品
-      await fetch(`/api/cart/${item.id}`, {
+      // 3. 成功：删除购物车项 + 跳转订单详情
+      await fetch(`/api/cart/${checkoutItem.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
 
-      // 4. 刷新购物车列表 + 更新用户积分
-      setCartItems(prev => prev.filter(i => i.id !== item.id))
+      setCartItems(prev => prev.filter(i => i.id !== checkoutItem.id))
       setPointsMap(prev => {
         const next = { ...prev }
-        delete next[item.id]
+        delete next[checkoutItem.id]
         return next
       })
-      fetchUserInfo(token) // 刷新积分余额
-      toast.success('购买成功')
+      fetchUserInfo(token)
+      setCheckoutItem(null)
+      toast.success('购买成功！')
+      router.push(`/dashboard/orders/${orderId}`)
 
     } catch (_error) {
       toast.error('网络错误，请重试')
     } finally {
-      setBuyingId(null)
+      setCheckoutSubmitting(false)
     }
   }
 
@@ -395,6 +443,144 @@ export default function CartPage() {
           </div>
         )}
       </main>
+
+      {/* v43-4: Checkout 弹窗 */}
+      {checkoutItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Sticky 头部 */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-semibold text-gray-900">确认订单</h2>
+              <button
+                onClick={() => setCheckoutItem(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 滚动内容区 */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {/* 商品信息 */}
+              <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+                <p className="text-sm font-medium text-gray-900 line-clamp-2">{checkoutItem.product.name}</p>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-base font-bold text-red-600">
+                    ¥{checkoutItem.product.memberPrice.toFixed(2)}
+                  </span>
+                  {(pointsMap[checkoutItem.id] || 0) > 0 && (
+                    <span className="text-xs text-orange-600">
+                      -¥{(pointsMap[checkoutItem.id] || 0).toFixed(2)} (积分抵扣)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 收件人姓名 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <User className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                  收件人姓名
+                </label>
+                <input
+                  type="text"
+                  value={recipientName}
+                  onChange={(e) => setRecipientName(e.target.value)}
+                  placeholder="请输入收件人姓名"
+                  maxLength={20}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+
+              {/* 手机号 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <Phone className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                  手机号码
+                </label>
+                <input
+                  type="tel"
+                  value={recipientPhone}
+                  onChange={(e) => setRecipientPhone(e.target.value.replace(/[^\d]/g, '').slice(0, 11))}
+                  placeholder="请输入手机号"
+                  maxLength={11}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+
+              {/* 详细地址 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <MapPin className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                  详细地址
+                </label>
+                <textarea
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  placeholder="省/市/区/街道/门牌号"
+                  rows={2}
+                  maxLength={200}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+
+              {/* 支付密码 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <Lock className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                  支付密码
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPayPwd ? 'text' : 'password'}
+                    value={payPassword}
+                    onChange={(e) => setPayPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="6 位数字支付密码"
+                    maxLength={6}
+                    className="w-full px-3.5 py-2.5 pr-11 border border-gray-300 rounded-lg text-center tracking-[0.5em] font-mono text-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPayPwd(!showPayPwd)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPayPwd ? <X className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">未设置？<a href="/dashboard/payment-password" className="text-blue-600 hover:underline">去设置</a></p>
+              </div>
+            </div>
+
+            {/* Sticky 底部按钮 */}
+            <div className="px-5 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-500">实付金额</span>
+                <span className="text-xl font-bold text-red-600">
+                  ¥{(checkoutItem.product.memberPrice - (pointsMap[checkoutItem.id] || 0)).toFixed(2)}
+                </span>
+              </div>
+              <button
+                onClick={handleCheckoutSubmit}
+                disabled={checkoutSubmitting}
+                className={`w-full py-3 rounded-xl font-semibold text-base text-white transition-all ${
+                  checkoutSubmitting
+                    ? 'bg-orange-400 cursor-not-allowed'
+                    : 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800 shadow-md'
+                }`}
+              >
+                {checkoutSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    处理中...
+                  </span>
+                ) : (
+                  '确认下单'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

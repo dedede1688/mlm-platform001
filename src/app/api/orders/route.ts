@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('未登录', 401)
     }
 
-    const { items, pointsUsed } = await request.json()
+    const { items, pointsUsed, recipientName, recipientPhone, shippingAddress } = await request.json()
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return errorResponse('商品不能为空', 400)
@@ -51,10 +51,18 @@ export async function POST(request: NextRequest) {
       return errorResponse('每个订单只能购买一件商品', 400)
     }
 
+    // v43-4: 收货信息校验
+    if (!recipientName || !recipientPhone || !shippingAddress) {
+      return errorResponse('请填写完整的收货信息', 400)
+    }
+
     const order = await OrderService.createOrder({
       userId: user.userId,
       items,
       pointsUsed,
+      recipientName,
+      recipientPhone,
+      shippingAddress,
     })
 
     return NextResponse.json({

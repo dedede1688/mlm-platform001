@@ -5,7 +5,8 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import {
   ArrowLeft, Package, CreditCard, Truck, CheckCircle2,
-  XCircle, Clock, ImageOff, Loader2, RotateCcw, AlertTriangle
+  XCircle, Clock, ImageOff, Loader2, RotateCcw, AlertTriangle,
+  MapPin, User, Phone, ShieldCheck
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
@@ -41,6 +42,10 @@ interface Order {
   completedAt: string | null
   cancelledAt: string | null
   createdAt: string
+  recipientName?: string | null    // v43-4: 收货人姓名
+  recipientPhone?: string | null   // v43-4: 收货人电话
+  shippingAddress?: string | null // v43-4: 收货地址
+  paymentVerified?: boolean     // v43-4: 支付密码是否验证通过
   items: OrderItem[]
   refundRequests: RefundRequest[]
 }
@@ -235,6 +240,51 @@ export default function OrderDetailPage() {
             </div>
           )}
         </div>
+
+        {/* v43-4: 收货信息 */}
+        {(order.recipientName || order.recipientPhone || order.shippingAddress) && (
+          <div className="bg-white rounded-xl shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-semibold text-gray-900">收货信息</span>
+              {order.paymentVerified && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">
+                  <ShieldCheck className="w-3 h-3" />
+                  支付已验证
+                </span>
+              )}
+            </div>
+            <div className="space-y-2.5 bg-green-50/50 rounded-lg px-4 py-3 border border-green-100">
+              {order.recipientName && (
+                <div className="flex items-start gap-2.5">
+                  <User className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-400">收件人</span>
+                    <p className="text-sm text-gray-900 font-medium">{order.recipientName}</p>
+                  </div>
+                </div>
+              )}
+              {order.recipientPhone && (
+                <div className="flex items-start gap-2.5">
+                  <Phone className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-400">手机号</span>
+                    <p className="text-sm text-gray-900 font-medium">{order.recipientPhone}</p>
+                  </div>
+                </div>
+              )}
+              {order.shippingAddress && (
+                <div className="flex items-start gap-2.5">
+                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-400">收货地址</span>
+                    <p className="text-sm text-gray-900">{order.shippingAddress}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 物流信息 */}
         {order.trackingNumber && (

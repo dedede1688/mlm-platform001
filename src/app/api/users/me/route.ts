@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
         directDistributorCount: actualDistributorCount,
         directSalesAmount: user.directSalesAmount,
         upgradeProductCount: user.upgradeProductCount,
+        hasPaymentPassword: !!user.paymentPasswordHash, // v43-4: 前端判断设置/修改模式
         referrals: user.referrals,
         createdAt: user.createdAt,
       },

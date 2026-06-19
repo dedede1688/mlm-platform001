@@ -11,8 +11,11 @@ export class OrderService {
     userId: string
     items: { productId: string; quantity: number }[]
     pointsUsed?: number
+    recipientName?: string | null   // v43-4: 收货人姓名
+    recipientPhone?: string | null  // v43-4: 收货人电话
+    shippingAddress?: string | null // v43-4: 收货地址
   }) {
-    const { userId, items, pointsUsed = 0 } = data
+    const { userId, items, pointsUsed = 0, recipientName, recipientPhone, shippingAddress } = data
 
     // 一单一品一件校验
     if (items.length !== 1) {
@@ -108,6 +111,9 @@ export class OrderService {
           pointsDiscount,
           payAmount,
           status: ORDER_STATUS.PENDING,
+          recipientName: recipientName || null,     // v43-4
+          recipientPhone: recipientPhone || null,    // v43-4
+          shippingAddress: shippingAddress || null,  // v43-4
           items: {
             create: orderItems,
           },
