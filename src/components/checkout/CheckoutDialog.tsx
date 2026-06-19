@@ -29,29 +29,40 @@ interface CheckoutDialogProps {
    * 抛出错误或返回 null 表示失败（错误已 toast 提示）
    */
   onConfirm: (input: CheckoutInput) => Promise<{ orderId: string } | null>
+  /**
+   * v43-4-修复-2: 用户手机号，默认填到手机号输入框
+   */
+  defaultPhone?: string
+  /**
+   * v43-4-修复-2: 用户是否已设置支付密码
+   * - true → 显示"去修改"链接
+   * - false → 显示"去设置"链接
+   */
+  hasPaymentPassword?: boolean
 }
 
-export function CheckoutDialog({ open, onClose, product, onConfirm }: CheckoutDialogProps) {
+export function CheckoutDialog({ open, onClose, product, onConfirm, defaultPhone = '', hasPaymentPassword = false }: CheckoutDialogProps) {
   const [recipientName, setRecipientName] = useState('')
-  const [recipientPhone, setRecipientPhone] = useState('')
+  const [recipientPhone, setRecipientPhone] = useState(defaultPhone)
   const [shippingAddress, setShippingAddress] = useState('')
   const [payPassword, setPayPassword] = useState('')
   const [showPayPwd, setShowPayPwd] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // 弹窗关闭时清空输入
+  // 弹窗打开时初始化手机号为 defaultPhone；关闭时清空收货信息（保留手机号有 defaultPhone 兜底）
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setRecipientPhone(defaultPhone)
+    } else {
       const t = setTimeout(() => {
         setRecipientName('')
-        setRecipientPhone('')
         setShippingAddress('')
         setPayPassword('')
         setShowPayPwd(false)
       }, 200)
       return () => clearTimeout(t)
     }
-  }, [open])
+  }, [open, defaultPhone])
 
   if (!open || !product) return null
 
@@ -212,7 +223,11 @@ export function CheckoutDialog({ open, onClose, product, onConfirm }: CheckoutDi
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              未设置？<a href="/dashboard/payment-password" className="text-blue-600 hover:underline">去设置</a>
+              {hasPaymentPassword ? (
+                <>忘记密码？<a href="/dashboard/payment-password" className="text-blue-600 hover:underline">去修改</a></>
+              ) : (
+                <>未设置？<a href="/dashboard/payment-password" className="text-blue-600 hover:underline">去设置</a></>
+              )}
             </p>
           </div>
         </div>

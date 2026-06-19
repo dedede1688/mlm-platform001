@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPaymentPassword } from '@/lib/auth/payment-password'
-import { OrderService } from '@/lib/services/order.service'
+import { RewardService } from '@/lib/services/reward.service'
 import { ORDER_STATUS } from '@/lib/constants'
 
 // POST /api/orders/[id]/verify-payment — 验证支付密码 + 标记已支付
@@ -63,6 +63,7 @@ export async function POST(
     }
 
     // 事务：标记订单为已支付 + paymentVerified = true
+    // v43-4-修复-2: 这里已经把 status 改为 paid，不要再调 payOrder（会重复 updateMany 失败）
     await prisma.$transaction(async (tx) => {
       const updated = await tx.order.updateMany({
         where: { id: orderId, status: ORDER_STATUS.PENDING },
@@ -78,10 +79,8 @@ export async function POST(
       }
     })
 
-    // 触发奖励发放（复用 OrderService.payOrder 的奖励逻辑）
-    // 注意：payOrder 内部会再次 update status，但 updateMany 条件 status=PENDING 会幂等跳过
-    // 所以这里直接调用 payOrder 处理奖励和通知
-    const paidOrder = await OrderService.payOrder(orderId)
+    // 触发奖励发放（直接调 RewardService，避免 payOrder 重复 update status 失败）
+    await RewardService.processOrderRewards(orderId)
 
     return successResponse(
       { orderId, status: 'paid' },

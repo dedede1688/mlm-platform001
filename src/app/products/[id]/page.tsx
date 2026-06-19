@@ -109,7 +109,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [user, setUser] = useState<{ level: number; unlockedPoints: number; balance: number } | null>(null)
+  const [user, setUser] = useState<{ level: number; unlockedPoints: number; balance: number; phone?: string; hasPaymentPassword?: boolean } | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [addingToCart, setAddingToCart] = useState(false)
   const [buying, setBuying] = useState(false)
@@ -138,6 +138,9 @@ export default function ProductDetailPage() {
       if (res.ok) {
         const data = await res.json()
         setUser(data.data)
+      } else {
+        // 即使失败也保持 user 为 null，避免 break
+        setUser(null)
       }
     } catch (err) {
       console.error('获取用户信息失败:', err)
@@ -717,6 +720,8 @@ export default function ProductDetailPage() {
           pointsUsed: pointsToUse,
         } as CheckoutProduct : null}
         onConfirm={handleCheckoutConfirm}
+        defaultPhone={user?.phone || ''}
+        hasPaymentPassword={user?.hasPaymentPassword || false}
       />
     </div>
   )

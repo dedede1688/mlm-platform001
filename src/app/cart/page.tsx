@@ -29,6 +29,8 @@ interface CartItem {
 
 interface UserInfo {
   unlockedPoints: number
+  phone?: string              // v43-4-修复-2: 默认填到弹窗手机号
+  hasPaymentPassword?: boolean // v43-4-修复-2: 决定弹窗显示"去设置"还是"去修改"
 }
 
 export default function CartPage() {
@@ -64,7 +66,11 @@ export default function CartPage() {
       if (res.ok) {
         const data = await res.json()
         if (data.success) {
-          setUserInfo({ unlockedPoints: data.data.unlockedPoints || 0 })
+          setUserInfo({
+            unlockedPoints: data.data.unlockedPoints || 0,
+            phone: data.data.phone,
+            hasPaymentPassword: data.data.hasPaymentPassword,
+          })
         }
       }
     } catch (error) {
@@ -425,6 +431,8 @@ export default function CartPage() {
           pointsUsed: pointsMap[checkoutItem.id] || 0,
         } as CheckoutProduct : null}
         onConfirm={handleCheckoutConfirm}
+        defaultPhone={userInfo?.phone || ''}
+        hasPaymentPassword={userInfo?.hasPaymentPassword || false}
       />
     </div>
   )
