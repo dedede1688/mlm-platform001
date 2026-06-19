@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, User, Phone, MapPin, Lock, Loader2, ShoppingBag, ChevronDown, BookMarked } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
+import { AddressPicker, AddressPickerValue } from '@/components/address/AddressPicker'
 
 export interface CheckoutProduct {
   id: string
@@ -84,6 +85,9 @@ export function CheckoutDialog({
   const [recipientName, setRecipientName] = useState('')
   const [recipientPhone, setRecipientPhone] = useState(defaultPhone)
   const [shippingAddress, setShippingAddress] = useState('')
+  // v43-5-修复: 省市区三级联动 + 详细地址
+  const [addressPca, setAddressPca] = useState<AddressPickerValue>({ province: '', city: '', district: '' })
+  const [detailAddress, setDetailAddress] = useState('')
   const [payPassword, setPayPassword] = useState('')
   const [showPayPwd, setShowPayPwd] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -108,12 +112,16 @@ export function CheckoutDialog({
       if (da) {
         setRecipientName(da.recipientName)
         setRecipientPhone(da.phone)
+        setAddressPca({ province: da.province, city: da.city, district: da.district })
+        setDetailAddress(da.detailAddress)
         setShippingAddress(`${da.province} ${da.city} ${da.district} ${da.detailAddress}`)
       }
     } else {
       const t = setTimeout(() => {
         setRecipientName('')
         setShippingAddress('')
+        setAddressPca({ province: '', city: '', district: '' })
+        setDetailAddress('')
         setPayPassword('')
         setShowPayPwd(false)
         setSelectedAddressId(NEW_ADDRESS_VALUE)
@@ -133,6 +141,8 @@ export function CheckoutDialog({
     if (addr) {
       setRecipientName(addr.recipientName)
       setRecipientPhone(addr.phone)
+      setAddressPca({ province: addr.province, city: addr.city, district: addr.district })
+      setDetailAddress(addr.detailAddress)
       setShippingAddress(`${addr.province} ${addr.city} ${addr.district} ${addr.detailAddress}`)
       setSaveToBook(false)  // 已有地址不需要保存
     }
@@ -154,8 +164,8 @@ export function CheckoutDialog({
       toast.error('请输入正确的手机号')
       return
     }
-    if (!shippingAddress.trim()) {
-      toast.error('请输入详细地址')
+    if (!addressPca.province || !addressPca.city || !addressPca.district || !detailAddress.trim()) {
+      toast.error('请选择完整的省/市/区并填写详细地址')
       return
     }
     if (!/^\d{6}$/.test(payPassword)) {
@@ -168,32 +178,20 @@ export function CheckoutDialog({
       const result = await onConfirm({
         recipientName: recipientName.trim(),
         recipientPhone: recipientPhone.trim(),
-        shippingAddress: shippingAddress.trim(),
+        shippingAddress: `${addressPca.province} ${addressPca.city} ${addressPca.district} ${detailAddress}`.trim(),
         payPassword,
       })
       if (result?.orderId) {
         // v43-5: 下单成功后保存到地址簿
         if (selectedAddressId === NEW_ADDRESS_VALUE && saveToBook && onSaveAddress) {
-          // 解析省市区（粗略解析；前端 picker 输入是 "省 市 区 详细地址"）
-          const parts = shippingAddress.trim().split(/\s+/)
-          let province = '', city = '', district = '', detail = ''
-          if (parts.length >= 4) {
-            province = parts[0]
-            city = parts[1]
-            district = parts[2]
-            detail = parts.slice(3).join(' ')
-          } else {
-            // 用户手动输入的，没按三级格式 → 整段当详细地址
-            detail = shippingAddress.trim()
-          }
           try {
             const ok = await onSaveAddress({
               recipientName: recipientName.trim(),
               phone: recipientPhone.trim(),
-              province,
-              city,
-              district,
-              detailAddress: detail,
+              province: addressPca.province,
+              city: addressPca.city,
+              district: addressPca.district,
+              detailAddress: detailAddress.trim(),
             })
             if (ok) toast.success('已保存到地址簿')
           } catch {
@@ -310,16 +308,24 @@ export function CheckoutDialog({
             />
           </div>
 
-          {/* 详细地址 */}
+          {/* v43-5-修复: 省市区三级联动 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               <MapPin className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+              所在地区
+            </label>
+            <AddressPicker value={addressPca} onChange={setAddressPca} disabled={submitting} />
+          </div>
+
+          {/* 街道/门牌号 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               详细地址
             </label>
             <textarea
-              value={shippingAddress}
-              onChange={(e) => setShippingAddress(e.target.value)}
-              placeholder="省/市/区/街道/门牌号"
+              value={detailAddress}
+              onChange={(e) => setDetailAddress(e.target.value)}
+              placeholder="街道、楼栋、门牌号"
               rows={2}
               maxLength={200}
               className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
