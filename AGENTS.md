@@ -369,6 +369,63 @@ Prisma 6 的 `$queryRaw` 和 `$queryRawUnsafe` 在 Vercel + Supabase (PostgreSQL
 
 ---
 
+### 铁律 6：支付/订单类派单必须走完整链路测试（v43-4-修复-2 实战总结，2026-06-19 写入）
+
+**核心教训**：v43-4 我自己没走通"立即购买→verify-payment→跳转"完整链路，**只验了 build 0 错误 + 看代码逻辑**，导致 verify-payment **100% 失败的 P0 bug** 流到胡子哥面前。
+
+**真实 bug**：
+```ts
+// verify-payment 路由
+// 1️⃣ 事务里 updateMany 已经把 status 改 paid（成功）
+await prisma.$transaction(async (tx) => {
+  const updated = await tx.order.updateMany({
+    where: { id, status: 'pending' },
+    data: { status: 'paid', paymentVerified: true, paidAt: new Date() },
+  })
+})
+// 2️⃣ 然后又调 payOrder，里面再次 updateMany（条件 status=pending → count=0 → 抛'订单不存在或状态已变更'）
+const paidOrder = await OrderService.payOrder(orderId)
+```
+
+**强制规则**：
+
+1. **支付/订单/支付密码/收货/库存扣减类派单**，执行后必须**走完整 happy path 模拟**：
+   ```
+   下单接口（create order）→ 数据库校验（库存/积分/状态）→ 支付验证（verify/pay）→ 跳转订单详情 → 订单状态从 pending → paid
+   ```
+   看完代码 + build 0 错误**不够**，必须 trace 一遍状态机。
+
+2. **同类状态变更不能重复执行**：
+   ```typescript
+   // ❌ 禁止：在 A 处 updateMany 改 status，再调 B，B 内部又 updateMany 改同一 status
+   await updateMany({ where: { status: 'pending' }, data: { status: 'paid' } })
+   await someService.payOrder()  // 内部又 updateMany({ status: 'pending' }) → count=0
+   
+   // ✅ 正确：A 处一次改完，B 处只读不改
+   await updateMany({ where: { status: 'pending' }, data: { status: 'paid', paymentVerified: true, paidAt: new Date() } })
+   await RewardService.processOrderRewards(orderId)  // 只发奖励，不改 status
+   ```
+
+3. **updateMany 条件是"防并发"而不是"幂等保护"**：
+   - 条件 `where: { status: 'pending' }` 是防止并发时改到错误状态
+   - **不能**依赖它来"幂等跳过"——如果同一事务/调用链里改了 status，第二次 updateMany 一定 count=0
+
+**v43-4-修复-2 真实事故**：
+- 派单后我（mavis）做 v43-4-修复时只验证了 build 0 错误 + 看代码逻辑
+- 没走真实"立即购买"流程
+- 胡子哥测出报"订单不存在或状态已变更"
+- 排查 10 分钟找到根因：verify-payment 重复调 payOrder
+- 修法：删 payOrder 调用，改调 RewardService.processOrderRewards 直接发奖励
+
+**为什么 build 没暴露**：
+- TypeScript 类型完全正确（都是合法 API 调用）
+- ESLint 不会报"重复调一个函数"（没有这种规则）
+- 唯一的检测方法就是**走通真实业务流程**
+- 铁律 1（commit/push 验证）解决"部署是否生效"
+- **铁律 6（链路测试）解决"业务逻辑是否真的对"**
+
+---
+
 ## ⚠️ 浏览器兼容提示
 
 - **夸克**：正常
