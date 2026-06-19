@@ -9,6 +9,7 @@ import {
   X, Loader2, FlaskConical, CheckCircle2
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
+import { CheckoutDialog, CheckoutInput, CheckoutProduct } from '@/components/checkout/CheckoutDialog'
 
 // ---- 类型 ----
 
@@ -116,6 +117,8 @@ export default function ProductDetailPage() {
   const [imageModal, setImageModal] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<TabKey>('desc')
+  // v43-4-修复: checkout 弹窗状态
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -173,13 +176,38 @@ export default function ProductDetailPage() {
     ? Math.max(0, product.memberPrice - pointsDiscount)
     : 0
 
-  // 立即购买
-  const handleBuyNow = async () => {
-    if (!token || !user) { router.push('/login'); return }
+  // 立即购买：v43-4-修复改为打开 checkout 弹窗
+  const handleBuyNow = () => {
+    if (!token || !user) {
+      router.push('/login')
+      return
+    }
     if (!product || product.stock <= 0) return
+    // 积分预校验（弹窗内还会再校验一次）
+    const pointsUsed = pointsToUse
+    if (pointsUsed < 0 || !Number.isInteger(pointsUsed)) {
+      toast.error('积分数量必须为非负整数')
+      return
+    }
+    if (pointsUsed > maxPoints) {
+      toast.error(`最多可使用 ${maxPoints} 积分`)
+      return
+    }
+    if (pointsUsed > (user?.unlockedPoints ?? 0)) {
+      toast.error(`可用积分不足，当前可用 ${user?.unlockedPoints ?? 0} 积分`)
+      return
+    }
+    setCheckoutOpen(true)
+  }
+
+  // v43-4-修复: CheckoutDialog 提交回调
+  const handleCheckoutConfirm = async (input: CheckoutInput): Promise<{ orderId: string } | null> => {
+    if (!product || !token) return null
+
     setBuying(true)
     try {
-      const res = await fetch('/api/orders', {
+      // 1. 创建订单（带收货信息）
+      const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -188,16 +216,50 @@ export default function ProductDetailPage() {
         body: JSON.stringify({
           items: [{ productId: product.id, quantity: 1 }],
           pointsUsed: pointsToUse > 0 ? pointsToUse : undefined,
+          recipientName: input.recipientName,
+          recipientPhone: input.recipientPhone,
+          shippingAddress: input.shippingAddress,
         }),
       })
-      if (res.ok) {
-        router.push('/dashboard/orders')
-      } else {
-        const data = await res.json()
-        toast.error(data.error || '创建订单失败')
+
+      if (!orderRes.ok) {
+        const errData = await orderRes.json()
+        toast.error(errData.error || '创建订单失败')
+        return null
       }
-    } catch {
+
+      const orderData = await orderRes.json()
+      const orderId = orderData.data?.id
+
+      if (!orderId) {
+        toast.error('创建订单失败：未获取到订单ID')
+        return null
+      }
+
+      // 2. 验证支付密码 + 标记已支付
+      const verifyRes = await fetch(`/api/orders/${orderId}/verify-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: input.payPassword }),
+      })
+
+      if (!verifyRes.ok) {
+        const verifyErr = await verifyRes.json()
+        toast.error(verifyErr.error || '支付验证失败')
+        return null
+      }
+
+      // 3. 成功：关闭弹窗 + 跳转订单详情
+      setCheckoutOpen(false)
+      toast.success('购买成功！')
+      router.push(`/dashboard/orders/${orderId}`)
+      return { orderId }
+    } catch (_err) {
       toast.error('网络错误，请重试')
+      return null
     } finally {
       setBuying(false)
     }
@@ -643,6 +705,19 @@ export default function ProductDetailPage() {
         )
       })()}
 
+      {/* v43-4-修复: Checkout 弹窗（公共组件） */}
+      <CheckoutDialog
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        product={product ? {
+          id: product.id,
+          name: product.name,
+          memberPrice: product.memberPrice,
+          imageUrl: product.images?.[0] || null,
+          pointsUsed: pointsToUse,
+        } as CheckoutProduct : null}
+        onConfirm={handleCheckoutConfirm}
+      />
     </div>
   )
 }
