@@ -46,68 +46,56 @@ export async function POST(
 
     // 2. 事务：查询旧值 + 原子校验更新 + BalanceRecord 流水（v43-7 Batch 2）
     const result = await prisma.$transaction(async (tx) => {
-      // 步骤1：查旧值（v43-7 统一规则）
-      const before = await tx.user.findUnique({
-        where: { id },
-        select: { balance: true, frozenBalance: true, status: true },
-      })
-
+      // 步骤 1：查旧值
+      const before = await tx.user.findUnique({ where: { id } })
       if (!before || before.status === 'deleted') {
         throw new Error('用户不存在')
       }
 
-      // 扣减时检查是否会导致负数
-      const currentVal = field === 'balance' ? before.balance : before.frozenBalance
-      if (amount < 0 && currentVal + amount < 0) {
-        const fieldLabel = field === 'balance' ? '余额' : '冻结余额'
-        throw new Error(`${fieldLabel}不足，当前 ${currentVal}，扣减 ${Math.abs(amount)}`)
-      }
-
-      // 原值记录日志用
-      const oldValue = { [field]: currentVal }
-
-      // 步骤2：原子校验更新（防并发透支）
-      const whereClause: Record<string, unknown> = { id }
-      if (amount < 0) {
-        whereClause[field] = { gte: Math.abs(amount) }
-      }
-      const updatedResult = await tx.user.updateMany({
-        where: whereClause,
+      // 步骤 2：变更（updateMany + where 防并发透支）
+      const updateResult = await tx.user.updateMany({
+        where: {
+          id,
+          [field]: amount < 0 ? { gte: Math.abs(amount) } : undefined,
+        },
         data: { [field]: { increment: amount } },
       })
-      if (updatedResult.count === 0) {
+      if (updateResult.count === 0) {
         const fieldLabel = field === 'balance' ? '余额' : '冻结余额'
-        throw new Error(`${fieldLabel}不足，操作失败`)
+        throw new Error(`${fieldLabel}不足`)
       }
 
-      // 步骤3：用旧值+变动量计算新值，写 BalanceRecord
-      const newBalance = before.balance + (field === 'balance' ? amount : 0)
-      const newFrozen = before.frozenBalance + (field === 'frozenBalance' ? amount : 0)
-      const fieldLabel2 = field === 'balance' ? '余额' : '冻结余额'
-      const actionLabel = amount > 0 ? '增加' : '扣减'
+      // 步骤 3：用旧值+变动量计算新值
+      const newBalance = field === 'balance' ? before.balance + amount : before.balance
+      const newFrozenBalance = field === 'frozenBalance' ? before.frozenBalance + amount : before.frozenBalance
+      const oldValue = { [field]: field === 'balance' ? before.balance : before.frozenBalance }
+
+      // 步骤 4：写 BalanceRecord
       await tx.balanceRecord.create({
         data: {
           userId: id,
           type: 'admin_adjust',
           amount,
           balance: newBalance,
-          frozenBalance: newFrozen,
+          frozenBalance: newFrozenBalance,
           sourceType: 'admin',
           sourceId: admin.id,
-          description: `管理员调账：${fieldLabel2}${actionLabel} ¥${Math.abs(amount)}，原因：${reason}`,
+          description: `管理员调账：${field === 'balance' ? '余额' : '冻结余额'}${amount > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}，原因：${reason}`,
         },
       })
 
-      // 返回更新后的值（用计算值，不依赖 findUnique 返回）
-      const updated = {
-        ...before,
-        [field]: currentVal + amount,
-      }
-
+      const updated = await tx.user.findUnique({ where: { id } })
+      if (!updated) throw new Error('用户更新后查询失败')
       return { updated, oldValue, field }
     })
 
     // 3. 写操作日志
+    if (!result.updated) {
+      return NextResponse.json(
+        { success: false, message: '更新后查询用户失败' },
+        { status: 500 }
+      )
+    }
     await logOperation({
       userId: admin.id,
       action: 'UPDATE',
