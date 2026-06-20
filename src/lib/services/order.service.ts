@@ -174,61 +174,35 @@ export class OrderService {
     return order
   }
 
-  // 支付订单（模拟支付）
+  
+  // 支付订单（v43-6 Batch 3：事务 + paymentVerified + 余额扣减 + balance_record）
   static async payOrder(orderId: string) {
-    // 使用原子更新防并发：仅当状态为 pending 时才更新
-    const order = await prisma.order.updateMany({
-      where: { id: orderId, status: ORDER_STATUS.PENDING },
-      data: {
-        status: ORDER_STATUS.PAID,
-        paidAt: new Date(),
-      },
+    const order = await prisma.order.findUnique({ where: { id: orderId } })
+    if (!order) throw new Error('订单不存在')
+    if (order.status !== ORDER_STATUS.PENDING) throw new Error('订单不存在或状态已变更')
+    const paidOrder = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({ where: { id: orderId, status: ORDER_STATUS.PENDING }, data: { status: ORDER_STATUS.PAID, paymentVerified: true, paidAt: new Date() } })
+      if (updated.count === 0) throw new Error('订单不存在或状态已变更')
+      if (order.payAmount > 0) {
+        const freshUser = await tx.user.findUnique({ where: { id: order.userId }, select: { balance: true, frozenBalance: true } })
+        if (!freshUser) throw new Error('用户不存在')
+        const bu = await tx.user.updateMany({ where: { id: order.userId, balance: { gte: order.payAmount } }, data: { balance: { decrement: order.payAmount } } })
+        if (bu.count === 0) throw new Error('可用余额不足')
+        const nb = freshUser.balance - order.payAmount
+        await tx.balanceRecord.create({ data: { userId: order.userId, type: 'payment', amount: -order.payAmount, balance: nb, frozenBalance: freshUser.frozenBalance, sourceType: 'order', sourceId: orderId, description: '订单 ' + order.orderNo + ' 支付' } })
+      }
+      return await tx.order.findUnique({ where: { id: orderId }, include: { user: true, items: { include: { product: true } } } })
     })
-
-    if (order.count === 0) {
-      throw new Error('订单不存在或状态已变更')
-    }
-
-    // 重新查询完整订单数据
-    const paidOrder = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        user: true,
-        items: {
-          include: { product: true },
-        },
-      },
-    })
-
     if (!paidOrder) throw new Error('订单不存在')
-
-    // 处理奖励
     await RewardService.processOrderRewards(orderId)
-
-    // 预留：发送订单支付成功通知
-    const userEmail = paidOrder.user.email
-    const userPhone = paidOrder.user.phone
-    const notifyVars = {
-      orderNo: paidOrder.orderNo,
-      orderAmount: paidOrder.totalAmount.toFixed(2),
-      payAmount: paidOrder.payAmount.toFixed(2),
-      userName: paidOrder.user.nickname ?? paidOrder.user.phone,
-    }
-    if (userEmail) {
-      sendEmail({ to: userEmail, templateType: 'order_paid', variables: notifyVars }).catch((err) => {
-        logger.error('发送订单支付成功邮件失败', { error: err instanceof Error ? err.message : String(err) })
-      })
-    }
-    if (userPhone) {
-      sendSms({ to: userPhone, templateType: 'order_paid', variables: notifyVars }).catch((err) => {
-        logger.error('发送订单支付成功短信失败', { error: err instanceof Error ? err.message : String(err) })
-      })
-    }
-
+    var ue=paidOrder.user?.email;var up=paidOrder.user?.phone;var nv={orderNo:paidOrder.orderNo,orderAmount:paidOrder.totalAmount.toFixed(2),payAmount:paidOrder.payAmount.toFixed(2),userName:paidOrder.user?.nickname??paidOrder.user?.phone}
+    if(ue)sendEmail({to:ue,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('邮件失败',{error:String(err)})})
+    if(up)sendSms({to:up,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('短信失败',{error:String(err)})})
     return paidOrder
+  
   }
 
-  // 发货
+// 发货
   static async shipOrder(orderId: string, _trackingNo?: string) {
     const order = await prisma.order.update({
       where: { id: orderId },
