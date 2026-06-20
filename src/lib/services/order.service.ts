@@ -321,6 +321,33 @@ export class OrderService {
         }
       }
 
+      // v43-6 Batch 4: 退回余额 + 写 balance_record
+      if (order.payAmount > 0) {
+        const refundUser = await tx.user.findUnique({
+          where: { id: order.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+        if (refundUser) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: { balance: { increment: order.payAmount } },
+          })
+          const newBalance = refundUser.balance + order.payAmount
+          await tx.balanceRecord.create({
+            data: {
+              userId: order.userId,
+              type: 'refund',
+              amount: order.payAmount,
+              balance: newBalance,
+              frozenBalance: refundUser.frozenBalance,
+              sourceType: 'order',
+              sourceId: orderId,
+              description: '订单 ' + order.orderNo + ' 退款',
+            },
+          })
+        }
+      }
+
       // 扣除已发放的奖励
       await RewardService.processRefund(orderId)
 
