@@ -46,21 +46,23 @@ export async function POST(request: NextRequest) {
     const rewardType = type || 'manual'
     const rewardReason = reason.trim()
 
-    // 使用事务：增加余额 + 创建手动奖励记录
+    // 使用事务：增加余额 + 创建手动奖励记录 + BalanceRecord 流水（v43-7 Batch 3）
     const result = await prisma.$transaction(async (tx) => {
-      // 增加用户余额
+      // 步骤 1：查旧值
+      const before = await tx.user.findUnique({
+        where: { id: userId },
+        select: { balance: true, frozenBalance: true },
+      })
+      if (!before) throw new Error('用户不存在')
+
+      // 步骤 2：变更（增加余额）
       const updatedUser = await tx.user.update({
         where: { id: userId },
         data: { balance: { increment: amount } },
-        select: {
-          id: true,
-          phone: true,
-          nickname: true,
-          balance: true,
-        },
+        select: { id: true, phone: true, nickname: true, balance: true },
       })
 
-      // 创建 ManualReward 记录
+      // 步骤 3：创建手动奖励记录
       const manualReward = await tx.manualReward.create({
         data: {
           userId,
@@ -71,10 +73,21 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      return {
-        user: updatedUser,
-        reward: manualReward,
-      }
+      // 步骤 4：写 BalanceRecord
+      await tx.balanceRecord.create({
+        data: {
+          userId,
+          type: 'manual_reward',
+          amount,
+          balance: before.balance + amount,
+          frozenBalance: before.frozenBalance,
+          sourceType: 'manual_reward',
+          sourceId: manualReward.id,
+          description: `手动奖励 ¥${amount.toFixed(2)}，原因：${rewardReason}`,
+        },
+      })
+
+      return { user: updatedUser, reward: manualReward }
     })
 
     // 记录操作日志
