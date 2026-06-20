@@ -38,6 +38,7 @@ model User {
   pointsRecords          PointsRecord[]
   rewards                Reward[]
   addresses              Address[]
+  balanceRecords         BalanceRecord[]
   parent                 User?          @relation("ParentRelation", fields: [parentId], references: [id])
   children               User[]         @relation("ParentRelation")
   referrer               User?          @relation("ReferrerRelation", fields: [referrerId], references: [id])
@@ -397,6 +398,26 @@ model Address {
   @@index([userId])
   @@index([userId, isDefault])
   @@map("addresses")
+}
+
+model BalanceRecord {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  type          String   @map("type")             // payment / refund / reward / withdraw / unfreeze / admin_adjust
+  amount        Float    @map("amount")           // +/- 正数加/负数减
+  balance       Float    @map("balance")          // 变动后可用余额
+  frozenBalance Float    @map("frozen_balance")   // 变动后冻结余额
+  sourceType    String?  @map("source_type")      // order / reward / withdrawal / manual
+  sourceId      String?  @map("source_id")
+  description   String?  @map("description")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("balance_records")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

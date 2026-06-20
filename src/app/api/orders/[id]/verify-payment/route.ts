@@ -62,9 +62,10 @@ export async function POST(
       return errorResponse('支付密码错误', 401)
     }
 
-    // 事务：标记订单为已支付 + paymentVerified = true
-    // v43-4-修复-2: 这里已经把 status 改为 paid，不要再调 payOrder（会重复 updateMany 失败）
+    // 事务：标记订单为已支付 + 扣减余额 + 写 balance_record（原子操作）
+    // v43-6-批次-2: 余额不足时整个事务回滚，订单保持 PENDING
     await prisma.$transaction(async (tx) => {
+      // 1. 标记订单为已支付（原有逻辑）
       const updated = await tx.order.updateMany({
         where: { id: orderId, status: ORDER_STATUS.PENDING },
         data: {
@@ -76,6 +77,47 @@ export async function POST(
 
       if (updated.count === 0) {
         throw new Error('订单不存在或状态已变更')
+      }
+
+      // 2. v43-6-批次-2: 扣减余额（仅当 payAmount > 0 时）
+      if (order.payAmount > 0) {
+        // 事务内查用户当前余额（防并发透支）
+        const freshUser = await tx.user.findUnique({
+          where: { id: order.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+        if (!freshUser) {
+          throw new Error('用户不存在')
+        }
+
+        // 原子扣减余额（条件 balance >= payAmount 防止透支）
+        const balanceUpdated = await tx.user.updateMany({
+          where: {
+            id: order.userId,
+            balance: { gte: order.payAmount },
+          },
+          data: {
+            balance: { decrement: order.payAmount },
+          },
+        })
+        if (balanceUpdated.count === 0) {
+          throw new Error('可用余额不足')
+        }
+
+        // 3. 写 balance_record（流水）
+        const newBalance = freshUser.balance - order.payAmount
+        await tx.balanceRecord.create({
+          data: {
+            userId: order.userId,
+            type: 'payment',
+            amount: -order.payAmount,
+            balance: newBalance,
+            frozenBalance: freshUser.frozenBalance,
+            sourceType: 'order',
+            sourceId: orderId,
+            description: `订单 ${order.orderNo} 支付`,
+          },
+        })
       }
     })
 
