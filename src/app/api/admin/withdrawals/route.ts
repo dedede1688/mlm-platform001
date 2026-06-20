@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { WITHDRAWAL_STATUS } from '@/lib/constants'
 
 // GET /api/admin/withdrawals — 获取提现申请列表（管理员）
 export async function GET(request: NextRequest) {
@@ -126,7 +127,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    if (withdrawal.status !== 'pending') {
+    if (withdrawal.status !== WITHDRAWAL_STATUS.PENDING) {
       return NextResponse.json(
         { success: false, message: '只能审核待处理的提现申请' },
         { status: 400 }
@@ -134,35 +135,44 @@ export async function PUT(request: NextRequest) {
     }
 
     if (action === 'approve') {
-      // 审核通过：扣减余额 + 更新状态为 completed
-      const user = await prisma.user.findUnique({ where: { id: withdrawal.userId } })
-      if (!user) {
-        return NextResponse.json(
-          { success: false, message: '用户不存在' },
-          { status: 404 }
-        )
-      }
-
-      if (user.balance < withdrawal.amount) {
-        return NextResponse.json(
-          { success: false, message: '用户余额不足，无法通过审核' },
-          { status: 400 }
-        )
-      }
-
-      // 使用事务保证原子性
+      // 审核通过：扣减冻结余额 + 更新状态为 approved（v43-7：修正逻辑 + BalanceRecord）
       const updated = await prisma.$transaction(async (tx) => {
-        // 扣减余额
+        // 步骤1：查旧值（v43-7 统一规则）
+        const before = await tx.user.findUnique({
+          where: { id: withdrawal.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+        if (!before) throw new Error('用户不存在')
+        if (before.frozenBalance < withdrawal.amount) {
+          throw new Error('冻结余额不足，无法通过审核')
+        }
+
+        // 步骤2：扣减冻结余额（approve 时 balance 不变，只减 frozenBalance）
         await tx.user.update({
           where: { id: withdrawal.userId },
-          data: { balance: { decrement: withdrawal.amount } },
+          data: { frozenBalance: { decrement: withdrawal.amount } },
+        })
+
+        // 步骤3：写 BalanceRecord
+        const newFrozen = before.frozenBalance - withdrawal.amount
+        await tx.balanceRecord.create({
+          data: {
+            userId: withdrawal.userId,
+            type: 'withdraw',
+            amount: -withdrawal.amount,
+            balance: before.balance,
+            frozenBalance: newFrozen,
+            sourceType: 'withdrawal',
+            sourceId: id,
+            description: `提现通过，扣减冻结 ¥${withdrawal.amount}`,
+          },
         })
 
         // 更新提现记录
         return tx.withdrawal.update({
           where: { id },
           data: {
-            status: 'completed',
+            status: WITHDRAWAL_STATUS.APPROVED,
             reviewedBy: admin.id,
             reviewedAt: new Date(),
             paidAt: new Date(),
@@ -181,8 +191,8 @@ export async function PUT(request: NextRequest) {
         action: 'APPROVE',
         module: 'finance',
         targetId: id,
-        oldValue: { status: 'pending' },
-        newValue: { status: 'completed', amount: withdrawal.amount },
+        oldValue: { status: WITHDRAWAL_STATUS.PENDING },
+        newValue: { status: WITHDRAWAL_STATUS.APPROVED, amount: withdrawal.amount },
         ip: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
       })
@@ -190,25 +200,60 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: updated,
-        message: '提现已通过，余额已扣减',
+        message: '提现已通过，冻结余额已扣减',
       })
     }
 
     if (action === 'reject') {
-      // 审核拒绝：仅更新状态
-      const updated = await prisma.withdrawal.update({
-        where: { id },
-        data: {
-          status: 'rejected',
-          reviewedBy: admin.id,
-          reviewedAt: new Date(),
-          rejectReason: rejectReason || null,
-        },
-        include: {
-          user: {
-            select: { id: true, phone: true, nickname: true },
+      // 审核拒绝：退回冻结余额到可用余额（v43-7：修正逻辑 + BalanceRecord）
+      const updated = await prisma.$transaction(async (tx) => {
+        // 步骤1：查旧值（v43-7 统一规则）
+        const before = await tx.user.findUnique({
+          where: { id: withdrawal.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+        if (!before) throw new Error('用户不存在')
+
+        // 步骤2：退回冻结余额到可用余额
+        await tx.user.update({
+          where: { id: withdrawal.userId },
+          data: {
+            balance: { increment: withdrawal.amount },
+            frozenBalance: { decrement: withdrawal.amount },
           },
-        },
+        })
+
+        // 步骤3：写 BalanceRecord
+        const newBalance = before.balance + withdrawal.amount
+        const newFrozen = before.frozenBalance - withdrawal.amount
+        await tx.balanceRecord.create({
+          data: {
+            userId: withdrawal.userId,
+            type: 'unfreeze',
+            amount: withdrawal.amount,
+            balance: newBalance,
+            frozenBalance: newFrozen,
+            sourceType: 'withdrawal',
+            sourceId: id,
+            description: `提现拒绝，解冻退回 ¥${withdrawal.amount}`,
+          },
+        })
+
+        // 更新提现记录
+        return tx.withdrawal.update({
+          where: { id },
+          data: {
+            status: WITHDRAWAL_STATUS.REJECTED,
+            reviewedBy: admin.id,
+            reviewedAt: new Date(),
+            rejectReason: rejectReason || null,
+          },
+          include: {
+            user: {
+              select: { id: true, phone: true, nickname: true },
+            },
+          },
+        })
       })
 
       // 记录操作日志 - 审核拒绝
@@ -217,8 +262,8 @@ export async function PUT(request: NextRequest) {
         action: 'REJECT',
         module: 'finance',
         targetId: id,
-        oldValue: { status: 'pending' },
-        newValue: { status: 'rejected', rejectReason: rejectReason || null },
+        oldValue: { status: WITHDRAWAL_STATUS.PENDING },
+        newValue: { status: WITHDRAWAL_STATUS.REJECTED, rejectReason: rejectReason || null },
         ip: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
       })
@@ -226,7 +271,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: updated,
-        message: '提现已拒绝',
+        message: '提现已拒绝，冻结余额已退回',
       })
     }
 
