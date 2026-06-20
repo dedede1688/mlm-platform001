@@ -8,7 +8,7 @@ export class RewardService {
     const amount = orderAmount * REWARD_RATES.REFERRAL
 
     await prisma.$transaction(async (tx) => {
-      await tx.reward.create({
+      const reward = await tx.reward.create({
         data: {
           userId: referrerId,
           type: 'referral',
@@ -20,10 +20,30 @@ export class RewardService {
         },
       })
 
+      const before = await tx.user.findUnique({
+        where: { id: referrerId },
+        select: { balance: true, frozenBalance: true },
+      })
+
       await tx.user.update({
         where: { id: referrerId },
         data: { balance: { increment: amount } },
       })
+
+      if (before) {
+        await tx.balanceRecord.create({
+          data: {
+            userId: referrerId,
+            type: 'referral_reward',
+            amount,
+            balance: before.balance + amount,
+            frozenBalance: before.frozenBalance,
+            sourceType: 'reward',
+            sourceId: reward.id,
+            description: `直推奖 +¥${amount.toFixed(2)}，订单 ${orderId}`,
+          },
+        })
+      }
     })
   }
 
@@ -38,7 +58,7 @@ export class RewardService {
     const amount = orderAmount * REWARD_RATES.BRAND_BONUS
 
     await prisma.$transaction(async (tx) => {
-      await tx.reward.create({
+      const reward = await tx.reward.create({
         data: {
           userId: referrerId,
           type: 'brand_bonus',
@@ -49,10 +69,30 @@ export class RewardService {
         },
       })
 
+      const before = await tx.user.findUnique({
+        where: { id: referrerId },
+        select: { balance: true, frozenBalance: true },
+      })
+
       await tx.user.update({
         where: { id: referrerId },
         data: { balance: { increment: amount } },
       })
+
+      if (before) {
+        await tx.balanceRecord.create({
+          data: {
+            userId: referrerId,
+            type: 'brand_bonus',
+            amount,
+            balance: before.balance + amount,
+            frozenBalance: before.frozenBalance,
+            sourceType: 'reward',
+            sourceId: reward.id,
+            description: `品牌管理奖 +¥${amount.toFixed(2)}，订单 ${orderId}`,
+          },
+        })
+      }
     })
   }
 
@@ -103,7 +143,7 @@ export class RewardService {
 
         const amount = orderAmount * teamLevel.rate
 
-        await tx.reward.create({
+        const reward = await tx.reward.create({
           data: {
             userId: referrer.userId,
             type: 'team',
@@ -115,10 +155,30 @@ export class RewardService {
           },
         })
 
+        const before = await tx.user.findUnique({
+          where: { id: referrer.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+
         await tx.user.update({
           where: { id: referrer.userId },
           data: { balance: { increment: amount } },
         })
+
+        if (before) {
+          await tx.balanceRecord.create({
+            data: {
+              userId: referrer.userId,
+              type: 'team_reward',
+              amount,
+              balance: before.balance + amount,
+              frozenBalance: before.frozenBalance,
+              sourceType: 'reward',
+              sourceId: reward.id,
+              description: `团队奖（第${teamLevel.level}层）+¥${amount.toFixed(2)}，订单 ${orderId}`,
+            },
+          })
+        }
       }
     })
   }
@@ -181,7 +241,7 @@ export class RewardService {
 
         if (amount <= 0) continue
 
-        await tx.dividend.create({
+        const dividend = await tx.dividend.create({
           data: {
             userId: eligible.userId,
             orderId,
@@ -192,10 +252,30 @@ export class RewardService {
           },
         })
 
+        const before = await tx.user.findUnique({
+          where: { id: eligible.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+
         await tx.user.update({
           where: { id: eligible.userId },
           data: { balance: { increment: amount } },
         })
+
+        if (before) {
+          await tx.balanceRecord.create({
+            data: {
+              userId: eligible.userId,
+              type: 'dividend_reward',
+              amount,
+              balance: before.balance + amount,
+              frozenBalance: before.frozenBalance,
+              sourceType: 'reward',
+              sourceId: dividend.id,
+              description: `分红奖 +¥${amount.toFixed(2)}，订单 ${orderId}`,
+            },
+          })
+        }
       }
     })
   }
