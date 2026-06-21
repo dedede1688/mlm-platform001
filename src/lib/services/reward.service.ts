@@ -406,27 +406,75 @@ export class RewardService {
     await prisma.$transaction(async (tx) => {
       // 扣回奖励
       for (const reward of rewards) {
-        await tx.user.update({
+        const before = await tx.user.findUnique({
           where: { id: reward.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+
+        // 防并发透支：余额不足则抛错
+        const deductResult = await tx.user.updateMany({
+          where: { id: reward.userId, balance: { gte: reward.amount } },
           data: { balance: { decrement: reward.amount } },
         })
+        if (deductResult.count === 0) {
+          throw new Error(`扣回奖励失败：用户 ${reward.userId} 余额不足，需扣 ¥${reward.amount}`)
+        }
 
         await tx.reward.update({
           where: { id: reward.id },
           data: { status: 'refunded' },
         })
+
+        if (before) {
+          await tx.balanceRecord.create({
+            data: {
+              userId: reward.userId,
+              type: 'refund_reward',
+              amount: -reward.amount,
+              balance: before.balance - reward.amount,
+              frozenBalance: before.frozenBalance,
+              sourceType: 'reward',
+              sourceId: reward.id,
+              description: `扣回奖励 -¥${reward.amount.toFixed(2)}，订单 ${orderId}`,
+            },
+          })
+        }
       }
 
       // 扣回分红
       for (const dividend of dividends) {
-        await tx.user.update({
+        const before = await tx.user.findUnique({
           where: { id: dividend.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+
+        // 防并发透支：余额不足则抛错
+        const deductResult = await tx.user.updateMany({
+          where: { id: dividend.userId, balance: { gte: dividend.amount } },
           data: { balance: { decrement: dividend.amount } },
         })
+        if (deductResult.count === 0) {
+          throw new Error(`扣回分红失败：用户 ${dividend.userId} 余额不足，需扣 ¥${dividend.amount}`)
+        }
 
         await tx.dividend.delete({
           where: { id: dividend.id },
         })
+
+        if (before) {
+          await tx.balanceRecord.create({
+            data: {
+              userId: dividend.userId,
+              type: 'refund_dividend',
+              amount: -dividend.amount,
+              balance: before.balance - dividend.amount,
+              frozenBalance: before.frozenBalance,
+              sourceType: 'reward',
+              sourceId: dividend.id,
+              description: `扣回分红 -¥${dividend.amount.toFixed(2)}，订单 ${orderId}`,
+            },
+          })
+        }
       }
     })
   }
