@@ -16,27 +16,27 @@ interface PublicSettings {
   copyright: string
 }
 
-const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'goods_admin', 'goods_manager', 'finance_admin', 'finance_viewer', 'order_manager', 'user_manager', 'support_admin', 'auditor']
+const ALL_ADMIN_ROLES = ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor']
 
 const defaultSettings: PublicSettings = {
-  siteName: '敏维科技',
-  logoUrl: '/logo.svg',  // 兜底使用 svg（项目中已有）
+  siteName: '敏维生物·健康商城',
+  logoUrl: '/logo.png',
   contactPhone: '18566793066',
   serviceTime: '周一至周日 9:00-21:00',
-  companyName: '广州敏维科技有限公司',
+  companyName: '广州敏维生物科技有限公司',
   icp: '粤ICP备XXXXXXXX号',
   copyright: '2026',
 }
 
 export default function Header() {
   const [settings, setSettings] = useState<PublicSettings | null>(null)
-  const [logoError, setLogoError] = useState(false)
+  const [logoError, _setLogoError] = useState(false)
   const [showPhone, setShowPhone] = useState(false)
   const { user, logout, syncFromStorage } = useAuthStore()
 
   useEffect(() => {
-    // 加载站点设置（禁用缓存确保获取最新数据）
-    fetch('/api/settings/public', { cache: 'no-store' })
+    // 加载站点设置
+    fetch('/api/settings/public')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data) {
@@ -80,19 +80,16 @@ export default function Header() {
             <div className="h-8 w-40 bg-gray-200 rounded animate-pulse" />
           ) : (
             <>
-              {!logoError && (
+              {s.logoUrl && !logoError ? (
                 <div className="relative h-8 w-auto min-w-[100px]">
                   <Image
-                    // 优先用管理员配置的 logo，没有就用 svg 兜底
-                    src={s.logoUrl || '/logo.svg'}
+                    src={s.logoUrl}
                     alt={s.siteName}
                     fill
                     className="object-contain"
-                    unoptimized
-                    onError={() => setLogoError(true)}
                   />
                 </div>
-              )}
+              ) : null}
               <span>{s.siteName}</span>
             </>
           )}
