@@ -154,8 +154,14 @@ export class DividendService {
         const dividendAmount = levelDividendPerPerson.get(user.level) || 0
 
         if (dividendAmount > 0) {
+          // 查询用户当前余额（事务内）
+          const currentUser = await tx.user.findUnique({
+            where: { id: user.id },
+            select: { balance: true, frozenBalance: true },
+          })
+
           // 创建分红记录
-          await tx.dividend.create({
+          const dividendRecord = await tx.dividend.create({
             data: {
               userId: user.id,
               orderId: referenceOrderId,
@@ -173,6 +179,20 @@ export class DividendService {
               balance: {
                 increment: dividendAmount,
               },
+            },
+          })
+
+          // 记录余额流水
+          await tx.balanceRecord.create({
+            data: {
+              userId: user.id,
+              type: 'daily_dividend',
+              sourceType: 'dividend',
+              sourceId: dividendRecord.id,
+              amount: +dividendAmount,
+              balance: currentUser!.balance + dividendAmount,
+              frozenBalance: currentUser!.frozenBalance,
+              description: `每日分红结算，发放 ¥${dividendAmount}，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}`,
             },
           })
 
