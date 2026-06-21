@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Network, Users, TrendingUp, ShoppingCart, Loader2, RefreshCw } from 'lucide-react'
+import { X, Network, Users, TrendingUp, ShoppingCart, RefreshCw } from 'lucide-react'
 import ReferralTreeView, {
   TreeNode,
   TreeSummary,

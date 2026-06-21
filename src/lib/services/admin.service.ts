@@ -249,25 +249,46 @@ export class AdminService {
       include: { user: true },
     })
 
-    // 按用户分组计算总金额
-    const userDividends: Record<string, number> = {}
+    // 按用户分组计算总金额，同时记录分红 ID
+    const userDividends: Record<string, { amount: number; dividendIds: string[] }> = {}
     for (const dividend of todayDividends) {
       if (!userDividends[dividend.userId]) {
-        userDividends[dividend.userId] = 0
+        userDividends[dividend.userId] = { amount: 0, dividendIds: [] }
       }
-      userDividends[dividend.userId] += dividend.amount
+      userDividends[dividend.userId].amount += dividend.amount
+      userDividends[dividend.userId].dividendIds.push(dividend.id)
     }
 
-    // 为用户发放分红
-    for (const [userId, amount] of Object.entries(userDividends)) {
+    // 为用户发放分红（每个用户单独事务）
+    for (const [userId, { amount, dividendIds }] of Object.entries(userDividends)) {
       if (amount > 0) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            balance: {
-              increment: amount,
+        await prisma.$transaction(async (tx) => {
+          const user = await tx.user.findUnique({
+            where: { id: userId },
+            select: { balance: true, frozenBalance: true },
+          })
+          if (!user) throw new Error(`用户 ${userId} 不存在`)
+
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              balance: { increment: amount },
             },
-          },
+          })
+
+          // 写 BalanceRecord 流水
+          await tx.balanceRecord.create({
+            data: {
+              userId,
+              type: 'daily_dividend',
+              amount,
+              balance: user.balance + amount,
+              frozenBalance: user.frozenBalance,
+              sourceType: 'dividend',
+              sourceId: null,
+              description: `每日分红结算，发放 ¥${amount}，分红数：${dividendIds.join(',')}`,
+            },
+          })
         })
       }
     }

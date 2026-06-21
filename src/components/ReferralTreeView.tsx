@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Network, Loader2,
-  TrendingUp, ShoppingCart, Calendar, X
 } from 'lucide-react'
 import ReactFlow, {
   Node,
@@ -418,7 +417,7 @@ function countNodesFn(node: TreeNode | null): number {
 // ============================================================
 
 function ReferralTreeInner(props: ReferralTreeViewProps) {
-  const { data, summary, nodeCount, truncated, loading, error, compact = false, height = 600, onNodeClick, focusUserId, onFocusChange } = props
+  const { data, summary: _summary, nodeCount: _nodeCount, truncated: _truncated, loading, error, compact = false, height = 600, onNodeClick, focusUserId, onFocusChange } = props
 
   const [nodes, setNodes, onNodesChange] = useNodesState<ReferralNodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
