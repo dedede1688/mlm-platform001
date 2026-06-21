@@ -1,27 +1,27 @@
+// src/lib/api-response.ts
 import { NextResponse } from 'next/server'
 
-interface ApiSuccessResponse<T> {
-  success: true
-  data: T
+export interface ApiResponse<T = unknown> {
+  success: boolean
+  data?: T
   message?: string
+  error?: string
 }
 
-interface ApiErrorResponse {
-  success: false
-  error: string
-  code?: number
+export function successResponse<T>(data: T, message?: string): NextResponse<ApiResponse<T>> {
+  return NextResponse.json({
+    success: true,
+    data,
+    ...(message && { message }),
+  })
 }
 
-export function successResponse<T>(data: T, message?: string, status: number = 200): NextResponse<ApiSuccessResponse<T>> {
+export function errorResponse(error: string, status: number = 400): NextResponse<ApiResponse<null>> {
   return NextResponse.json(
-    { success: true, data, ...(message ? { message } : {}) },
+    {
+      success: false,
+      error,
+    },
     { status }
-  )
-}
-
-export function errorResponse(error: string, code: number = 400): NextResponse<ApiErrorResponse> {
-  return NextResponse.json(
-    { success: false, error, code },
-    { status: code }
   )
 }

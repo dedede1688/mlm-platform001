@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Lock, Eye, EyeOff, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 
 // ---- 类型 ----
 
-interface _UserInfo {
+interface UserInfo {
   hasPaymentPassword: boolean
 }
 

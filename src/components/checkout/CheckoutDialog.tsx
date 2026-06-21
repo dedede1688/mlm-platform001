@@ -84,7 +84,7 @@ export function CheckoutDialog({
 }: CheckoutDialogProps) {
   const [recipientName, setRecipientName] = useState('')
   const [recipientPhone, setRecipientPhone] = useState(defaultPhone)
-  const [_shippingAddress, setShippingAddress] = useState('')
+  const [shippingAddress, setShippingAddress] = useState('')
   // v43-5-修复: 省市区三级联动 + 详细地址
   const [addressPca, setAddressPca] = useState<AddressPickerValue>({ province: '', city: '', district: '' })
   const [detailAddress, setDetailAddress] = useState('')

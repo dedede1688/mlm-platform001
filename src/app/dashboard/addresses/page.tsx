@@ -43,7 +43,7 @@ export default function AddressesPage() {
       } else {
         toast.error(data.error || '加载地址失败')
       }
-    } catch (_err) {
+    } catch (err) {
       toast.error('网络错误')
     }
   }, [])
@@ -88,7 +88,7 @@ export default function AddressesPage() {
       } else {
         toast.error(data.error || '添加失败')
       }
-    } catch (_err) {
+    } catch (err) {
       toast.error('网络错误')
     } finally {
       setSubmitting(false)
@@ -116,7 +116,7 @@ export default function AddressesPage() {
       } else {
         toast.error(data.error || '更新失败')
       }
-    } catch (_err) {
+    } catch (err) {
       toast.error('网络错误')
     } finally {
       setSubmitting(false)
@@ -140,7 +140,7 @@ export default function AddressesPage() {
       } else {
         toast.error(data.error || '删除失败')
       }
-    } catch (_err) {
+    } catch (err) {
       toast.error('网络错误')
     } finally {
       setDeletingId(null)
@@ -167,7 +167,7 @@ export default function AddressesPage() {
       } else {
         toast.error(data.error || '设置失败')
       }
-    } catch (_err) {
+    } catch (err) {
       toast.error('网络错误')
     } finally {
       setSettingDefaultId(null)

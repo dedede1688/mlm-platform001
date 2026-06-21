@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import Image from 'next/image'
 import {
   ArrowLeft, Loader2, AlertCircle, Upload, X
 } from 'lucide-react'
@@ -240,10 +241,11 @@ export default function RefundApplyPage() {
             {/* 已上传图片 */}
             {form.images.map((url, index) => (
               <div key={index} className="relative w-20 h-20 group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={url}
                   alt={`凭证${index + 1}`}
+                  width={80}
+                  height={80}
                   className="w-full h-full object-cover rounded-lg border border-gray-200"
                 />
                 <button

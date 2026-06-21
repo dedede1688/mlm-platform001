@@ -2,10 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 import {
   ArrowLeft, Package, CreditCard, Truck, CheckCircle2,
-  XCircle, Clock, ImageOff, Loader2, RotateCcw, AlertTriangle
+  XCircle, Clock, ImageOff, Loader2, RotateCcw, AlertTriangle,
+  MapPin, User, Phone, ShieldCheck
 } from 'lucide-react'
+import { toast } from '@/components/ToastProvider'
+import { formatMoney } from '@/lib/utils/format'
 
 // ---- 类型 ----
 
@@ -38,6 +42,10 @@ interface Order {
   completedAt: string | null
   cancelledAt: string | null
   createdAt: string
+  recipientName?: string | null    // v43-4: 收货人姓名
+  recipientPhone?: string | null   // v43-4: 收货人电话
+  shippingAddress?: string | null // v43-4: 收货地址
+  paymentVerified?: boolean     // v43-4: 支付密码是否验证通过
   items: OrderItem[]
   refundRequests: RefundRequest[]
 }
@@ -81,9 +89,6 @@ const formatTime = (iso: string | null) => {
   })
 }
 
-const formatMoney = (n: number) =>
-  n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
 // ---- 主组件 ----
 
 export default function OrderDetailPage() {
@@ -92,7 +97,6 @@ export default function OrderDetailPage() {
   const searchParams = useSearchParams()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
-  const [_token, setToken] = useState<string | null>(null)
   const [showRefundSuccess, setShowRefundSuccess] = useState(false)
 
   useEffect(() => {
@@ -101,7 +105,6 @@ export default function OrderDetailPage() {
       router.push('/login')
       return
     }
-    setToken(storedToken)
     fetchOrder(storedToken)
   }, [router])
 
@@ -123,11 +126,11 @@ export default function OrderDetailPage() {
           setTimeout(() => setShowRefundSuccess(false), 3000)
         }
       } else {
-        alert(data.error || '获取订单失败')
+        toast.error(data.error || '获取订单失败')
         router.push('/dashboard/orders')
       }
     } catch {
-      alert('网络错误')
+      toast.error('网络错误')
       router.push('/dashboard/orders')
     } finally {
       setLoading(false)
@@ -238,6 +241,51 @@ export default function OrderDetailPage() {
           )}
         </div>
 
+        {/* v43-4: 收货信息 */}
+        {(order.recipientName || order.recipientPhone || order.shippingAddress) && (
+          <div className="bg-white rounded-xl shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-semibold text-gray-900">收货信息</span>
+              {order.paymentVerified && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">
+                  <ShieldCheck className="w-3 h-3" />
+                  支付已验证
+                </span>
+              )}
+            </div>
+            <div className="space-y-2.5 bg-green-50/50 rounded-lg px-4 py-3 border border-green-100">
+              {order.recipientName && (
+                <div className="flex items-start gap-2.5">
+                  <User className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-400">收件人</span>
+                    <p className="text-sm text-gray-900 font-medium">{order.recipientName}</p>
+                  </div>
+                </div>
+              )}
+              {order.recipientPhone && (
+                <div className="flex items-start gap-2.5">
+                  <Phone className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-400">手机号</span>
+                    <p className="text-sm text-gray-900 font-medium">{order.recipientPhone}</p>
+                  </div>
+                </div>
+              )}
+              {order.shippingAddress && (
+                <div className="flex items-start gap-2.5">
+                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-400">收货地址</span>
+                    <p className="text-sm text-gray-900">{order.shippingAddress}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* 物流信息 */}
         {order.trackingNumber && (
           <div className="bg-white rounded-xl shadow-sm p-5">
@@ -264,11 +312,12 @@ export default function OrderDetailPage() {
                 {/* 商品图片 */}
                 <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                   {item.product.imageUrl ? (
-                    <img
+                    <Image
                       src={item.product.imageUrl}
                       alt={item.product.name}
+                      width={56}
+                      height={56}
                       className="w-full h-full object-cover"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -360,8 +409,14 @@ export default function OrderDetailPage() {
                     <div className="flex flex-wrap gap-2">
                       {(latestRefund.images as string[]).map((img: string, idx: number) => (
                         <a key={idx} href={img} target="_blank" rel="noopener noreferrer">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={img} alt={`凭证${idx + 1}`} className="w-12 h-12 object-cover rounded border border-gray-200" />
+                          <div className="relative w-12 h-12">
+                            <Image
+                              src={img}
+                              alt={`凭证${idx + 1}`}
+                              fill
+                              className="object-cover rounded border border-gray-200"
+                            />
+                          </div>
                         </a>
                       ))}
                     </div>
