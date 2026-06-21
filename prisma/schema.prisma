@@ -403,11 +403,11 @@ model Address {
 model BalanceRecord {
   id            String   @id @default(uuid())
   userId        String   @map("user_id")
-  type          String   @map("type")             // payment / refund / reward / withdraw / unfreeze / admin_adjust
+  type          String   @map("type")             // v43-7: payment / refund / reward / withdraw_freeze / withdraw / unfreeze / admin_adjust / manual_reward / refund_reward / refund_dividend
   amount        Float    @map("amount")           // +/- 正数加/负数减
   balance       Float    @map("balance")          // 变动后可用余额
   frozenBalance Float    @map("frozen_balance")   // 变动后冻结余额
-  sourceType    String?  @map("source_type")      // order / reward / withdrawal / manual
+  sourceType    String?  @map("source_type")      // v43-7: order / reward / withdrawal / manual_reward / admin / dividend
   sourceId      String?  @map("source_id")
   description   String?  @map("description")
   createdAt     DateTime @default(now()) @map("created_at")

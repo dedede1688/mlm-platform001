@@ -8,7 +8,7 @@ export class RewardService {
     const amount = orderAmount * REWARD_RATES.REFERRAL
 
     await prisma.$transaction(async (tx) => {
-      const reward = await tx.reward.create({
+      await tx.reward.create({
         data: {
           userId: referrerId,
           type: 'referral',
@@ -20,30 +20,10 @@ export class RewardService {
         },
       })
 
-      const before = await tx.user.findUnique({
-        where: { id: referrerId },
-        select: { balance: true, frozenBalance: true },
-      })
-
       await tx.user.update({
         where: { id: referrerId },
         data: { balance: { increment: amount } },
       })
-
-      if (before) {
-        await tx.balanceRecord.create({
-          data: {
-            userId: referrerId,
-            type: 'referral_reward',
-            amount,
-            balance: before.balance + amount,
-            frozenBalance: before.frozenBalance,
-            sourceType: 'reward',
-            sourceId: reward.id,
-            description: `直推奖 +¥${amount.toFixed(2)}，订单 ${orderId}`,
-          },
-        })
-      }
     })
   }
 
@@ -58,7 +38,7 @@ export class RewardService {
     const amount = orderAmount * REWARD_RATES.BRAND_BONUS
 
     await prisma.$transaction(async (tx) => {
-      const reward = await tx.reward.create({
+      await tx.reward.create({
         data: {
           userId: referrerId,
           type: 'brand_bonus',
@@ -69,83 +49,52 @@ export class RewardService {
         },
       })
 
-      const before = await tx.user.findUnique({
-        where: { id: referrerId },
-        select: { balance: true, frozenBalance: true },
-      })
-
       await tx.user.update({
         where: { id: referrerId },
         data: { balance: { increment: amount } },
       })
-
-      if (before) {
-        await tx.balanceRecord.create({
-          data: {
-            userId: referrerId,
-            type: 'brand_bonus',
-            amount,
-            balance: before.balance + amount,
-            frozenBalance: before.frozenBalance,
-            sourceType: 'reward',
-            sourceId: reward.id,
-            description: `品牌管理奖 +¥${amount.toFixed(2)}，订单 ${orderId}`,
-          },
-        })
-      }
     })
   }
 
-  // 创建团队奖（向上遍历推荐链3级：5%/3%/2%）- 优化版：批量查询推荐链
+  // 创建团队奖（向上遍历推荐链3级：5%/3%/2%）
   static async createTeamRewards(orderId: string, orderAmount: number, buyerId: string) {
-    // 批量获取推荐链上的用户（最多3级+1 = 4次查询，但实际只需向上3级）
-    const referrerChain: Array<{ userId: string; referrerId: string | null; level: number }> = []
-    let currentId = buyerId
-    const visitedIds = new Set<string>()
+    // 从购买者的推荐人开始，向上遍历最多3级
+    let currentUserId: string = buyerId
+    const visitedIds = new Set<string>() // 防止循环
 
-    // 一次性获取所有需要的用户信息（最多4个用户）
-    for (let i = 0; i < 3; i++) {
+    for (const teamLevel of TEAM_REWARD_LEVELS) {
+      // 获取当前用户的推荐人
       const currentUser = await prisma.user.findUnique({
-        where: { id: currentId },
+        where: { id: currentUserId },
         select: { referrerId: true },
       })
 
-      if (!currentUser?.referrerId) break
-      if (visitedIds.has(currentUser.referrerId)) break
-      visitedIds.add(currentUser.referrerId)
+      if (!currentUser?.referrerId) break // 没有推荐人了，停止
 
+      const referrerId: string = currentUser.referrerId
+
+      // 防止循环依赖
+      if (visitedIds.has(referrerId)) break
+      visitedIds.add(referrerId)
+
+      // 推荐人必须是经销商及以上等级才可获得团队奖
       const referrer = await prisma.user.findUnique({
-        where: { id: currentUser.referrerId },
-        select: { id: true, level: true, referrerId: true },
+        where: { id: referrerId },
+        select: { level: true },
       })
 
-      if (!referrer) break
+      if (!referrer || referrer.level < MEMBER_LEVELS.DISTRIBUTOR) {
+        // 该级不符合条件，继续向上
+        currentUserId = referrerId
+        continue
+      }
 
-      referrerChain.push({
-        userId: referrer.id,
-        referrerId: referrer.referrerId,
-        level: referrer.level,
-      })
+      const amount = orderAmount * teamLevel.rate
 
-      currentId = referrer.id
-    }
-
-    // 批量创建奖励（使用单个事务）
-    if (referrerChain.length === 0) return
-
-    await prisma.$transaction(async (tx) => {
-      for (let i = 0; i < referrerChain.length && i < TEAM_REWARD_LEVELS.length; i++) {
-        const referrer = referrerChain[i]
-        const teamLevel = TEAM_REWARD_LEVELS[i]
-
-        // 推荐人必须是经销商及以上等级
-        if (referrer.level < MEMBER_LEVELS.DISTRIBUTOR) continue
-
-        const amount = orderAmount * teamLevel.rate
-
-        const reward = await tx.reward.create({
+      await prisma.$transaction(async (tx) => {
+        await tx.reward.create({
           data: {
-            userId: referrer.userId,
+            userId: referrerId,
             type: 'team',
             orderId,
             amount,
@@ -155,32 +104,14 @@ export class RewardService {
           },
         })
 
-        const before = await tx.user.findUnique({
-          where: { id: referrer.userId },
-          select: { balance: true, frozenBalance: true },
-        })
-
         await tx.user.update({
-          where: { id: referrer.userId },
+          where: { id: referrerId },
           data: { balance: { increment: amount } },
         })
+      })
 
-        if (before) {
-          await tx.balanceRecord.create({
-            data: {
-              userId: referrer.userId,
-              type: 'team_reward',
-              amount,
-              balance: before.balance + amount,
-              frozenBalance: before.frozenBalance,
-              sourceType: 'reward',
-              sourceId: reward.id,
-              description: `团队奖（第${teamLevel.level}层）+¥${amount.toFixed(2)}，订单 ${orderId}`,
-            },
-          })
-        }
-      }
-    })
+      currentUserId = referrerId
+    }
   }
 
   // 创建分红奖（根据用户等级分配分红池）
@@ -241,7 +172,7 @@ export class RewardService {
 
         if (amount <= 0) continue
 
-        const dividend = await tx.dividend.create({
+        await tx.dividend.create({
           data: {
             userId: eligible.userId,
             orderId,
@@ -252,30 +183,10 @@ export class RewardService {
           },
         })
 
-        const before = await tx.user.findUnique({
-          where: { id: eligible.userId },
-          select: { balance: true, frozenBalance: true },
-        })
-
         await tx.user.update({
           where: { id: eligible.userId },
           data: { balance: { increment: amount } },
         })
-
-        if (before) {
-          await tx.balanceRecord.create({
-            data: {
-              userId: eligible.userId,
-              type: 'dividend_reward',
-              amount,
-              balance: before.balance + amount,
-              frozenBalance: before.frozenBalance,
-              sourceType: 'reward',
-              sourceId: dividend.id,
-              description: `分红奖 +¥${amount.toFixed(2)}，订单 ${orderId}`,
-            },
-          })
-        }
       }
     })
   }
@@ -354,33 +265,32 @@ export class RewardService {
     }
   }
 
-  // 获取用户奖励统计 - 优化版：使用 aggregate 聚合查询
+  // 获取用户奖励统计
   static async getUserRewardStats(userId: string) {
-    const [rewardStats, dividendStats, totalCount] = await Promise.all([
-      prisma.reward.groupBy({
-        by: ['type'],
-        where: { userId, status: 'paid' },
-        _sum: { amount: true },
-      }),
-      prisma.dividend.aggregate({
-        where: { userId },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      prisma.reward.count({
-        where: { userId, status: 'paid' },
-      }),
-    ])
+    const rewards = await prisma.reward.findMany({
+      where: { userId },
+    })
 
-    const statsMap: Record<string, number> = {}
-    for (const stat of rewardStats) {
-      statsMap[stat.type] = stat._sum.amount || 0
-    }
+    const dividends = await prisma.dividend.findMany({
+      where: { userId },
+    })
 
-    const referralTotal = statsMap['referral'] || 0
-    const brandBonusTotal = statsMap['brand_bonus'] || 0
-    const teamTotal = statsMap['team'] || 0
-    const dividendTotal = dividendStats._sum.amount || 0
+    const paidRewards = rewards.filter(r => r.status === 'paid')
+
+    const referralTotal = paidRewards
+      .filter(r => r.type === 'referral')
+      .reduce((sum, r) => sum + r.amount, 0)
+
+    const brandBonusTotal = paidRewards
+      .filter(r => r.type === 'brand_bonus')
+      .reduce((sum, r) => sum + r.amount, 0)
+
+    const teamTotal = paidRewards
+      .filter(r => r.type === 'team')
+      .reduce((sum, r) => sum + r.amount, 0)
+
+    const dividendTotal = dividends.reduce((sum, d) => sum + d.amount, 0)
+
     const totalAmount = referralTotal + brandBonusTotal + teamTotal + dividendTotal
 
     return {
@@ -389,7 +299,7 @@ export class RewardService {
       brandBonusTotal,
       teamTotal,
       dividendTotal,
-      totalCount: totalCount + dividendStats._count,
+      totalCount: paidRewards.length + dividends.length,
     }
   }
 
@@ -406,75 +316,80 @@ export class RewardService {
     await prisma.$transaction(async (tx) => {
       // 扣回奖励
       for (const reward of rewards) {
-        const before = await tx.user.findUnique({
+        // 读取用户当前余额，用于校验和写流水
+        const user = await tx.user.findUnique({
           where: { id: reward.userId },
           select: { balance: true, frozenBalance: true },
         })
+        if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
 
-        // 防并发透支：余额不足则抛错
-        const deductResult = await tx.user.updateMany({
-          where: { id: reward.userId, balance: { gte: reward.amount } },
+        if (user.balance < reward.amount) {
+          throw new Error(`用户 ${reward.userId} 余额不足，无法扣回奖励 ¥${reward.amount}，当前余额 ¥${user.balance}`)
+        }
+
+        const newBalance = user.balance - reward.amount
+
+        await tx.user.update({
+          where: { id: reward.userId },
           data: { balance: { decrement: reward.amount } },
         })
-        if (deductResult.count === 0) {
-          throw new Error(`扣回奖励失败：用户 ${reward.userId} 余额不足，需扣 ¥${reward.amount}`)
-        }
 
         await tx.reward.update({
           where: { id: reward.id },
           data: { status: 'refunded' },
         })
 
-        if (before) {
-          await tx.balanceRecord.create({
-            data: {
-              userId: reward.userId,
-              type: 'refund_reward',
-              amount: -reward.amount,
-              balance: before.balance - reward.amount,
-              frozenBalance: before.frozenBalance,
-              sourceType: 'reward',
-              sourceId: reward.id,
-              description: `扣回奖励 -¥${reward.amount.toFixed(2)}，订单 ${orderId}`,
-            },
-          })
-        }
+        // 写 BalanceRecord 流水
+        await tx.balanceRecord.create({
+          data: {
+            userId: reward.userId,
+            type: 'refund_reward',
+            amount: -reward.amount,
+            balance: newBalance,
+            frozenBalance: user.frozenBalance,
+            sourceType: 'reward',
+            sourceId: reward.id,
+            description: `扣回奖励（${reward.type}），订单退款`,
+          },
+        })
       }
 
       // 扣回分红
       for (const dividend of dividends) {
-        const before = await tx.user.findUnique({
+        const user = await tx.user.findUnique({
           where: { id: dividend.userId },
           select: { balance: true, frozenBalance: true },
         })
+        if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
 
-        // 防并发透支：余额不足则抛错
-        const deductResult = await tx.user.updateMany({
-          where: { id: dividend.userId, balance: { gte: dividend.amount } },
+        if (user.balance < dividend.amount) {
+          throw new Error(`用户 ${dividend.userId} 余额不足，无法扣回分红 ¥${dividend.amount}，当前余额 ¥${user.balance}`)
+        }
+
+        const newBalance = user.balance - dividend.amount
+
+        await tx.user.update({
+          where: { id: dividend.userId },
           data: { balance: { decrement: dividend.amount } },
         })
-        if (deductResult.count === 0) {
-          throw new Error(`扣回分红失败：用户 ${dividend.userId} 余额不足，需扣 ¥${dividend.amount}`)
-        }
 
         await tx.dividend.delete({
           where: { id: dividend.id },
         })
 
-        if (before) {
-          await tx.balanceRecord.create({
-            data: {
-              userId: dividend.userId,
-              type: 'refund_dividend',
-              amount: -dividend.amount,
-              balance: before.balance - dividend.amount,
-              frozenBalance: before.frozenBalance,
-              sourceType: 'reward',
-              sourceId: dividend.id,
-              description: `扣回分红 -¥${dividend.amount.toFixed(2)}，订单 ${orderId}`,
-            },
-          })
-        }
+        // 写 BalanceRecord 流水
+        await tx.balanceRecord.create({
+          data: {
+            userId: dividend.userId,
+            type: 'refund_dividend',
+            amount: -dividend.amount,
+            balance: newBalance,
+            frozenBalance: user.frozenBalance,
+            sourceType: 'reward',
+            sourceId: dividend.id,
+            description: `扣回分红，订单退款`,
+          },
+        })
       }
     })
   }
