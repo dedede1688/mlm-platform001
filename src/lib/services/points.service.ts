@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
-import { POINTS_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/logger'
 import { logOperation } from '@/lib/utils/operation-log'
+import { getBusinessConfig } from '@/lib/config/business'
 
 export class PointsService {
   // 获取用户积分信息
@@ -67,7 +67,7 @@ export class PointsService {
     }
 
     // 计算手续费（如果有）
-    const feeRate = (POINTS_CONFIG as any).TRANSFER_FEE_RATE || 0
+    const feeRate = await getBusinessConfig<number>('points.transfer_fee_percent', 10) / 100
     const feeAmount = Math.floor(amount * feeRate)
     const totalDeduction = amount + feeAmount
 

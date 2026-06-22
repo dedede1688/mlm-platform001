@@ -1,4 +1,3 @@
-// 会员等级
 export const MEMBER_LEVELS = {
   VISITOR: 0,
   MEMBER: 1,
@@ -21,48 +20,6 @@ export const MEMBER_LEVEL_NAMES: Record<number, string> = {
   7: '董事',
 }
 
-// 奖励比例
-export const REWARD_RATES = {
-  REFERRAL: 0.10,          // 直推奖 10%
-  BRAND_BONUS: 0.20,       // 品牌管理奖 20%
-  TEAM_LEVEL_1: 0.05,      // 团队奖第1级 5%
-  TEAM_LEVEL_2: 0.03,      // 团队奖第2级 3%
-  TEAM_LEVEL_3: 0.02,      // 团队奖第3级 2%
-  DIVIDEND: 0.05,          // 分红奖 5%
-}
-
-// 团队奖层级配置
-export const TEAM_REWARD_LEVELS = [
-  { level: 1, rate: REWARD_RATES.TEAM_LEVEL_1 },
-  { level: 2, rate: REWARD_RATES.TEAM_LEVEL_2 },
-  { level: 3, rate: REWARD_RATES.TEAM_LEVEL_3 },
-] as const
-
-// 积分解锁配置
-export const POINTS_CONFIG = {
-  UNLOCK_RATE: 0.01,
-  UNLOCK_DAYS: 100,
-  UPGRADE_THRESHOLD: 10,
-}
-
-// 升级条件
-export const UPGRADE_CONDITIONS = {
-  DIRECTOR: { directDistributors: 3, directSales: 50000 },
-  MANAGER: { directDistributors: 6, directSales: 100000 },
-  SUPERVISOR: { directDistributors: 9, directSales: 200000 },
-  PRESIDENT: { directDistributors: 15, directSales: 500000 },
-  BOARD: { directDistributors: 30, directSales: 1000000 },
-}
-
-// 品牌管理奖层级解锁
-export const BRAND_BONUS_LEVELS: Record<number, number> = {
-  0: 0,
-  1: 2,
-  2: 4,
-  3: 10,
-}
-
-// 订单状态
 export const ORDER_STATUS = {
   PENDING: 'pending',
   PAID: 'paid',
@@ -72,14 +29,12 @@ export const ORDER_STATUS = {
   CANCELLED: 'cancelled',
 } as const
 
-// 提现状态
 export const WITHDRAWAL_STATUS = {
   PENDING: 'pending',
   APPROVED: 'approved',
   REJECTED: 'rejected',
 } as const
 
-// 积分记录类型
 export const POINTS_RECORD_TYPE = {
   EARN: 'earn',
   UNLOCK: 'unlock',
@@ -89,10 +44,8 @@ export const POINTS_RECORD_TYPE = {
   VOID: 'void',
 } as const
 
-// 奖励类型
 export const REWARD_TYPE = {
   REFERRAL: 'referral',
   BRAND_BONUS: 'brand_bonus',
-  TEAM: 'team',
   DIVIDEND: 'dividend',
 } as const

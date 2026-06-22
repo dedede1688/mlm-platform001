@@ -27,6 +27,15 @@ vi.mock('@/lib/utils/operation-log', () => ({
   logOperation: vi.fn(),
 }))
 
+vi.mock('@/lib/config/business', () => ({
+  getBusinessConfig: vi.fn().mockImplementation(async (_key: string, defaultValue: any) => defaultValue),
+  invalidateBusinessConfigCache: vi.fn(),
+}))
+
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+}))
+
 import { prisma } from '@/lib/prisma'
 import { PointsService } from '@/lib/services/points.service'
 import { logOperation } from '@/lib/utils/operation-log'

@@ -26,6 +26,11 @@ vi.mock('@/lib/prisma', () => {
   return { prisma: mockPrisma }
 })
 
+vi.mock('@/lib/config/business', () => ({
+  getBusinessConfig: vi.fn().mockImplementation(async (_key: string, defaultValue: any) => defaultValue),
+  invalidateBusinessConfigCache: vi.fn(),
+}))
+
 import { prisma } from '@/lib/prisma'
 import { DividendService } from '@/lib/services/dividend.service'
 

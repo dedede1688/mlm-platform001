@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { MEMBER_LEVELS, REWARD_RATES } from '@/lib/constants'
+import { MEMBER_LEVELS } from '@/lib/constants'
+import { getBusinessConfig } from '@/lib/config/business'
 
 
 export class DividendService {
@@ -64,7 +65,8 @@ export class DividendService {
 
       // 3. 计算分红池（已支付订单总额的5%）
       const totalOrderAmount = paidOrders.reduce((sum, order) => sum + order.payAmount, 0)
-      const dividendPool = Math.round(totalOrderAmount * REWARD_RATES.DIVIDEND * 100) / 100
+      const dividendRate = await getBusinessConfig<number>('dividend.director.rate', 0.05)
+      const dividendPool = Math.round(totalOrderAmount * dividendRate * 100) / 100
 
       if (dividendPool <= 0) {
         return {

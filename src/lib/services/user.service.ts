@@ -1,9 +1,9 @@
 import { prisma } from '@/lib/prisma'
-import { MEMBER_LEVELS, UPGRADE_CONDITIONS } from '@/lib/constants'
+import { MEMBER_LEVELS } from '@/lib/constants'
 import { PointsService } from './points.service'
+import { getBusinessConfig } from '@/lib/config/business'
 
 export class UserService {
-  // 创建用户
   static async createUser(data: {
     phone: string
     passwordHash: string
@@ -12,7 +12,6 @@ export class UserService {
   }) {
     const { phone, passwordHash, nickname, referrerId } = data
 
-    // 如果有推荐人，处理安置关系
     let parentId: string | null = null
     let position: number | null = null
 
@@ -35,19 +34,15 @@ export class UserService {
     })
   }
 
-  // 查找安置位置（三三复制）- 纯 ORM 实现，不使用 $queryRaw
   static async findPlacementPosition(referrerId: string): Promise<{
     parentId: string
     position: number
   }> {
-    // 验证 referrerId 是有效的 UUID 格式
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(referrerId)) {
       throw new Error(`推荐人 ID 格式无效：${referrerId}`)
     }
 
-    // 用 Prisma 原生查询获取所有用户（只需要 id, parent_id, position）
-    // 对于大规模数据可考虑分页，但目前用户量级可接受全量查询
     const allUsers = await prisma.user.findMany({
       where: {
         OR: [
@@ -63,16 +58,12 @@ export class UserService {
     })
 
     if (allUsers.length === 0) {
-      // 推荐人不存在，直接作为根节点安置在推荐人下
       return { parentId: referrerId, position: 1 }
     }
 
-    // 构建节点子节点映射（纯内存操作）
     const childrenMap = new Map<string, Set<number>>()
-    const nodeIds = new Set<string>()
 
     for (const node of allUsers) {
-      nodeIds.add(node.id)
       if (node.parentId) {
         if (!childrenMap.has(node.parentId)) {
           childrenMap.set(node.parentId, new Set())
@@ -81,7 +72,6 @@ export class UserService {
       }
     }
 
-    // BFS 查找空位（纯内存操作）
     const queue: string[] = [referrerId]
     while (queue.length > 0) {
       const currentId = queue.shift()!
@@ -93,7 +83,6 @@ export class UserService {
         }
       }
       
-      // 将子节点加入队列
       const children = allUsers
         .filter(d => d.parentId === currentId)
         .sort((a, b) => (a.position || 0) - (b.position || 0))
@@ -105,7 +94,6 @@ export class UserService {
     return { parentId: referrerId, position: 1 }
   }
 
-  // 获取用户的安置链
   static async getPlacementChain(userId: string, maxDepth: number = 10): Promise<string[]> {
     const chain: string[] = []
     let currentId = userId
@@ -125,7 +113,6 @@ export class UserService {
     return chain
   }
 
-  // 检查并升级用户等级
   static async checkAndUpgradeLevel(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -135,54 +122,49 @@ export class UserService {
 
     let newLevel = user.level
 
-    // 检查经销商升级：购买10件升级产品
+    const boxCount = await getBusinessConfig<number>('upgrade.distributor.box_count', 10)
     if (user.level < MEMBER_LEVELS.DISTRIBUTOR) {
-      if (user.upgradeProductCount >= 10) {
+      if (user.upgradeProductCount >= boxCount) {
         newLevel = MEMBER_LEVELS.DISTRIBUTOR
       }
     }
 
-    // 检查主任及以上升级：基于直推经销商数量或销售额
-    // 注意：即使当前等级低于经销商，只要满足直推条件也可以直接升级
     const conditions = [
-      { level: MEMBER_LEVELS.DIRECTOR, ...UPGRADE_CONDITIONS.DIRECTOR },
-      { level: MEMBER_LEVELS.MANAGER, ...UPGRADE_CONDITIONS.MANAGER },
-      { level: MEMBER_LEVELS.SUPERVISOR, ...UPGRADE_CONDITIONS.SUPERVISOR },
-      { level: MEMBER_LEVELS.PRESIDENT, ...UPGRADE_CONDITIONS.PRESIDENT },
-      { level: MEMBER_LEVELS.BOARD, ...UPGRADE_CONDITIONS.BOARD },
+      { level: MEMBER_LEVELS.DIRECTOR, key: 'director' },
+      { level: MEMBER_LEVELS.MANAGER, key: 'manager' },
+      { level: MEMBER_LEVELS.SUPERVISOR, key: 'supervisor' },
+      { level: MEMBER_LEVELS.PRESIDENT, key: 'president' },
+      { level: MEMBER_LEVELS.BOARD, key: 'board' },
     ]
 
     for (const condition of conditions) {
       if (user.level < condition.level) {
-        const meetsDistributorCount = user.directDistributorCount >= condition.directDistributors
-        const meetsSalesAmount = user.directSalesAmount >= condition.directSales
-        if (meetsDistributorCount || meetsSalesAmount) {
+        const requiredSales = await getBusinessConfig<number>(`upgrade.${condition.key}.sales_amount`, 0)
+        if (user.directSalesAmount >= requiredSales) {
           newLevel = condition.level
         }
       }
     }
 
-    // 只允许升级，不允许降级
     if (newLevel > user.level) {
       await prisma.user.update({
         where: { id: userId },
         data: { level: newLevel },
       })
 
-      // 升级为经销商时一次性发放积分（10件升级产品 × 500 = 5000积分）
       if (newLevel >= MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
-        const pointsAmount = user.upgradeProductCount * 500
+        const pointsPerBox = await getBusinessConfig<number>('upgrade.points_per_box', 500)
+        const pointsAmount = user.upgradeProductCount * pointsPerBox
         if (pointsAmount > 0) {
           await PointsService.createPointsRecord({
             userId,
             type: 'reward',
             amount: pointsAmount,
-            description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × 500）`,
+            description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × ${pointsPerBox}）`,
           })
         }
       }
 
-      // 更新推荐人的直推统计：当用户升级跨越经销商等级时增加计数
       if (user.referrerId && newLevel >= MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
         await prisma.user.update({
           where: { id: user.referrerId },
@@ -198,7 +180,6 @@ export class UserService {
     return newLevel
   }
 
-  // 获取用户的直推列表
   static async getReferrals(userId: string) {
     return prisma.user.findMany({
       where: { referrerId: userId },
@@ -206,7 +187,6 @@ export class UserService {
     })
   }
 
-  // 获取用户的团队（安置链下的所有人）
   static async getTeam(userId: string, maxDepth: number = 10) {
     const team: { id: string; level: number; depth: number }[] = []
     const queue: { id: string; depth: number }[] = [{ id: userId, depth: 0 }]
@@ -230,7 +210,6 @@ export class UserService {
     return team
   }
 
-  // 更新用户直推销售额
   static async addDirectSales(userId: string, amount: number) {
     await prisma.user.update({
       where: { id: userId },
@@ -242,7 +221,6 @@ export class UserService {
     })
   }
 
-  // 增加升级产品购买计数
   static async addUpgradeProductCount(userId: string, count: number = 1) {
     await prisma.user.update({
       where: { id: userId },
