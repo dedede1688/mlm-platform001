@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { POINTS_CONFIG } from '@/lib/constants'
 import { logger } from '@/lib/logger'
+import { logOperation } from '@/lib/utils/operation-log'
 
 export class PointsService {
   // 获取用户积分信息
@@ -210,5 +211,83 @@ export class PointsService {
 
     logger.info(`积分解锁完成: ${count} 条记录已处理`)
     return count
+  }
+
+  // 积分作废（管理员操作）
+  static async voidPoints(adminId: string, userId: string, amount: number, reason: string) {
+    // 1. 必填校验（事务前）
+    if (typeof amount !== 'number' || amount <= 0) {
+      throw new Error('作废积分必须大于0')
+    }
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+      throw new Error('作废原因必填')
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, unlockedPoints: true, totalPoints: true, lockedPoints: true },
+    })
+
+    if (!user) {
+      throw new Error('用户不存在')
+    }
+
+    // 2. 事务：防并发透支 + 写流水
+    const result = await prisma.$transaction(async (tx) => {
+      // 防并发透支：updateMany + where 条件
+      const updateResult = await tx.user.updateMany({
+        where: {
+          id: userId,
+          unlockedPoints: { gte: amount },
+        },
+        data: {
+          unlockedPoints: { decrement: amount },
+          totalPoints: { decrement: amount },
+        },
+      })
+
+      if (updateResult.count === 0) {
+        throw new Error('积分不足')
+      }
+
+      // 查询作废后的用户积分
+      const updatedUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { totalPoints: true, unlockedPoints: true, lockedPoints: true },
+      })
+
+      // 写积分流水
+      await tx.pointsRecord.create({
+        data: {
+          userId,
+          type: 'void',
+          amount: -amount,
+          totalPoints: updatedUser!.totalPoints,
+          unlockedPoints: updatedUser!.unlockedPoints,
+          lockedPoints: updatedUser!.lockedPoints,
+          description: `积分作废：${reason}`,
+        },
+      })
+
+      return {
+        oldValue: { unlockedPoints: user.unlockedPoints, totalPoints: user.totalPoints },
+        newValue: { unlockedPoints: updatedUser!.unlockedPoints, totalPoints: updatedUser!.totalPoints },
+      }
+    })
+
+    // 3. 操作日志（不阻塞主流程）
+    await logOperation({
+      userId: adminId,
+      action: 'UPDATE',
+      module: 'user',
+      targetId: userId,
+      oldValue: result.oldValue,
+      newValue: result.newValue,
+    })
+
+    logger.info(`积分作废成功: userId=${userId}, amount=${amount}, reason=${reason}`)
+
+    return { userId, amount, reason, ...result.newValue }
   }
 }
