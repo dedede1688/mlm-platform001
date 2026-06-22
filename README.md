@@ -222,3 +222,5 @@ async function createBrandBonusRewards(buyerId, orderId, orderAmount) {
 ## 许可证
 
 MIT
+
+<!-- test-deploy-preview v45.6: 验证 Vercel deploy preview -->
