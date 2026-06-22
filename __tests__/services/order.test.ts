@@ -18,6 +18,7 @@ vi.mock('@/lib/prisma', () => {
     order: createMockChain(),
     reward: createMockChain(),
     pointsRecord: createMockChain(),
+    balanceRecord: createMockChain(),
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
   }
@@ -60,56 +61,32 @@ describe('OrderService', () => {
 
   describe('createOrder', () => {
     it('should create order successfully', async () => {
-      // Mock user
+      // 事务外：查用户
       prisma.user.findUnique.mockResolvedValueOnce({
-        id: 'u1',
-        level: 1,
-        unlockedPoints: 100,
+        id: 'u1', level: 1, unlockedPoints: 100,
       })
-
-      // Mock products
+      // 事务外：查商品
       prisma.product.findMany.mockResolvedValueOnce([{
-        id: 'p1',
-        name: 'Test Product',
-        memberPrice: 100,
-        retailPrice: 120,
-        stock: 10,
-        maxPointsRatio: 50,
+        id: 'p1', name: 'Test Product', memberPrice: 100, retailPrice: 120, stock: 10, maxPointsRatio: 50,
       }])
-
-      // Transaction: re-check products
+      // 事务内：重新查商品（防并发）
       prisma.product.findMany.mockResolvedValueOnce([{
-        id: 'p1',
-        name: 'Test Product',
-        stock: 10,
+        id: 'p1', name: 'Test Product', stock: 10,
       }])
-
-      // Transaction: re-check user
+      // 事务内：重新查用户（防并发）
       prisma.user.findUnique.mockResolvedValueOnce({
-        id: 'u1',
-        level: 1,
-        unlockedPoints: 100,
-        totalPoints: 200,
-        lockedPoints: 100,
+        id: 'u1', level: 1, unlockedPoints: 100, totalPoints: 200, lockedPoints: 100,
       })
-
-      // Create order
+      // 事务内：创建订单
       prisma.order.create.mockResolvedValueOnce({
-        id: 'o1',
-        orderNo: 'ORD123',
-        userId: 'u1',
-        totalAmount: 100,
-        payAmount: 100,
-        status: 'pending',
+        id: 'o1', orderNo: 'ORD123', userId: 'u1', totalAmount: 100, payAmount: 100, status: 'pending',
         items: [{ productId: 'p1', quantity: 1, unitPrice: 100, totalPrice: 100 }],
       })
-
-      // Stock deduction
-      prisma.$queryRaw.mockResolvedValueOnce([{ count: 1 }])
+      // 事务内：原子扣减库存（业务代码用 tx.product.updateMany）
+      prisma.product.updateMany.mockResolvedValueOnce({ count: 1 })
 
       const result = await OrderService.createOrder({
-        userId: 'u1',
-        items: [{ productId: 'p1', quantity: 1 }],
+        userId: 'u1', items: [{ productId: 'p1', quantity: 1 }],
       })
 
       expect(result).toBeDefined()
@@ -151,14 +128,24 @@ describe('OrderService', () => {
 
   describe('payOrder', () => {
     it('should pay order successfully', async () => {
-      prisma.order.updateMany.mockResolvedValueOnce({ count: 1 })
-
+      // 第一次 findUnique（事务外）：查订单，必须 status='pending'
       prisma.order.findUnique.mockResolvedValueOnce({
-        id: 'o1',
-        orderNo: 'ORD123',
-        userId: 'u1',
-        totalAmount: 100,
-        payAmount: 100,
+        id: 'o1', orderNo: 'ORD123', userId: 'u1', totalAmount: 100, payAmount: 100,
+        status: 'pending',
+      })
+      // 事务内：原子 updateMany 改 status=paid
+      prisma.order.updateMany.mockResolvedValueOnce({ count: 1 })
+      // 事务内：payAmount > 0 查 user
+      prisma.user.findUnique.mockResolvedValueOnce({
+        balance: 1000, frozenBalance: 0,
+      })
+      // 事务内：原子扣减余额
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      // 事务内：写 BalanceRecord
+      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      // 事务内：第二次 findUnique 返回支付后的订单
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 'o1', orderNo: 'ORD123', userId: 'u1', totalAmount: 100, payAmount: 100,
         status: 'paid',
         user: { email: 'test@test.com', phone: '13800000001', nickname: 'Test' },
         items: [{ product: { isUpgradeProduct: false, name: 'Test' } }],
@@ -173,7 +160,11 @@ describe('OrderService', () => {
     })
 
     it('should throw error when order already paid', async () => {
-      prisma.order.updateMany.mockResolvedValueOnce({ count: 0 }) // No rows updated
+      // 第一次 findUnique（事务外）：订单状态已经是 paid
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 'o1', orderNo: 'ORD123', userId: 'u1', totalAmount: 100, payAmount: 100,
+        status: 'paid',
+      })
 
       await expect(OrderService.payOrder('o1'))
         .rejects.toThrow('订单不存在或状态已变更')
