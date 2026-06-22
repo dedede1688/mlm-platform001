@@ -17,4 +17,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+
+      - name: TypeScript type check
+        run: pnpm typecheck
+      - name: Run tests
+        run: pnpm test
