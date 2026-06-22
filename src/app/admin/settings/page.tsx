@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Image from 'next/image'
+
 import {
   Settings, Save, CheckCircle, AlertCircle,
   ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2,

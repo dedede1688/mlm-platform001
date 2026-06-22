@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Network, Loader2, ChevronLeft, Users, RefreshCw,
+  Network, ChevronLeft, Users, RefreshCw,
   TrendingUp, ShoppingCart, Calendar, X
 } from 'lucide-react'
 
@@ -119,7 +119,7 @@ export default function ReferralTreePage() {
   const [error, setError] = useState('')
   const [detailNode, setDetailNode] = useState<TreeNode | null>(null)
   const [ancestors, setAncestors] = useState<AncestorNode[]>([])   // v32
-  const [rootParentId, setRootParentId] = useState<string | null>(null) // v32
+  const [_rootParentId, setRootParentId] = useState<string | null>(null) // v32
 
   useEffect(() => {
     const t = localStorage.getItem('token')

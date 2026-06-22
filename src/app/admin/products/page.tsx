@@ -544,7 +544,7 @@ const handleDuplicate = async (product: Product) => {
     }))
   }
 
-  const addSpecValue = (groupIdx: number) => {
+  const _addSpecValue = (groupIdx: number) => {
     setFormData(prev => ({
       ...prev,
       specs: prev.specs.map((s, i) =>
@@ -562,7 +562,7 @@ const handleDuplicate = async (product: Product) => {
     }))
   }
 
-  const updateSpecValue = (groupIdx: number, valueIdx: number, val: string) => {
+  const _updateSpecValue = (groupIdx: number, valueIdx: number, val: string) => {
     setFormData(prev => ({
       ...prev,
       specs: prev.specs.map((s, i) =>

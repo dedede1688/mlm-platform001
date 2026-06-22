@@ -38,7 +38,7 @@ export default function CartPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [buyingId, setBuyingId] = useState<string | null>(null)
+  const [buyingId, _setBuyingId] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   // 每个购物车项的积分使用量，key 为 cartItemId

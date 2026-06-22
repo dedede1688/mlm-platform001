@@ -59,7 +59,7 @@ export class PointsService {
   }
 
   // 积分转账（内部使用）
-  static async transferPoints(fromUserId: string, toUserId: string, amount: number, description: string) {
+  static async transferPoints(fromUserId: string, toUserId: string, amount: number, _description: string) {
     // 验证转出方余额
     const fromUser = await this.getUserPoints(fromUserId)
     if (fromUser.unlockedPoints < amount) {

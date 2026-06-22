@@ -103,7 +103,7 @@ export async function GET(
 
     // v39: mode=boundary — 从顶级祖先视角构建完整树（一次请求搞定前后端剪枝所需数据）
     let actualRootId = userId
-    let originalUserId = userId  // v39: 记录原始请求的 userId（focus 用）
+    const originalUserId = userId  // v39: 记录原始请求的 userId（focus 用）
 
     if (mode === 'boundary' && rootUser.parentId) {
       // 先查父链找到顶级祖先

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Network, Search, Loader2, ChevronLeft, Users, RefreshCw,
-  ZoomIn, ZoomOut, Maximize, ChevronDown, ChevronRight,
+  ZoomIn, ZoomOut, Maximize, ChevronRight,
   TrendingUp, ShoppingCart, Calendar, X
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'

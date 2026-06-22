@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getAllRegions } from '@/lib/data/china-regions'
 import { errorResponse, successResponse } from '@/lib/api-response'
 

@@ -195,7 +195,7 @@ export class OrderService {
     })
     if (!paidOrder) throw new Error('订单不存在')
     await RewardService.processOrderRewards(orderId)
-    var ue=paidOrder.user?.email;var up=paidOrder.user?.phone;var nv={orderNo:paidOrder.orderNo,orderAmount:paidOrder.totalAmount.toFixed(2),payAmount:paidOrder.payAmount.toFixed(2),userName:paidOrder.user?.nickname??paidOrder.user?.phone}
+    const ue=paidOrder.user?.email;const up=paidOrder.user?.phone;const nv={orderNo:paidOrder.orderNo,orderAmount:paidOrder.totalAmount.toFixed(2),payAmount:paidOrder.payAmount.toFixed(2),userName:paidOrder.user?.nickname??paidOrder.user?.phone}
     if(ue)sendEmail({to:ue,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('邮件失败',{error:String(err)})})
     if(up)sendSms({to:up,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('短信失败',{error:String(err)})})
     return paidOrder
