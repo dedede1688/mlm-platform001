@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderService } from '@/lib/services/order.service'
 
 // PATCH /api/admin/refunds/[id]/complete — 确认退款完成
 export async function PATCH(
@@ -28,8 +29,17 @@ export async function PATCH(
       )
     }
 
-    // 更新状态为 completed
-    // TODO: 后续可在此处调用实际退款逻辑（修改用户余额、扣回佣金等）
+    // v54a 修复：调 OrderService.requestRefund 执行实际退款
+    // 【函数说明】requestRefund 函数名虽叫"申请退款"，但实际是"执行退款"——完整流程：
+    //   1) 退余额到用户余额 + 写 balanceRecord(type=refund)
+    //   2) 退积分
+    //   3) 扣回已发奖励（referral/brand_bonus）→ 写 balanceRecord(type=refund_reward)
+    //   4) 扣回分红 → 写 balanceRecord(type=refund_dividend)
+    //   5) 改订单 status=REFUNDED
+    // 【安全】requestRefund 内部有状态校验（order.status 必须是 PAID 或 SHIPPED），
+    //        重复调会被自然防住（第二次会报"订单状态不允许退款"）。
+    await OrderService.requestRefund(refundRequest.orderId)
+
     const updated = await prisma.refundRequest.update({
       where: { id },
       data: { status: 'completed' },
