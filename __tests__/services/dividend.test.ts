@@ -113,6 +113,11 @@ describe('DividendService', () => {
       expect(call2.data.balance).toBe(2000 + 1500)
       expect(call2.data.frozenBalance).toBe(10)
       expect(call2.data.userId).toBe('user-manager')
+
+      const update1 = prisma.user.update.mock.calls[0][0]
+      const update2 = prisma.user.update.mock.calls[1][0]
+      expect(update1.data).toMatchObject({ balance: { increment: 500 }, earningsAvailable: { increment: 500 } })
+      expect(update2.data).toMatchObject({ balance: { increment: 1500 }, earningsAvailable: { increment: 1500 } })
     })
 
     it('should throw error when dividends already settled today', async () => {

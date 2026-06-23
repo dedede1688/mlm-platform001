@@ -103,6 +103,12 @@ describe('RewardService', () => {
       const balanceRecordCall = prisma.balanceRecord.create.mock.calls[0][0]
       expect(balanceRecordCall.data.type).toBe('referral_reward')
       expect(balanceRecordCall.data.amount).toBe(expectedAmount)
+
+      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      expect(userUpdateCall.data).toMatchObject({
+        balance: { increment: expectedAmount },
+        earningsAvailable: { increment: expectedAmount },
+      })
     })
 
     it('should skip reward when referrer has no upgrade product', async () => {
@@ -149,6 +155,12 @@ describe('RewardService', () => {
       expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(1)
       const call = prisma.balanceRecord.create.mock.calls[0][0]
       expect(call.data.type).toBe('brand_bonus')
+
+      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      expect(userUpdateCall.data).toMatchObject({
+        balance: { increment: expectedAmount },
+        earningsAvailable: { increment: expectedAmount },
+      })
     })
 
     it('should return early when referrer level < DISTRIBUTOR', async () => {
@@ -218,6 +230,11 @@ describe('RewardService', () => {
         expect(call.data.type).toBe('dividend_reward')
         expect(call.data.sourceType).toBe('dividend')
       }
+
+      const update1 = prisma.user.update.mock.calls[0][0]
+      const update2 = prisma.user.update.mock.calls[1][0]
+      expect(update1.data).toMatchObject({ balance: { increment: 500 }, earningsAvailable: { increment: 500 } })
+      expect(update2.data).toMatchObject({ balance: { increment: 500 }, earningsAvailable: { increment: 500 } })
     })
 
     it('should return early when no eligible users (all levels < DIRECTOR)', async () => {
@@ -257,6 +274,12 @@ describe('RewardService', () => {
       expect(call.data.type).toBe('refund_reward')
       expect(call.data.amount).toBe(-100)
       expect(call.data.balance).toBe(400)
+
+      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      expect(userUpdateCall.data).toMatchObject({
+        balance: { decrement: 100 },
+        earningsAvailable: { decrement: 100 },
+      })
     })
 
     it('should deduct dividends and write BalanceRecord with type=refund_dividend', async () => {
@@ -281,6 +304,12 @@ describe('RewardService', () => {
       expect(call.data.type).toBe('refund_dividend')
       expect(call.data.amount).toBe(-50)
       expect(call.data.balance).toBe(250)
+
+      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      expect(userUpdateCall.data).toMatchObject({
+        balance: { decrement: 50 },
+        earningsVoided: { increment: 50 },
+      })
     })
 
     it('should throw error when user balance insufficient for reward refund', async () => {
@@ -346,6 +375,11 @@ describe('RewardService', () => {
       expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(2)
       expect(prisma.balanceRecord.create.mock.calls[0][0].data.type).toBe('refund_reward')
       expect(prisma.balanceRecord.create.mock.calls[1][0].data.type).toBe('refund_dividend')
+
+      const update1 = prisma.user.update.mock.calls[0][0]
+      const update2 = prisma.user.update.mock.calls[1][0]
+      expect(update1.data).toMatchObject({ balance: { decrement: 30 }, earningsAvailable: { decrement: 30 } })
+      expect(update2.data).toMatchObject({ balance: { decrement: 20 }, earningsVoided: { increment: 20 } })
     })
 
     it('should do nothing when no rewards or dividends found', async () => {

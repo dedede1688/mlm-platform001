@@ -17,12 +17,18 @@ vi.mock('@/lib/prisma', () => {
     user: createMockChain(),
     withdrawal: createMockChain(),
     balanceRecord: createMockChain(),
+    systemConfig: createMockChain(),
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
   }
   mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma))
   return { prisma: mockPrisma }
 })
+
+vi.mock('@/lib/config/business', () => ({
+  getBusinessConfig: vi.fn().mockImplementation(async (_key: string, defaultValue: any) => defaultValue),
+  invalidateBusinessConfigCache: vi.fn(),
+}))
 
 import { prisma } from '@/lib/prisma'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
@@ -35,41 +41,41 @@ describe('WithdrawalService', () => {
 
   describe('createWithdrawal', () => {
     it('should create withdrawal successfully with sufficient balance', async () => {
-      // 事务外：用户存在 + 余额够
       prisma.user.findUnique.mockResolvedValueOnce({
-        id: 'u1', balance: 1000, frozenBalance: 0,
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: 'hashed-pwd',
       })
-      // 事务内：updateMany 成功扣减
       prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
-      // 事务内：创建提现记录
       prisma.withdrawal.create.mockResolvedValueOnce({
         id: 'w1', userId: 'u1', amount: 100, status: 'pending',
       })
-      // 事务内：写 BalanceRecord
       prisma.balanceRecord.create.mockResolvedValueOnce({})
 
-      const result = await WithdrawalService.createWithdrawal('u1', 100)
+      const result = await WithdrawalService.createWithdrawal('u1', {
+        amount: 100, paymentMethod: 'alipay', accountNumber: '123', accountName: 'test', paymentPassword: '123456',
+      })
       expect(result).toBeDefined()
       expect(result.amount).toBe(100)
       expect(result.status).toBe('pending')
     })
 
     it('should throw error with insufficient balance', async () => {
-      // 用户存在但余额不够
       prisma.user.findUnique.mockResolvedValueOnce({
-        id: 'u1', balance: 100, frozenBalance: 0,
+        id: 'u1', balance: 100, frozenBalance: 0, paymentPasswordHash: 'hashed-pwd',
       })
 
-      await expect(WithdrawalService.createWithdrawal('u1', 10000))
-        .rejects.toThrow('余额不足')
+      await expect(WithdrawalService.createWithdrawal('u1', {
+        amount: 10000, paymentMethod: 'alipay', accountNumber: '123', accountName: 'test', paymentPassword: '123456',
+      })).rejects.toThrow('余额不足')
     })
 
     it('should throw error with non-positive amount', async () => {
-      await expect(WithdrawalService.createWithdrawal('u1', 0))
-        .rejects.toThrow('提现金额必须大于0')
+      await expect(WithdrawalService.createWithdrawal('u1', {
+        amount: 0, paymentMethod: 'alipay', accountNumber: '123', accountName: 'test', paymentPassword: '123456',
+      })).rejects.toThrow('提现金额必须大于0')
       
-      await expect(WithdrawalService.createWithdrawal('u1', -100))
-        .rejects.toThrow('提现金额必须大于0')
+      await expect(WithdrawalService.createWithdrawal('u1', {
+        amount: -100, paymentMethod: 'alipay', accountNumber: '123', accountName: 'test', paymentPassword: '123456',
+      })).rejects.toThrow('提现金额必须大于0')
     })
   })
 
