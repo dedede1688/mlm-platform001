@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "seed:params": "tsx prisma/seed-system-parameters.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:services": "npm run build && node test-services.js",

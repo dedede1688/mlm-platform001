@@ -1,4 +1,4 @@
-import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Network } from 'lucide-react';
+import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Network, Sliders } from 'lucide-react';
 
 export const MENU_ITEMS = [
   { id: 'dashboard', name: '仪表盘', path: '/admin', icon: LayoutDashboard },
@@ -12,6 +12,7 @@ export const MENU_ITEMS = [
   { id: 'finance', name: '财务管理', path: '/admin/finance', icon: DollarSign },
   { id: 'notifications', name: '通知模板', path: '/admin/notifications', icon: Bell },
   { id: 'settings', name: '系统设置', path: '/admin/settings', icon: Settings },
+  { id: 'system-parameters', name: '系统参数', path: '/admin/settings/system-parameters', icon: Sliders },
 ];
 
 export const ROLE_MENUS: Record<string, string[]> = {
