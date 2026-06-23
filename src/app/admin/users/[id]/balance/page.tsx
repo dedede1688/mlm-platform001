@@ -33,6 +33,9 @@ const TYPE_CONFIG: Record<string, { name: string; icon: React.ReactNode; isPosit
   payment: { name: '支付扣款', icon: <ShoppingCart className="w-4 h-4" />, isPositive: false },
   refund: { name: '订单退款', icon: <Undo2 className="w-4 h-4" />, isPositive: true },
   reward: { name: '推荐/品牌/分红奖励', icon: <Gift className="w-4 h-4" />, isPositive: true },
+  referral_reward: { name: '直推奖', icon: <Gift className="w-4 h-4" />, isPositive: true },
+  brand_bonus: { name: '品牌管理奖', icon: <Gift className="w-4 h-4" />, isPositive: true },
+  dividend_reward: { name: '分红奖', icon: <Gift className="w-4 h-4" />, isPositive: true },
   withdraw_freeze: { name: '提现冻结', icon: <Lock className="w-4 h-4" />, isPositive: false },
   withdraw: { name: '提现扣款', icon: <Banknote className="w-4 h-4" />, isPositive: false },
   unfreeze: { name: '提现解冻', icon: <Unlock className="w-4 h-4" />, isPositive: true },
@@ -90,7 +93,7 @@ export default function AdminUserBalancePage() {
   const fetchRecords = useCallback(async (authToken: string) => {
     setLoading(true)
     try {
-      const typeParam = activeTab === 'all' ? '' : activeTab === 'withdraw' ? 'withdraw_freeze,withdraw,unfreeze' : activeTab
+      const typeParam = activeTab === 'all' ? '' : activeTab === 'reward' ? 'referral_reward,brand_bonus,dividend_reward,daily_dividend,manual_reward,reward' : activeTab === 'withdraw' ? 'withdraw_freeze,withdraw,unfreeze' : activeTab
       const params = new URLSearchParams({ page: String(page), limit: String(pageSize) })
       if (typeParam) params.set('type', typeParam)
       const res = await fetch(`/api/admin/users/${userId}/balance-records?${params}`, {
