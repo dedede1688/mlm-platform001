@@ -15,6 +15,10 @@ interface UserInfo {
   nickname: string | null
   balance: number
   frozenBalance: number
+  consumeBalance: number
+  earningsPending: number
+  earningsAvailable: number
+  earningsVoided: number
 }
 
 interface BalanceRecord {
@@ -145,22 +149,42 @@ export default function AdminUserBalancePage() {
       </div>
 
       {user && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500">
-            <p className="text-xs text-gray-500 mb-1">可用余额</p>
-            <p className="text-lg font-bold text-gray-900">¥{formatMoney(user.balance)}</p>
+        <div className="space-y-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500">
+              <p className="text-xs text-gray-500 mb-1">可用余额</p>
+              <p className="text-lg font-bold text-gray-900">¥{formatMoney(user.balance)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-gray-400">
+              <p className="text-xs text-gray-500 mb-1">冻结余额</p>
+              <p className="text-lg font-bold text-gray-900">¥{formatMoney(user.frozenBalance)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-orange-500">
+              <p className="text-xs text-gray-500 mb-1">消费余额</p>
+              <p className="text-lg font-bold text-gray-900">¥{formatMoney(user.consumeBalance ?? 0)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-amber-500">
+              <p className="text-xs text-gray-500 mb-1">待结算收益</p>
+              <p className="text-lg font-bold text-gray-500">¥{formatMoney(user.earningsPending ?? 0)}</p>
+            </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-gray-400">
-            <p className="text-xs text-gray-500 mb-1">冻结余额</p>
-            <p className="text-lg font-bold text-gray-900">¥{formatMoney(user.frozenBalance)}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
-            <p className="text-xs text-gray-500 mb-1">总余额</p>
-            <p className="text-lg font-bold text-gray-900">¥{formatMoney(user.balance + user.frozenBalance)}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500">
-            <p className="text-xs text-gray-500 mb-1">流水条数</p>
-            <p className="text-lg font-bold text-gray-900">{total}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
+              <p className="text-xs text-gray-500 mb-1">可提现收益</p>
+              <p className="text-lg font-bold text-green-600">¥{formatMoney(user.earningsAvailable ?? 0)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-red-500">
+              <p className="text-xs text-gray-500 mb-1">累计作废</p>
+              <p className="text-lg font-bold text-red-600">¥{formatMoney(user.earningsVoided ?? 0)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500">
+              <p className="text-xs text-gray-500 mb-1">总余额</p>
+              <p className="text-lg font-bold text-gray-900">¥{formatMoney(user.balance + user.frozenBalance)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500">
+              <p className="text-xs text-gray-500 mb-1">流水条数</p>
+              <p className="text-lg font-bold text-gray-900">{total}</p>
+            </div>
           </div>
         </div>
       )}

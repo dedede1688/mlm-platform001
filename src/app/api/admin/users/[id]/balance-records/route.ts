@@ -24,7 +24,14 @@ export async function GET(
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, phone: true, nickname: true, balance: true, frozenBalance: true, status: true },
+      select: {
+        id: true, phone: true, nickname: true, status: true,
+        balance: true, frozenBalance: true,
+        consumeBalance: true,
+        earningsPending: true,
+        earningsAvailable: true,
+        earningsVoided: true,
+      },
     })
     if (!user || user.status === 'deleted') {
       return NextResponse.json(
@@ -63,6 +70,10 @@ export async function GET(
           nickname: user.nickname,
           balance: user.balance,
           frozenBalance: user.frozenBalance,
+          consumeBalance: user.consumeBalance ?? 0,
+          earningsPending: user.earningsPending ?? 0,
+          earningsAvailable: user.earningsAvailable ?? 0,
+          earningsVoided: user.earningsVoided ?? 0,
         },
         records,
         pagination: {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { formatMoney } from '@/lib/utils/format'
 
 import {
   Users, Search, Loader2, ChevronLeft, ChevronRight,
@@ -18,6 +19,10 @@ interface UserRow {
   level: number
   balance: number
   frozenBalance: number
+  consumeBalance: number
+  earningsPending: number
+  earningsAvailable: number
+  earningsVoided: number
   totalPoints: number
   unlockedPoints: number
   lockedPoints: number
@@ -433,6 +438,10 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">推荐人</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">等级</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">余额</th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">消费余额</th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">待结算</th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">可提现</th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">累计作废</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">总积分</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">直推经销商</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">注册时间</th>
@@ -466,6 +475,10 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">¥{u.balance.toFixed(2)}</td>
+                      <td className="px-3 py-3 text-sm text-gray-700 text-right whitespace-nowrap">¥{formatMoney(u.consumeBalance)}</td>
+                      <td className="px-3 py-3 text-sm text-gray-500 text-right whitespace-nowrap">¥{formatMoney(u.earningsPending)}</td>
+                      <td className="px-3 py-3 text-sm text-green-600 text-right whitespace-nowrap">¥{formatMoney(u.earningsAvailable)}</td>
+                      <td className="px-3 py-3 text-sm text-red-600 text-right whitespace-nowrap">¥{formatMoney(u.earningsVoided)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{u.totalPoints}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{u.directDistributorCount}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{formatTime(u.createdAt)}</td>

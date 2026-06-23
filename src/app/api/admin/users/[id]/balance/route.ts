@@ -3,7 +3,34 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 
-// POST /api/admin/users/[id]/balance — 管理员调整会员资金（余额/冻结余额）
+const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
+type AdjustType = typeof VALID_TYPES[number]
+
+const TYPE_FIELD_MAP: Record<AdjustType, { main: 'balance' | 'frozenBalance'; extra?: 'consumeBalance' | 'earningsAvailable' | 'earningsVoided'; label: string }> = {
+  balance:          { main: 'balance',          label: '余额' },
+  frozenBalance:    { main: 'frozenBalance',    label: '冻结余额' },
+  recharge:         { main: 'balance', extra: 'consumeBalance',     label: '余额/消费余额' },
+  consume_void:     { main: 'balance', extra: 'consumeBalance',     label: '余额/消费余额' },
+  earnings_add:     { main: 'balance', extra: 'earningsAvailable',  label: '余额/可提现收益' },
+  earnings_void:    { main: 'balance', extra: 'earningsVoided',     label: '余额/累计作废' },
+}
+
+const TYPE_EXTRA_SIGN: Partial<Record<AdjustType, 1 | -1>> = {
+  recharge: 1, consume_void: -1, earnings_add: 1, earnings_void: 1,
+}
+
+function getFieldLabel(field: string): string {
+  const labels: Record<string, string> = {
+    consumeBalance: '消费余额',
+    earningsPending: '待结算收益',
+    earningsAvailable: '可提现收益',
+    earningsVoided: '累计作废',
+    balance: '余额',
+    frozenBalance: '冻结余额',
+  }
+  return labels[field] ?? field
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,17 +45,14 @@ export async function POST(
     const body = await request.json()
     const { type, amount, reason } = body
 
-    // 类型守卫：确保 type 是合法的字段名
-    const field: 'balance' | 'frozenBalance' =
-      (type === 'balance' || type === 'frozenBalance') ? type : 'balance'
-
-    // 1. 参数校验
-    if (!type || !['balance', 'frozenBalance'].includes(type)) {
+    if (!type || !VALID_TYPES.includes(type as AdjustType)) {
       return NextResponse.json(
-        { success: false, message: 'type 必须为 balance 或 frozenBalance' },
+        { success: false, message: `type 必须为 ${VALID_TYPES.join(' / ')}` },
         { status: 400 }
       )
     }
+
+    const adjustType: AdjustType = type as AdjustType
 
     if (typeof amount !== 'number' || isNaN(amount) || amount === 0) {
       return NextResponse.json(
@@ -44,33 +68,41 @@ export async function POST(
       )
     }
 
-    // 2. 事务：查询旧值 + 原子校验更新 + BalanceRecord 流水（v43-7 Batch 2）
     const result = await prisma.$transaction(async (tx) => {
-      // 步骤 1：查旧值
       const before = await tx.user.findUnique({ where: { id } })
       if (!before || before.status === 'deleted') {
         throw new Error('用户不存在')
       }
 
-      // 步骤 2：变更（updateMany + where 防并发透支）
-      const updateResult = await tx.user.updateMany({
-        where: {
-          id,
-          [field]: amount < 0 ? { gte: Math.abs(amount) } : undefined,
-        },
-        data: { [field]: { increment: amount } },
-      })
-      if (updateResult.count === 0) {
-        const fieldLabel = field === 'balance' ? '余额' : '冻结余额'
-        throw new Error(`${fieldLabel}不足`)
+      const mapping = TYPE_FIELD_MAP[adjustType]
+      const extraSign = TYPE_EXTRA_SIGN[adjustType] ?? 1
+
+      const updateData: Record<string, { increment: number }> = {
+        [mapping.main]: { increment: amount },
+      }
+      if (mapping.extra && extraSign !== undefined) {
+        updateData[mapping.extra] = { increment: amount * extraSign }
       }
 
-      // 步骤 3：用旧值+变动量计算新值
-      const newBalance = field === 'balance' ? before.balance + amount : before.balance
-      const newFrozenBalance = field === 'frozenBalance' ? before.frozenBalance + amount : before.frozenBalance
-      const oldValue = { [field]: field === 'balance' ? before.balance : before.frozenBalance }
+      const mainWhereCond = amount < 0 ? { gte: Math.abs(amount) } : undefined
+      const updateResult = await tx.user.updateMany({
+        where: { id, ...(mainWhereCond ? { [mapping.main]: mainWhereCond } : {}) },
+        data: updateData,
+      })
+      if (updateResult.count === 0) throw new Error(`${mapping.label}不足`)
 
-      // 步骤 4：写 BalanceRecord
+      const newBalance = mapping.main === 'balance' ? before.balance + amount : before.balance
+      const newFrozenBalance = mapping.main === 'frozenBalance' ? before.frozenBalance + amount : before.frozenBalance
+      const oldValue: Record<string, unknown> = {
+        [mapping.main]: mapping.main === 'balance' ? before.balance : before.frozenBalance,
+      }
+      if (mapping.extra) {
+        oldValue[mapping.extra] = (before as Record<string, unknown>)[mapping.extra] ?? 0
+      }
+
+      const extraDesc = mapping.extra
+        ? `，${getFieldLabel(mapping.extra)}${amount * extraSign > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}`
+        : ''
       await tx.balanceRecord.create({
         data: {
           userId: id,
@@ -80,16 +112,15 @@ export async function POST(
           frozenBalance: newFrozenBalance,
           sourceType: 'admin',
           sourceId: admin.id,
-          description: `管理员调账：${field === 'balance' ? '余额' : '冻结余额'}${amount > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}，原因：${reason}`,
+          description: `管理员调账：${mapping.label}${amount > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}${extraDesc}，原因：${reason}`,
         },
       })
 
       const updated = await tx.user.findUnique({ where: { id } })
       if (!updated) throw new Error('用户更新后查询失败')
-      return { updated, oldValue, field }
+      return { updated, oldValue, adjustType, mapping }
     })
 
-    // 3. 写操作日志
     if (!result.updated) {
       return NextResponse.json(
         { success: false, message: '更新后查询用户失败' },
@@ -102,21 +133,27 @@ export async function POST(
       module: 'user',
       targetId: id,
       oldValue: result.oldValue,
-      newValue: { [result.field]: result.updated[result.field] },
+      newValue: { [result.mapping.main]: result.updated[result.mapping.main] },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    // 4. 通知用户（v9 实现通知中心，当前仅记录日志）
-    const fieldLabel = result.field === 'balance' ? '余额' : '冻结余额'
+    const fieldLabel = result.mapping.label
     const actionLabel = amount > 0 ? '增加' : '扣减'
     console.log(
       `[BalanceAdjust] 用户 ${id} 的${fieldLabel}已${actionLabel} ¥${Math.abs(amount).toFixed(2)}，原因：${reason}`
     )
 
+    const responseData: Record<string, number> = {
+      [result.mapping.main]: result.updated[result.mapping.main] as number,
+    }
+    if (result.mapping.extra) {
+      responseData[result.mapping.extra] = (result.updated as Record<string, unknown>)[result.mapping.extra] as number
+    }
+
     return NextResponse.json({
       success: true,
-      data: { [result.field]: result.updated[result.field] },
+      data: responseData,
       message: `资金调整成功：${fieldLabel}${actionLabel} ¥${Math.abs(amount).toFixed(2)}`,
     })
   } catch (error) {
