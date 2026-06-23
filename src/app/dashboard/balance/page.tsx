@@ -38,12 +38,13 @@ const TYPE_CONFIG: Record<string, { name: string; icon: React.ReactNode; isPosit
   daily_dividend: { name: '每日分红', icon: <Gift className="w-5 h-5" />, isPositive: true },
 }
 
-type TypeFilter = 'all' | 'payment' | 'reward' | 'withdraw' | 'admin_adjust'
+type TypeFilter = 'all' | 'payment' | 'reward' | 'void' | 'withdraw' | 'admin_adjust'
 
 const TYPE_TABS: { key: TypeFilter; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'payment', label: '消费' },
   { key: 'reward', label: '奖励' },
+  { key: 'void', label: '作废' },
   { key: 'withdraw', label: '提现' },
   { key: 'admin_adjust', label: '管理员调整' },
 ]
@@ -93,7 +94,13 @@ export default function BalancePage() {
   const fetchRecords = async (authToken: string) => {
     setLoading(true)
     try {
-      const typeParam = activeTab === 'all' ? '' : activeTab === 'reward' ? 'referral_reward,brand_bonus,dividend_reward,daily_dividend,manual_reward,reward' : activeTab === 'withdraw' ? 'withdraw_freeze,withdraw,unfreeze' : activeTab
+      const typeParam =
+        activeTab === 'all' ? '' :
+        activeTab === 'reward' ? 'referral_reward,brand_bonus,dividend_reward,daily_dividend,manual_reward,reward' :
+        activeTab === 'withdraw' ? 'withdraw_freeze,withdraw,unfreeze' :
+        activeTab === 'payment' ? 'payment,refund' :
+        activeTab === 'void' ? 'refund_dividend' :
+        activeTab
       const params = new URLSearchParams({ page: String(page), limit: String(pageSize) })
       if (typeParam) params.set('type', typeParam)
       const res = await fetch(`/api/user/balance-records?${params}`, { headers: { Authorization: `Bearer ${authToken}` } })
