@@ -139,7 +139,20 @@ export default function OrderDetailPage() {
 
   const handlePay = async () => {
     if (!order) return
-    router.push(`/payment/order/${order.id}`)
+    const password = window.prompt('请输入 6 位支付密码')
+    if (!password) return
+    const token = localStorage.getItem('token')
+    if (!token) { router.push('/login'); return }
+    try {
+      const res = await fetch(`/api/orders/${order.id}/verify-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password }),
+      })
+      const data = await res.json()
+      if (data.success) { toast.success('支付成功'); await fetchOrder(token) }
+      else toast.error(data.message || '支付失败')
+    } catch { toast.error('网络错误') }
   }
 
   // ---- 加载态 ----

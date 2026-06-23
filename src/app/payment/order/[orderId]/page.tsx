@@ -111,23 +111,25 @@ export default function PaymentPage() {
   const handleMockPay = async () => {
     const token = localStorage.getItem('token')
     if (!token || !order) return
+    const password = window.prompt('请输入 6 位支付密码')
+    if (!password) return
 
     setPaying(true)
     setError(null)
     try {
-      const res = await fetch(`/api/orders/${order.id}/pay`, {
+      const res = await fetch(`/api/orders/${order.id}/verify-payment`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password }),
       })
       const data = await res.json()
       if (res.ok && data.success) {
         setPaySuccess(true)
-        // 2秒后跳转订单详情
         setTimeout(() => {
           router.push(`/dashboard/orders/${order.id}`)
         }, 2000)
       } else {
-        setError(data.error || '支付失败')
+        setError(data.message || data.error || '支付失败')
       }
     } catch {
       setError('网络错误，支付请求失败')

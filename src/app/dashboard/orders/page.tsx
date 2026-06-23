@@ -100,17 +100,21 @@ export default function OrdersPage() {
   // 支付
   const handlePay = async (orderId: string) => {
     if (!token) return
+    const password = window.prompt('请输入 6 位支付密码')
+    if (!password) return
     setActionLoading(orderId)
     try {
-      const res = await fetch(`/api/orders/${orderId}/pay`, {
+      const res = await fetch(`/api/orders/${orderId}/verify-payment`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password }),
       })
-      if (res.ok) {
+      const data = await res.json()
+      if (data.success) {
+        toast.success('支付成功')
         await fetchOrders(token)
       } else {
-        const err = await res.json()
-        toast.error(err.error || '支付失败')
+        toast.error(data.message || '支付失败')
       }
     } catch {
       toast.error('支付请求失败')

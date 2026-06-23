@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+console.warn('[DEPRECATED] /api/orders/[id]/pay 已废弃，请用 /api/orders/[id]/verify-payment')
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { OrderService } from '@/lib/services/order.service'
