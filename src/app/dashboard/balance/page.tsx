@@ -53,6 +53,10 @@ export default function BalancePage() {
   const [records, setRecords] = useState<BalanceRecord[]>([])
   const [userBalance, setUserBalance] = useState<number | null>(null)
   const [userFrozenBalance, setUserFrozenBalance] = useState<number | null>(null)
+  const [userConsumeBalance, setUserConsumeBalance] = useState<number>(0)
+  const [userEarningsPending, setUserEarningsPending] = useState<number>(0)
+  const [userEarningsAvailable, setUserEarningsAvailable] = useState<number>(0)
+  const [userEarningsVoided, setUserEarningsVoided] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TypeFilter>('all')
   const [page, setPage] = useState(1)
@@ -77,6 +81,10 @@ export default function BalancePage() {
         if (data.success) {
           setUserBalance(data.data.balance)
           setUserFrozenBalance(data.data.frozenBalance)
+          setUserConsumeBalance(data.data.consumeBalance ?? 0)
+          setUserEarningsPending(data.data.earningsPending ?? 0)
+          setUserEarningsAvailable(data.data.earningsAvailable ?? 0)
+          setUserEarningsVoided(data.data.earningsVoided ?? 0)
         }
       }
     } catch (_error) { console.error('获取用户信息失败:', _error) }
@@ -139,6 +147,26 @@ export default function BalancePage() {
             <div>
               <p className="text-sm text-gray-400 mb-1">冻结余额</p>
               <p className="text-2xl font-bold text-gray-500">¥{formatMoney(userFrozenBalance || 0)}</p>
+            </div>
+          </div>
+          <div className="border-t border-gray-100 mt-4 pt-3">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-400">消费余额</span>
+                <span className="text-xs font-medium text-gray-600">¥{formatMoney(userConsumeBalance)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-400">待结算收益</span>
+                <span className="text-xs font-medium text-gray-600">¥{formatMoney(userEarningsPending)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-400">已结算收益</span>
+                <span className="text-xs font-medium text-green-600">¥{formatMoney(userEarningsAvailable)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-400">已作废收益</span>
+                <span className="text-xs font-medium text-red-500">¥{formatMoney(userEarningsVoided)}</span>
+              </div>
             </div>
           </div>
         </div>

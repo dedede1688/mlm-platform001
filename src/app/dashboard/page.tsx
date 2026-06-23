@@ -18,6 +18,10 @@ interface UserInfo {
   level: number
   balance: number
   frozenBalance: number
+  consumeBalance: number
+  earningsPending: number
+  earningsAvailable: number
+  earningsVoided: number
   totalPoints: number
   unlockedPoints: number
   lockedPoints: number
@@ -224,6 +228,26 @@ export default function DashboardPage() {
                 <div className="text-center sm:text-left">
                   <p className="text-[10px] sm:text-sm text-gray-400 mb-0.5 sm:mb-1">可用积分</p>
                   <p className="text-base sm:text-2xl font-bold text-secondary">{user.unlockedPoints}</p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100 mt-3 pt-3">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[10px] sm:text-xs text-gray-400">消费余额</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-gray-600">¥{formatMoney(user.consumeBalance)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[10px] sm:text-xs text-gray-400">待结算收益</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-gray-600">¥{formatMoney(user.earningsPending)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[10px] sm:text-xs text-gray-400">已结算收益</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-green-600">¥{formatMoney(user.earningsAvailable)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[10px] sm:text-xs text-gray-400">已作废收益</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-red-500">¥{formatMoney(user.earningsVoided)}</span>
+                  </div>
                 </div>
               </div>
               <div className="hidden sm:block">
