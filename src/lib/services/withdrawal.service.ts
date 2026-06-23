@@ -1,9 +1,20 @@
 import { prisma } from '@/lib/prisma'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
+import { getBusinessConfig } from '@/lib/config/business'
+
+export interface CreateWithdrawalParams {
+  amount: number
+  paymentMethod: string
+  accountNumber: string
+  accountName: string
+  bankName?: string
+  paymentPassword: string
+}
 
 export class WithdrawalService {
-  // 创建提现申请
-  static async createWithdrawal(userId: string, amount: number) {
+  static async createWithdrawal(userId: string, params: CreateWithdrawalParams) {
+    const { amount, paymentMethod, accountNumber, accountName, bankName } = params
+
     if (amount <= 0) throw new Error('提现金额必须大于0')
 
     const user = await prisma.user.findUnique({
@@ -11,10 +22,33 @@ export class WithdrawalService {
     })
 
     if (!user) throw new Error('用户不存在')
+
+    if (!user.paymentPasswordHash) throw new Error('请先设置支付密码')
     if (user.balance < amount) throw new Error('余额不足')
 
+    const minAmount = await getBusinessConfig('withdrawal.min_amount', 100)
+    const maxAmount = await getBusinessConfig('withdrawal.max_amount', 50000)
+    const dailyLimit = await getBusinessConfig('withdrawal.daily_limit', 3)
+
+    if (amount < minAmount) throw new Error(`最低提现金额 ¥${minAmount}`)
+    if (amount > maxAmount) throw new Error(`单笔最高提现金额 ¥${maxAmount}`)
+
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
+    const todayCount = await prisma.withdrawal.count({
+      where: {
+        userId,
+        createdAt: { gte: todayStart },
+      },
+    })
+    if (todayCount >= dailyLimit) throw new Error(`每日最多提现 ${dailyLimit} 次`)
+
+    if (!paymentMethod) throw new Error('请选择收款方式')
+    if (!accountNumber) throw new Error('请输入收款账号')
+    if (!accountName) throw new Error('请输入收款人姓名')
+
     return await prisma.$transaction(async (tx) => {
-      // 原子操作：余额扣减 + 冻结余额增加，防并发透支
       const result = await tx.user.updateMany({
         where: { id: userId, balance: { gte: amount } },
         data: {
@@ -24,16 +58,18 @@ export class WithdrawalService {
       })
       if (result.count === 0) throw new Error('余额不足')
 
-      // 创建提现记录
       const withdrawal = await tx.withdrawal.create({
         data: {
           userId,
           amount,
           status: WITHDRAWAL_STATUS.PENDING,
+          paymentMethod,
+          accountNumber,
+          accountName,
+          bankName: bankName || null,
         },
       })
 
-      // 写 BalanceRecord 流水
       await tx.balanceRecord.create({
         data: {
           userId,
@@ -51,7 +87,6 @@ export class WithdrawalService {
     })
   }
 
-  // 审核提现
   static async reviewWithdrawal(withdrawalId: string, approved: boolean, rejectReason?: string) {
     const withdrawal = await prisma.withdrawal.findUnique({
       where: { id: withdrawalId },
@@ -64,14 +99,12 @@ export class WithdrawalService {
 
     if (approved) {
       return await prisma.$transaction(async (tx) => {
-        // 查询用户当前余额（用于 BalanceRecord）
         const user = await tx.user.findUnique({
           where: { id: withdrawal.userId },
           select: { balance: true, frozenBalance: true },
         })
         if (!user) throw new Error('用户不存在')
 
-        // 原子操作：冻结余额扣除，防并发
         const result = await tx.user.updateMany({
           where: { id: withdrawal.userId, frozenBalance: { gte: withdrawal.amount } },
           data: { frozenBalance: { decrement: withdrawal.amount } },
@@ -87,7 +120,6 @@ export class WithdrawalService {
           },
         })
 
-        // 写 BalanceRecord 流水
         await tx.balanceRecord.create({
           data: {
             userId: withdrawal.userId,
@@ -105,14 +137,12 @@ export class WithdrawalService {
       })
     } else {
       return await prisma.$transaction(async (tx) => {
-        // 查询用户当前余额（用于 BalanceRecord）
         const user = await tx.user.findUnique({
           where: { id: withdrawal.userId },
           select: { balance: true, frozenBalance: true },
         })
         if (!user) throw new Error('用户不存在')
 
-        // 原子操作：余额退回 + 冻结余额扣除，防并发
         const result = await tx.user.updateMany({
           where: { id: withdrawal.userId, frozenBalance: { gte: withdrawal.amount } },
           data: {
@@ -131,7 +161,6 @@ export class WithdrawalService {
           },
         })
 
-        // 写 BalanceRecord 流水
         await tx.balanceRecord.create({
           data: {
             userId: withdrawal.userId,
@@ -150,7 +179,6 @@ export class WithdrawalService {
     }
   }
 
-  // 获取用户的提现记录
   static async getUserWithdrawals(userId: string, page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit
 
@@ -177,7 +205,6 @@ export class WithdrawalService {
     }
   }
 
-  // 获取待审核的提现列表
   static async getPendingWithdrawals(page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit
 
@@ -205,7 +232,6 @@ export class WithdrawalService {
     }
   }
 
-  // 获取提现统计
   static async getWithdrawalStats() {
     const [pending, approved, rejected, totalAmount] = await Promise.all([
       prisma.withdrawal.count({

@@ -48,6 +48,10 @@ interface WithdrawalItem {
   user: WithdrawalUser
   amount: number
   status: string
+  paymentMethod: string | null
+  accountNumber: string | null
+  accountName: string | null
+  bankName: string | null
   rejectReason: string | null
   reviewedBy: string | null
   reviewer: WithdrawalReviewer | null
@@ -694,6 +698,7 @@ export default function AdminFinancePage() {
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">用户信息</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">提现金额</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">收款信息</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">申请时间</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">状态</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">审核人</th>
@@ -712,6 +717,19 @@ export default function AdminFinancePage() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-red-600 font-medium">¥{w.amount.toFixed(2)}</td>
+                            <td className="px-4 py-3">
+                              {w.paymentMethod ? (
+                                <div className="text-sm">
+                                  <div className="text-gray-900">
+                                    {w.paymentMethod === 'alipay' ? '支付宝' : w.paymentMethod === 'wechat' ? '微信' : w.paymentMethod === 'bank_card' ? '银行卡' : w.paymentMethod}
+                                  </div>
+                                  <div className="text-xs text-gray-500 font-mono">{w.accountNumber}</div>
+                                  <div className="text-xs text-gray-400">{w.accountName}{w.bankName ? ` · ${w.bankName}` : ''}</div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-300">-</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-sm text-gray-500">{formatTime(w.createdAt)}</td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
@@ -831,6 +849,30 @@ export default function AdminFinancePage() {
                 <span className="text-gray-500">提现金额</span>
                 <span className="text-red-600 font-medium">¥{reviewModal.item.amount.toFixed(2)}</span>
               </div>
+              {reviewModal.item.paymentMethod && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">收款方式</span>
+                    <span className="text-gray-900">
+                      {reviewModal.item.paymentMethod === 'alipay' ? '支付宝' : reviewModal.item.paymentMethod === 'wechat' ? '微信' : reviewModal.item.paymentMethod === 'bank_card' ? '银行卡' : reviewModal.item.paymentMethod}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">收款账号</span>
+                    <span className="text-gray-900 font-mono">{reviewModal.item.accountNumber}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">收款人</span>
+                    <span className="text-gray-900">{reviewModal.item.accountName}</span>
+                  </div>
+                  {reviewModal.item.bankName && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">开户银行</span>
+                      <span className="text-gray-900">{reviewModal.item.bankName}</span>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">申请时间</span>
                 <span className="text-gray-900">{formatTime(reviewModal.item.createdAt)}</span>

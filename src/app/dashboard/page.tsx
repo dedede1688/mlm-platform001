@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
-  TrendingUp, Award, Clock, MapPin
+  TrendingUp, Award, Clock, MapPin, ShieldCheck
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 
@@ -296,6 +296,20 @@ export default function DashboardPage() {
                   label="收益明细"
                   desc="查看奖励记录"
                   color="text-green-600 bg-green-50"
+                />
+                <QuickLink
+                  href="/dashboard/withdrawals"
+                  icon={<Wallet className="w-6 h-6" />}
+                  label="提现申请"
+                  desc="申请余额提现"
+                  color="text-orange-600 bg-orange-50"
+                />
+                <QuickLink
+                  href="/dashboard/payment-password"
+                  icon={<ShieldCheck className="w-6 h-6" />}
+                  label="支付密码"
+                  desc="设置/修改密码"
+                  color="text-amber-600 bg-amber-50"
                 />
                 <QuickLink
                   href="/dashboard/team"

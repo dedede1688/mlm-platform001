@@ -206,16 +206,20 @@ model Dividend {
 }
 
 model Withdrawal {
-  id           String    @id @default(uuid())
-  userId       String    @map("user_id")
-  amount       Float
-  status       String    @default("pending") @map("status")
-  reviewedBy   String?   @map("reviewed_by")
-  reviewedAt   DateTime? @map("reviewed_at")
-  rejectReason String?   @map("reject_reason")
-  paidAt       DateTime? @map("paid_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  user         User      @relation(fields: [userId], references: [id])
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  amount        Float
+  status        String    @default("pending") @map("status")
+  paymentMethod String?   @map("payment_method")
+  accountNumber String?   @map("account_number")
+  accountName   String?   @map("account_name")
+  bankName      String?   @map("bank_name")
+  reviewedBy    String?   @map("reviewed_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  rejectReason  String?   @map("reject_reason")
+  paidAt        DateTime? @map("paid_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  user          User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])

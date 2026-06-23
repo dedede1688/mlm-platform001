@@ -91,6 +91,10 @@ async function main() {
     { key: 'upgrade.board.sales_amount', value: '1000000', description: '董事升级销售额' },
     { key: 'feature.points_transfer_enabled', value: 'true', description: '积分转赠功能开关' },
     { key: 'points.transfer_fee_percent', value: '10', description: '积分转赠手续费（%）' },
+    { key: 'withdrawal.min_amount', value: '100', description: '最低提现金额（元）' },
+    { key: 'withdrawal.max_amount', value: '50000', description: '单笔最高提现金额（元）' },
+    { key: 'withdrawal.daily_limit', value: '3', description: '每日提现次数上限' },
+    { key: 'withdrawal.fee_percent', value: '0', description: '提现手续费（%）' },
   ]
 
   for (const config of businessConfigs) {
