@@ -46,6 +46,7 @@ model User {
   referrals              User[]         @relation("ReferrerRelation")
   withdrawals            Withdrawal[]
   refundRequests         RefundRequest[]
+  notifications          Notification[]
   paymentPasswordHash     String?   @map("payment_password_hash")   // v43-2: 支付密码 hash（bcryptjs）
   consumeBalance    Float   @default(0) @map("consume_balance")     // v43-7 Batch 2.2.a: 消费余额（来源：后台充值 + 退款）
   earningsPending   Float   @default(0) @map("earnings_pending")    // v43-7 Batch 2.2.a: 待结算收益
@@ -212,23 +213,28 @@ model Dividend {
 }
 
 model Withdrawal {
-  id            String    @id @default(uuid())
-  userId        String    @map("user_id")
-  amount        Float
-  status        String    @default("pending") @map("status")
-  paymentMethod String?   @map("payment_method")
-  accountNumber String?   @map("account_number")
-  accountName   String?   @map("account_name")
-  bankName      String?   @map("bank_name")
-  reviewedBy    String?   @map("reviewed_by")
-  reviewedAt    DateTime? @map("reviewed_at")
-  rejectReason  String?   @map("reject_reason")
-  paidAt        DateTime? @map("paid_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  user          User      @relation(fields: [userId], references: [id])
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  amount            Float
+  status            String    @default("pending") @map("status")
+  paymentMethod     String?   @map("payment_method")
+  accountNumber     String?   @map("account_number")
+  accountName       String?   @map("account_name")
+  bankName          String?   @map("bank_name")
+  reviewedBy        String?   @map("reviewed_by")
+  reviewedAt        DateTime? @map("reviewed_at")
+  rejectReason      String?   @map("reject_reason")
+  rejectTemplateId  String?   @map("reject_template_id")
+  remark            String?   @map("remark")
+  paidAt            DateTime? @map("paid_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  user              User      @relation(fields: [userId], references: [id])
+  auditLogs         WithdrawalAuditLog[]
+  rejectTemplate    WithdrawalRejectTemplate? @relation(fields: [rejectTemplateId], references: [id])
 
   @@index([userId])
   @@index([status])
+  @@index([rejectTemplateId])
   @@map("withdrawals")
 }
 
@@ -440,4 +446,56 @@ model banners {
   order      Int?      @default(0)
   created_at DateTime? @default(now()) @db.Timestamptz(6)
   updated_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model WithdrawalRejectTemplate {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  sortOrder Int      @default(0) @map("sort_order")
+  isEnabled Boolean  @default(true) @map("is_enabled")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  withdrawals Withdrawal[]
+
+  @@index([isEnabled])
+  @@index([sortOrder])
+  @@map("withdrawal_reject_templates")
+}
+
+model WithdrawalAuditLog {
+  id           String   @id @default(uuid())
+  withdrawalId String   @map("withdrawal_id")
+  action       String   @map("action")
+  oldStatus    String?  @map("old_status")
+  newStatus    String?  @map("new_status")
+  operatorId   String?  @map("operator_id")
+  reason       String?  @map("reason")
+  remark       String?  @map("remark")
+  createdAt    DateTime @default(now()) @map("created_at")
+  withdrawal   Withdrawal @relation(fields: [withdrawalId], references: [id], onDelete: Cascade)
+
+  @@index([withdrawalId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("withdrawal_audit_logs")
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  type       String    @map("type")
+  title      String
+  content    String
+  isRead     Boolean   @default(false) @map("is_read")
+  sourceId   String?   @map("source_id")
+  sourceType String?   @map("source_type")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
 }

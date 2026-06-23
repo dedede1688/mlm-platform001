@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
+import { WithdrawalAuditLogService } from './withdrawal-audit-log.service'
+import { NotificationService } from './notification.service'
 
 export interface CreateWithdrawalParams {
   amount: number
@@ -9,6 +11,14 @@ export interface CreateWithdrawalParams {
   accountName: string
   bankName?: string
   paymentPassword: string
+}
+
+export interface ReviewWithdrawalParams {
+  approved: boolean
+  reviewedBy?: string
+  rejectReason?: string
+  rejectTemplateId?: string
+  remark?: string
 }
 
 export class WithdrawalService {
@@ -87,7 +97,8 @@ export class WithdrawalService {
     })
   }
 
-  static async reviewWithdrawal(withdrawalId: string, approved: boolean, rejectReason?: string) {
+  static async reviewWithdrawal(withdrawalId: string, params: ReviewWithdrawalParams) {
+    const { approved, reviewedBy, rejectReason, rejectTemplateId, remark } = params
     const withdrawal = await prisma.withdrawal.findUnique({
       where: { id: withdrawalId },
     })
@@ -115,8 +126,10 @@ export class WithdrawalService {
           where: { id: withdrawalId },
           data: {
             status: WITHDRAWAL_STATUS.APPROVED,
+            reviewedBy: reviewedBy || null,
             reviewedAt: new Date(),
             paidAt: new Date(),
+            remark: remark || null,
           },
         })
 
@@ -131,6 +144,22 @@ export class WithdrawalService {
             sourceId: withdrawalId,
             description: `提现审核通过，扣除冻结余额 ¥${withdrawal.amount}，提现 ID：${withdrawalId}`,
           },
+        })
+
+        await WithdrawalAuditLogService.logReview({
+          withdrawalId,
+          action: 'approve',
+          oldStatus: WITHDRAWAL_STATUS.PENDING,
+          newStatus: WITHDRAWAL_STATUS.APPROVED,
+          operatorId: reviewedBy,
+          remark,
+        })
+
+        await NotificationService.sendWithdrawalNotification({
+          userId: withdrawal.userId,
+          type: 'withdrawal_approved',
+          withdrawalId,
+          amount: withdrawal.amount,
         })
 
         return updatedWithdrawal
@@ -156,7 +185,10 @@ export class WithdrawalService {
           where: { id: withdrawalId },
           data: {
             status: WITHDRAWAL_STATUS.REJECTED,
+            reviewedBy: reviewedBy || null,
             rejectReason,
+            rejectTemplateId: rejectTemplateId || null,
+            remark: remark || null,
             reviewedAt: new Date(),
           },
         })
@@ -174,9 +206,43 @@ export class WithdrawalService {
           },
         })
 
+        await WithdrawalAuditLogService.logReview({
+          withdrawalId,
+          action: 'reject',
+          oldStatus: WITHDRAWAL_STATUS.PENDING,
+          newStatus: WITHDRAWAL_STATUS.REJECTED,
+          operatorId: reviewedBy,
+          reason: rejectReason,
+          remark,
+        })
+
+        await NotificationService.sendWithdrawalNotification({
+          userId: withdrawal.userId,
+          type: 'withdrawal_rejected',
+          withdrawalId,
+          amount: withdrawal.amount,
+          rejectReason,
+        })
+
         return updatedWithdrawal
       })
     }
+  }
+
+  static async batchReview(withdrawalIds: string[], params: ReviewWithdrawalParams) {
+    const results = { success: 0, failed: 0, errors: [] as { id: string; error: string }[] }
+
+    for (const id of withdrawalIds) {
+      try {
+        await this.reviewWithdrawal(id, params)
+        results.success++
+      } catch (e: any) {
+        results.failed++
+        results.errors.push({ id, error: e.message || '未知错误' })
+      }
+    }
+
+    return results
   }
 
   static async getUserWithdrawals(userId: string, page: number = 1, limit: number = 20) {

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Wallet, Search, Loader2, ChevronLeft, ChevronRight,
-  X, CheckCircle, XCircle, DollarSign, Gift
+  X, CheckCircle, XCircle, DollarSign, Gift,
+  ListChecks, FileText, History, Bell, SquareCheck, Square
 } from 'lucide-react'
 
 // ---- 类型定义 ----
@@ -142,6 +143,25 @@ export default function AdminFinancePage() {
   // 消息提示
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // 批量审核
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [batchAction, setBatchAction] = useState<'approve' | 'reject'>('approve')
+  const [batchRejectReason, setBatchRejectReason] = useState('')
+  const [batchRemark, setBatchRemark] = useState('')
+  const [batching, setBatching] = useState(false)
+
+  // 拒绝模板
+  const [rejectTemplates, setRejectTemplates] = useState<{ id: string; title: string; content: string }[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+
+  // 审核日志弹窗
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [auditModalId, setAuditModalId] = useState<string | null>(null)
+  const [auditLoading, setAuditLoading] = useState(false)
+
+  // 备注
+  const [reviewRemark, setReviewRemark] = useState('')
+
   // 汇总统计
   const [stats, setStats] = useState<{
     referral: { total: number; count: number }
@@ -159,6 +179,7 @@ export default function AdminFinancePage() {
       setToken(storedToken)
       fetchRewards(storedToken, 1)
       fetchWithdrawals(storedToken, 1)
+      fetchRejectTemplates(storedToken)
     }
   }, [])
 
@@ -232,6 +253,66 @@ export default function AdminFinancePage() {
     }
   }, [withdrawalStatus, withdrawalSearch])
 
+  const fetchRejectTemplates = async (authToken: string) => {
+    try {
+      const res = await fetch('/api/admin/withdrawal-templates', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      const data = await res.json()
+      if (data.success) setRejectTemplates(data.data || [])
+    } catch {}
+  }
+
+  const handleBatchReview = async () => {
+    if (!token) return
+    if (selectedIds.length === 0) { showMessage('error', '请选择至少一条记录'); return }
+    if (batchAction === 'reject' && !batchRejectReason.trim()) { showMessage('error', '拒绝原因不能为空'); return }
+    setBatching(true)
+    try {
+      const body: Record<string, unknown> = { ids: selectedIds, action: batchAction }
+      if (batchAction === 'reject') body.rejectReason = batchRejectReason.trim()
+      if (batchRemark.trim()) body.remark = batchRemark.trim()
+      if (batchAction === 'reject' && selectedTemplateId) body.rejectTemplateId = selectedTemplateId
+      const res = await fetch('/api/admin/withdrawals/batch-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', data.message)
+        setSelectedIds([])
+        setBatchRejectReason('')
+        setBatchRemark('')
+        setSelectedTemplateId('')
+        fetchWithdrawals(token, withdrawalPagination.page)
+      } else {
+        showMessage('error', data.message || '批量审核失败')
+      }
+    } catch {
+      showMessage('error', '网络错误')
+    } finally {
+      setBatching(false)
+    }
+  }
+
+  const handleViewAuditLogs = async (withdrawalId: string) => {
+    if (!token) return
+    setAuditModalId(withdrawalId)
+    setAuditLoading(true)
+    try {
+      const res = await fetch(`/api/admin/withdrawals/${withdrawalId}/audit-logs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.success) setAuditLogs(data.data || [])
+    } catch {
+      setAuditLogs([])
+    } finally {
+      setAuditLoading(false)
+    }
+  }
+
   // ---- 提现审核操作 ----
 
   const handleReview = async () => {
@@ -248,7 +329,9 @@ export default function AdminFinancePage() {
       }
       if (reviewModal.type === 'reject') {
         body.rejectReason = rejectReason.trim()
+        if (selectedTemplateId) body.rejectTemplateId = selectedTemplateId
       }
+      if (reviewRemark.trim()) body.remark = reviewRemark.trim()
 
       const res = await fetch('/api/admin/withdrawals', {
         method: 'PUT',
@@ -263,6 +346,8 @@ export default function AdminFinancePage() {
         showMessage('success', reviewModal.type === 'approve' ? '提现已通过' : '提现已拒绝')
         setReviewModal(null)
         setRejectReason('')
+        setReviewRemark('')
+        setSelectedTemplateId('')
         fetchWithdrawals(token, withdrawalPagination.page)
       } else {
         showMessage('error', data.message || '操作失败')
@@ -679,6 +764,32 @@ export default function AdminFinancePage() {
               </div>
             </div>
 
+            {/* 批量操作栏 */}
+            {selectedIds.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex flex-wrap items-center gap-3">
+                <ListChecks className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-700">已选 {selectedIds.length} 条</span>
+                <button onClick={() => setBatchAction('approve')} className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${batchAction === 'approve' ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'}`}>批量通过</button>
+                <button onClick={() => setBatchAction('reject')} className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${batchAction === 'reject' ? 'bg-red-600 text-white' : 'bg-white text-red-700 border border-red-300 hover:bg-red-50'}`}>批量拒绝</button>
+                {batchAction === 'reject' && (
+                  <>
+                    {rejectTemplates.length > 0 && (
+                      <select value={selectedTemplateId} onChange={e => { setSelectedTemplateId(e.target.value); const t = rejectTemplates.find(t => t.id === e.target.value); if (t) setBatchRejectReason(t.content) }} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900">
+                        <option value="">选择模板...</option>
+                        {rejectTemplates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                      </select>
+                    )}
+                    <input type="text" value={batchRejectReason} onChange={e => setBatchRejectReason(e.target.value)} placeholder="拒绝原因" className="flex-1 min-w-[200px] px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                  </>
+                )}
+                <input type="text" value={batchRemark} onChange={e => setBatchRemark(e.target.value)} placeholder="备注（选填）" className="flex-1 min-w-[150px] px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                <button onClick={handleBatchReview} disabled={batching} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 transition-colors">
+                  {batching ? '处理中...' : '执行'}
+                </button>
+                <button onClick={() => setSelectedIds([])} className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700">取消</button>
+              </div>
+            )}
+
             {/* 提现列表 */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
               {withdrawalLoading ? (
@@ -696,6 +807,9 @@ export default function AdminFinancePage() {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-10">
+                          <input type="checkbox" checked={withdrawals.length > 0 && withdrawals.filter(w => w.status === 'pending').every(w => selectedIds.includes(w.id))} onChange={e => { const pendingIds = withdrawals.filter(w => w.status === 'pending').map(w => w.id); setSelectedIds(e.target.checked ? pendingIds : []) }} className="rounded border-gray-300" />
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">用户信息</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">提现金额</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">收款信息</th>
@@ -710,6 +824,13 @@ export default function AdminFinancePage() {
                         const statusInfo = WITHDRAWAL_STATUS_MAP[w.status] || { label: w.status, color: 'bg-gray-100 text-gray-500' }
                         return (
                           <tr key={w.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3">
+                              {w.status === 'pending' ? (
+                                <input type="checkbox" checked={selectedIds.includes(w.id)} onChange={e => setSelectedIds(e.target.checked ? [...selectedIds, w.id] : selectedIds.filter(id => id !== w.id))} className="rounded border-gray-300" />
+                              ) : (
+                                <span className="text-gray-300">-</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               <div className="text-sm text-gray-900">{w.user.phone}</div>
                               {w.user.nickname && (
@@ -743,28 +864,36 @@ export default function AdminFinancePage() {
                               {w.reviewer ? (w.reviewer.nickname || w.reviewer.phone) : '-'}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              {w.status === 'pending' ? (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => setReviewModal({ type: 'approve', item: w })}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600
-                                      hover:bg-green-50 rounded-lg transition-colors font-medium"
-                                  >
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    通过
-                                  </button>
-                                  <button
-                                    onClick={() => setReviewModal({ type: 'reject', item: w })}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600
-                                      hover:bg-red-50 rounded-lg transition-colors font-medium"
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                    拒绝
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-gray-300 text-sm">-</span>
-                              )}
+                              <div className="flex items-center justify-end gap-2">
+                                {w.status === 'pending' ? (
+                                  <>
+                                    <button
+                                      onClick={() => setReviewModal({ type: 'approve', item: w })}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600
+                                        hover:bg-green-50 rounded-lg transition-colors font-medium"
+                                    >
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      通过
+                                    </button>
+                                    <button
+                                      onClick={() => setReviewModal({ type: 'reject', item: w })}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600
+                                        hover:bg-red-50 rounded-lg transition-colors font-medium"
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      拒绝
+                                    </button>
+                                  </>
+                                ) : null}
+                                <button
+                                  onClick={() => handleViewAuditLogs(w.id)}
+                                  className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-gray-500
+                                    hover:bg-gray-100 rounded-lg transition-colors"
+                                  title="审核日志"
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )
@@ -835,7 +964,7 @@ export default function AdminFinancePage() {
       {/* 审核确认弹窗 */}
       {reviewModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => { setReviewModal(null); setRejectReason('') }} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setReviewModal(null); setRejectReason(''); setReviewRemark(''); setSelectedTemplateId('') }} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               {reviewModal.type === 'approve' ? '确认通过提现' : '拒绝提现申请'}
@@ -885,6 +1014,19 @@ export default function AdminFinancePage() {
               </p>
             ) : (
               <div className="mb-5">
+                {rejectTemplates.length > 0 && (
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">快捷模板</label>
+                    <select
+                      value={selectedTemplateId}
+                      onChange={e => { setSelectedTemplateId(e.target.value); const t = rejectTemplates.find(t => t.id === e.target.value); if (t) setRejectReason(t.content) }}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 hover:border-gray-400"
+                    >
+                      <option value="">选择模板...</option>
+                      {rejectTemplates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                    </select>
+                  </div>
+                )}
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   拒绝原因 <span className="text-red-500">*</span>
                 </label>
@@ -902,9 +1044,22 @@ export default function AdminFinancePage() {
               </div>
             )}
 
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">备注（选填）</label>
+              <input
+                type="text"
+                value={reviewRemark}
+                onChange={e => setReviewRemark(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                  focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                  transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400"
+                placeholder="审核备注..."
+              />
+            </div>
+
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => { setReviewModal(null); setRejectReason('') }}
+                onClick={() => { setReviewModal(null); setRejectReason(''); setReviewRemark(''); setSelectedTemplateId('') }}
                 className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg
                   hover:bg-gray-50 transition-colors font-medium"
               >
@@ -928,6 +1083,42 @@ export default function AdminFinancePage() {
                 {reviewModal.type === 'approve' ? '确认通过' : '确认拒绝'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 审核日志弹窗 */}
+      {auditModalId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setAuditModalId(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">审核日志</h3>
+              <button onClick={() => setAuditModalId(null)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            {auditLoading ? (
+              <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-blue-600" /><span className="ml-2 text-gray-500">加载中...</span></div>
+            ) : auditLogs.length === 0 ? (
+              <p className="text-gray-400 text-center py-10">暂无审核记录</p>
+            ) : (
+              <div className="space-y-3">
+                {auditLogs.map((log: any) => (
+                  <div key={log.id} className="bg-gray-50 rounded-lg p-3 text-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${log.action === 'approve' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {log.action === 'approve' ? '通过' : '拒绝'}
+                      </span>
+                      <span className="text-gray-400 text-xs">{formatTime(log.createdAt)}</span>
+                    </div>
+                    <div className="text-gray-600">
+                      {log.oldStatus && log.newStatus && <span>{log.oldStatus} → {log.newStatus}</span>}
+                      {log.reason && <span className="ml-2 text-red-500">原因：{log.reason}</span>}
+                      {log.remark && <span className="ml-2 text-blue-500">备注：{log.remark}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

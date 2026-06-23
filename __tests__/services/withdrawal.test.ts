@@ -30,6 +30,22 @@ vi.mock('@/lib/config/business', () => ({
   invalidateBusinessConfigCache: vi.fn(),
 }))
 
+vi.mock('@/lib/services/withdrawal-audit-log.service', () => ({
+  WithdrawalAuditLogService: {
+    logReview: vi.fn().mockResolvedValue({ id: 'audit1' }),
+    getAuditLogs: vi.fn().mockResolvedValue([]),
+  },
+}))
+
+vi.mock('@/lib/services/notification.service', () => ({
+  NotificationService: {
+    sendWithdrawalNotification: vi.fn().mockResolvedValue({ id: 'notif1' }),
+    listMyNotifications: vi.fn().mockResolvedValue({ notifications: [], pagination: {}, unreadCount: 0 }),
+    markAsRead: vi.fn().mockResolvedValue({}),
+    getUnreadCount: vi.fn().mockResolvedValue(0),
+  },
+}))
+
 import { prisma } from '@/lib/prisma'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 
@@ -81,24 +97,19 @@ describe('WithdrawalService', () => {
 
   describe('reviewWithdrawal', () => {
     it('should approve withdrawal and decrease frozenBalance', async () => {
-      // 事务外：查提现记录
       prisma.withdrawal.findUnique.mockResolvedValueOnce({
         id: 'w1', userId: 'u1', amount: 100, status: 'pending',
       })
-      // 事务内：查用户余额
       prisma.user.findUnique.mockResolvedValueOnce({
         balance: 500, frozenBalance: 100,
       })
-      // 事务内：原子扣减 frozenBalance
       prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
-      // 事务内：更新提现状态
       prisma.withdrawal.update.mockResolvedValueOnce({
         id: 'w1', status: 'approved',
       })
-      // 事务内：写 BalanceRecord
       prisma.balanceRecord.create.mockResolvedValueOnce({})
 
-      const result = await WithdrawalService.reviewWithdrawal('w1', true)
+      const result = await WithdrawalService.reviewWithdrawal('w1', { approved: true, reviewedBy: 'admin1' })
       expect(result.status).toBe('approved')
     })
 
@@ -106,27 +117,23 @@ describe('WithdrawalService', () => {
       prisma.withdrawal.findUnique.mockResolvedValueOnce({
         id: 'w1', userId: 'u1', amount: 100, status: 'pending',
       })
-      // 事务内：查用户余额
       prisma.user.findUnique.mockResolvedValueOnce({
         balance: 500, frozenBalance: 100,
       })
-      // 事务内：原子退回余额 + 扣减冻结余额
       prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
-      // 事务内：更新提现状态
       prisma.withdrawal.update.mockResolvedValueOnce({
         id: 'w1', status: 'rejected',
       })
-      // 事务内：写 BalanceRecord
       prisma.balanceRecord.create.mockResolvedValueOnce({})
 
-      const result = await WithdrawalService.reviewWithdrawal('w1', false, '信息不完整')
+      const result = await WithdrawalService.reviewWithdrawal('w1', { approved: false, reviewedBy: 'admin1', rejectReason: '信息不完整' })
       expect(result.status).toBe('rejected')
     })
 
     it('should throw error when withdrawal not found', async () => {
       prisma.withdrawal.findUnique.mockResolvedValueOnce(null)
 
-      await expect(WithdrawalService.reviewWithdrawal('w-nonexistent', true))
+      await expect(WithdrawalService.reviewWithdrawal('w-nonexistent', { approved: true }))
         .rejects.toThrow('提现记录不存在')
     })
 
@@ -135,11 +142,42 @@ describe('WithdrawalService', () => {
         id: 'w1',
         userId: 'u1',
         amount: 100,
-        status: 'approved', // Already processed
+        status: 'approved',
       })
 
-      await expect(WithdrawalService.reviewWithdrawal('w1', true))
+      await expect(WithdrawalService.reviewWithdrawal('w1', { approved: true }))
         .rejects.toThrow('提现记录已处理')
+    })
+  })
+
+  describe('batchReview', () => {
+    it('should batch approve multiple withdrawals', async () => {
+      prisma.withdrawal.findUnique
+        .mockResolvedValueOnce({ id: 'w1', userId: 'u1', amount: 100, status: 'pending' })
+        .mockResolvedValueOnce({ id: 'w2', userId: 'u2', amount: 200, status: 'pending' })
+      prisma.user.findUnique
+        .mockResolvedValue({ balance: 500, frozenBalance: 300 })
+      prisma.user.updateMany.mockResolvedValue({ count: 1 })
+      prisma.withdrawal.update.mockResolvedValue({ id: 'w1', status: 'approved' })
+      prisma.balanceRecord.create.mockResolvedValue({})
+
+      const result = await WithdrawalService.batchReview(['w1', 'w2'], { approved: true, reviewedBy: 'admin1' })
+      expect(result.success).toBe(2)
+      expect(result.failed).toBe(0)
+    })
+
+    it('should handle partial failures in batch review', async () => {
+      prisma.withdrawal.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'w2', userId: 'u2', amount: 200, status: 'pending' })
+      prisma.user.findUnique.mockResolvedValue({ balance: 500, frozenBalance: 300 })
+      prisma.user.updateMany.mockResolvedValue({ count: 1 })
+      prisma.withdrawal.update.mockResolvedValue({ id: 'w2', status: 'approved' })
+      prisma.balanceRecord.create.mockResolvedValue({})
+
+      const result = await WithdrawalService.batchReview(['w1', 'w2'], { approved: true, reviewedBy: 'admin1' })
+      expect(result.success).toBe(1)
+      expect(result.failed).toBe(1)
     })
   })
 })
