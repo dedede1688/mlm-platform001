@@ -206,7 +206,15 @@ export default function DashboardPage() {
             <div className="card-base p-4 sm:p-6">
               <div className="grid grid-cols-3 gap-2 sm:gap-0 sm:space-y-0 sm:block sm:space-y-4">
                 <div className="text-center sm:text-left">
-                  <p className="text-[10px] sm:text-sm text-gray-400 mb-0.5 sm:mb-1">可用余额</p>
+                  <div className="flex items-center justify-center sm:justify-between mb-0.5 sm:mb-1">
+                    <p className="text-[10px] sm:text-sm text-gray-400">可用余额</p>
+                    <Link
+                      href="/dashboard/balance"
+                      className="hidden sm:inline text-[10px] sm:text-xs text-primary hover:text-primary-600 hover:underline"
+                    >
+                      查看流水 →
+                    </Link>
+                  </div>
                   <p className="text-base sm:text-2xl font-bold text-primary">¥{formatMoney(user.balance)}</p>
                 </div>
                 <div className="text-center sm:text-left">
