@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:coverage:check": "vitest run --coverage --coverage.thresholds.statements=70",
     "test:services": "npm run build && node test-services.js",
     "daily:tasks": "tsx src/lib/utils/cron.ts"
   },

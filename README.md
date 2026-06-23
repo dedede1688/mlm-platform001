@@ -1,5 +1,8 @@
 # 多级分销电商平台
 
+[![Coverage](https://img.shields.io/badge/coverage-71.85%25-brightgreen)](https://github.com/dedede1688/mlm-platform001)
+[![Tests](https://img.shields.io/badge/tests-87%20passed-brightgreen)](https://github.com/dedede1688/mlm-platform001)
+
 一个基于 Next.js + Prisma + Supabase 的多级分销电商平台，采用三三复制模式。
 
 ## 核心功能
