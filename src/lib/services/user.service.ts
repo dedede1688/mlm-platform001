@@ -165,7 +165,7 @@ export class UserService {
         }
       }
 
-      if (user.referrerId && newLevel >= MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
+      if (user.referrerId && newLevel === MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
         await prisma.user.update({
           where: { id: user.referrerId },
           data: {

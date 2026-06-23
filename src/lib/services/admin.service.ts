@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { logOperation } from '@/lib/utils/operation-log'
 
 
 export class AdminService {
@@ -127,11 +128,29 @@ export class AdminService {
   }
 
   // 更新用户等级
-  static async updateUserLevel(userId: string, newLevel: number) {
-    return prisma.user.update({
+  static async updateUserLevel(userId: string, newLevel: number, operatorId?: string) {
+    const oldUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { level: true },
+    })
+
+    const result = await prisma.user.update({
       where: { id: userId },
       data: { level: newLevel },
     })
+
+    if (operatorId && oldUser) {
+      await logOperation({
+        userId: operatorId,
+        action: 'UPDATE',
+        module: 'user',
+        targetId: userId,
+        oldValue: { level: oldUser.level },
+        newValue: { level: newLevel },
+      })
+    }
+
+    return result
   }
 
   // 更新用户状态

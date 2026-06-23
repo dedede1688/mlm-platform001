@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
           directSalesAmount: true,
           directDistributorCount: true,
           status: true,
+          role: true,
           createdAt: true,
           updatedAt: true,
           referrer: {

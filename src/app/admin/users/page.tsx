@@ -28,6 +28,7 @@ interface UserRow {
   directDistributorCount: number
   directReferralCount: number
   status: string
+  role: string
   createdAt: string
   updatedAt: string
 }
@@ -455,9 +456,13 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[u.level] || 'bg-gray-100 text-gray-500'}`}>
-                          {LEVEL_NAMES[u.level]}
-                        </span>
+                        {u.role === 'admin' || u.role === 'super_admin' ? (
+                          <span className="text-gray-400">-</span>
+                        ) : (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[u.level] || 'bg-gray-100 text-gray-500'}`}>
+                            {LEVEL_NAMES[u.level]}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">¥{u.balance.toFixed(2)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{u.totalPoints}</td>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logOperation } from '@/lib/utils/operation-log'
 
 // GET /api/admin/users/[id] — 获取单个会员详情（管理员）
 export async function GET(
@@ -120,6 +121,11 @@ export async function PUT(
     }
 
     // 更新等级
+    const oldUser = await prisma.user.findUnique({
+      where: { id },
+      select: { level: true },
+    })
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data: { level: newLevel },
@@ -139,6 +145,15 @@ export async function PUT(
         createdAt: true,
         updatedAt: true,
       },
+    })
+
+    await logOperation({
+      userId: admin.id,
+      action: 'UPDATE',
+      module: 'user',
+      targetId: id,
+      oldValue: { level: oldUser?.level },
+      newValue: { level: newLevel },
     })
 
     return NextResponse.json({
