@@ -18,6 +18,11 @@ interface Reward {
   amount: number
   orderId: string
   fromUserId?: string | null
+  fromUser?: {
+    id: string
+    phone: string
+    nickname: string | null
+  } | null
   level?: number | null
   status: string
   createdAt: string
@@ -346,7 +351,7 @@ function RewardCard({
             )}
           </div>
           <p className="text-sm text-gray-400 mt-0.5">
-            {reward.type === 'dividend' ? '分红结算' : reward.type === 'referral' ? '来自直推会员的购买' : reward.type === 'team' ? `来自第${reward.level || 1}层团队的购买` : `来自第${reward.level || '?'}层下级的购买`}
+            {reward.type === 'dividend' ? '分红结算' : reward.type === 'referral' ? (reward.fromUser ? `来自：${reward.fromUser.nickname || reward.fromUser.phone}` : '来自直推会员的购买') : reward.type === 'team' ? `来自第${reward.level || 1}层团队的购买` : `来自第${reward.level || '?'}层下级的购买`}
           </p>
           <p className="text-xs text-gray-300 mt-1">{formatRelativeTime(reward.createdAt)}</p>
         </div>

@@ -29,6 +29,13 @@ export async function GET(request: NextRequest) {
             payAmount: true,
           },
         },
+        fromUser: {
+          select: {
+            id: true,
+            phone: true,
+            nickname: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     })

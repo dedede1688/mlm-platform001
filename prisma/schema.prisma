@@ -37,6 +37,7 @@ model User {
   orders                 Order[]
   pointsRecords          PointsRecord[]
   rewards                Reward[]
+  fromUserRewards        Reward[]       @relation("FromUserRelation")
   addresses              Address[]
   balanceRecords         BalanceRecord[]
   parent                 User?          @relation("ParentRelation", fields: [parentId], references: [id])
@@ -179,6 +180,7 @@ model Reward {
   createdAt  DateTime @default(now()) @map("created_at")
   order      Order    @relation(fields: [orderId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
+  fromUser   User?    @relation("FromUserRelation", fields: [fromUserId], references: [id])
 
   @@index([userId])
   @@index([type])
