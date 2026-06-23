@@ -16,6 +16,7 @@
     "seed:params": "tsx prisma/seed-system-parameters.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:services": "npm run build && node test-services.js",
     "daily:tasks": "tsx src/lib/utils/cron.ts"
   },
