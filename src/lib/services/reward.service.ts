@@ -85,7 +85,7 @@ export class RewardService {
 
       await tx.user.update({
         where: { id: referrerId },
-        data: { balance: { increment: amount } },
+        data: { balance: { increment: amount }, earningsAvailable: { increment: amount } },
       })
 
       if (before) {
@@ -162,7 +162,7 @@ export class RewardService {
 
       await tx.user.update({
         where: { id: target.userId },
-        data: { balance: { increment: amount } },
+        data: { balance: { increment: amount }, earningsAvailable: { increment: amount } },
       })
 
       if (before) {
@@ -256,7 +256,7 @@ export class RewardService {
 
           await tx.user.update({
             where: { id: member.userId },
-            data: { balance: { increment: perUserAmount } },
+            data: { balance: { increment: perUserAmount }, earningsAvailable: { increment: perUserAmount } },
           })
 
           if (before) {
@@ -407,7 +407,7 @@ export class RewardService {
 
         await tx.user.update({
           where: { id: reward.userId },
-          data: { balance: { decrement: reward.amount } },
+          data: { balance: { decrement: reward.amount }, earningsAvailable: { decrement: reward.amount } },
         })
 
         await tx.reward.update({
@@ -444,7 +444,7 @@ export class RewardService {
 
         await tx.user.update({
           where: { id: dividend.userId },
-          data: { balance: { decrement: dividend.amount } },
+          data: { balance: { decrement: dividend.amount }, earningsVoided: { increment: dividend.amount } },
         })
 
         await tx.dividend.delete({

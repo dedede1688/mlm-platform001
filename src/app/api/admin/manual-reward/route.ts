@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       // 步骤 2：变更（增加余额）
       const updatedUser = await tx.user.update({
         where: { id: userId },
-        data: { balance: { increment: amount } },
+        data: { balance: { increment: amount }, earningsAvailable: { increment: amount } },
         select: { id: true, phone: true, nickname: true, balance: true },
       })
 

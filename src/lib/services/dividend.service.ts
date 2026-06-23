@@ -181,6 +181,9 @@ export class DividendService {
               balance: {
                 increment: dividendAmount,
               },
+              earningsAvailable: {
+                increment: dividendAmount,
+              },
             },
           })
 
