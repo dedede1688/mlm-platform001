@@ -47,6 +47,10 @@ model User {
   withdrawals            Withdrawal[]
   refundRequests         RefundRequest[]
   paymentPasswordHash     String?   @map("payment_password_hash")   // v43-2: 支付密码 hash（bcryptjs）
+  consumeBalance    Float   @default(0) @map("consume_balance")     // v43-7 Batch 2.2.a: 消费余额（来源：后台充值 + 退款）
+  earningsPending   Float   @default(0) @map("earnings_pending")    // v43-7 Batch 2.2.a: 待结算收益
+  earningsAvailable Float   @default(0) @map("earnings_available")  // v43-7 Batch 2.2.a: 可提现收益
+  earningsVoided    Float   @default(0) @map("earnings_voided")     // v43-7 Batch 2.2.a: 累计作废（审计）
 
   @@index([referrerId])
   @@index([parentId])
