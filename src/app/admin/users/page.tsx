@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 
 import {
   Users, Search, Loader2, ChevronLeft, ChevronRight,
-  X, Eye, Network, ChevronDown, ChevronUp
+  X, Eye, Network, ChevronDown, ChevronUp, Wallet
 } from 'lucide-react'
 import ReferralTreePanel from '@/components/ReferralTreePanel'
 
@@ -478,6 +479,10 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium">
                             <Network className="w-3.5 h-3.5" />推荐树
                           </button>
+                          <Link href={`/admin/users/${u.id}/balance`}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50 rounded-lg transition-colors font-medium">
+                            <Wallet className="w-3.5 h-3.5" />流水
+                          </Link>
                         </div>
                       </td>
                     </tr>
