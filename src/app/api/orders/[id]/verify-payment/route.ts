@@ -98,6 +98,7 @@ export async function POST(
           },
           data: {
             balance: { decrement: order.payAmount },
+            consumeBalance: { increment: order.payAmount },
           },
         })
         if (balanceUpdated.count === 0) {

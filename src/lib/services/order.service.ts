@@ -186,7 +186,7 @@ export class OrderService {
       if (order.payAmount > 0) {
         const freshUser = await tx.user.findUnique({ where: { id: order.userId }, select: { balance: true, frozenBalance: true } })
         if (!freshUser) throw new Error('用户不存在')
-        const bu = await tx.user.updateMany({ where: { id: order.userId, balance: { gte: order.payAmount } }, data: { balance: { decrement: order.payAmount } } })
+        const bu = await tx.user.updateMany({ where: { id: order.userId, balance: { gte: order.payAmount } }, data: { balance: { decrement: order.payAmount }, consumeBalance: { increment: order.payAmount } } })
         if (bu.count === 0) throw new Error('可用余额不足')
         const nb = freshUser.balance - order.payAmount
         await tx.balanceRecord.create({ data: { userId: order.userId, type: 'payment', amount: -order.payAmount, balance: nb, frozenBalance: freshUser.frozenBalance, sourceType: 'order', sourceId: orderId, description: '订单 ' + order.orderNo + ' 支付' } })
@@ -325,12 +325,12 @@ export class OrderService {
       if (order.payAmount > 0) {
         const refundUser = await tx.user.findUnique({
           where: { id: order.userId },
-          select: { balance: true, frozenBalance: true },
+          select: { balance: true, frozenBalance: true, consumeBalance: true },
         })
         if (refundUser) {
           await tx.user.update({
             where: { id: order.userId },
-            data: { balance: { increment: order.payAmount } },
+            data: { balance: { increment: order.payAmount }, consumeBalance: { decrement: order.payAmount } },
           })
           const newBalance = refundUser.balance + order.payAmount
           await tx.balanceRecord.create({
