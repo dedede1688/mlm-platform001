@@ -165,6 +165,22 @@ async function main() {
       content: '【敏维科技】{{userName}} 您好，您的提现申请 ¥{{amount}} 已审核{{status}}。{{reason}}',
       enabled: true,
     },
+    {
+      id: 'seed-tpl-general-in_app',
+      type: 'general',
+      channel: 'in_app',
+      subject: '通用通知',
+      content: '【敏维科技】{{userName}} 您好，{{content}}',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-announcement-in_app',
+      type: 'announcement',
+      channel: 'in_app',
+      subject: '系统公告',
+      content: '【敏维科技】系统公告：{{content}}',
+      enabled: true,
+    },
   ]
 
   for (const tpl of notificationTemplates) {

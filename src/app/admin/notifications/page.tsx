@@ -37,6 +37,8 @@ const TEMPLATE_TYPES = [
   { value: 'register_verify', label: '注册验证码' },
   { value: 'password_reset', label: '密码重置' },
   { value: 'withdrawal_result', label: '提现审核结果' },
+  { value: 'general', label: '通用通知' },
+  { value: 'announcement', label: '系统公告' },
 ] as const
 
 const CHANNELS = [
@@ -83,6 +85,13 @@ const TYPE_VARIABLES: Record<string, Array<{ key: string; label: string }>> = {
     { key: '{{status}}', label: '审核结果' },
     { key: '{{reason}}', label: '通用原因' },
     { key: '{{rejectReason}}', label: '拒绝原因' },
+  ],
+  general: [
+    { key: '{{userName}}', label: '用户姓名' },
+    { key: '{{content}}', label: '消息正文' },
+  ],
+  announcement: [
+    { key: '{{content}}', label: '公告内容' },
   ],
 }
 
