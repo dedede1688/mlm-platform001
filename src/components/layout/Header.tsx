@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Phone, ShoppingCart, LogOut } from 'lucide-react'
+import { Phone, ShoppingCart, LogOut, Bell } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/useAuthStore'
 
 interface PublicSettings {
@@ -32,6 +32,7 @@ export default function Header() {
   const [settings, setSettings] = useState<PublicSettings | null>(null)
   const [logoError, setLogoError] = useState(false)
   const [showPhone, setShowPhone] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const { user, logout, syncFromStorage } = useAuthStore()
 
   useEffect(() => {
@@ -58,10 +59,35 @@ export default function Header() {
     }
     window.addEventListener('auth-change', handleAuthChange)
 
+    // v46.8: 拉取未读通知数
+    const fetchUnread = () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+      fetch('/api/notifications/unread-count', {
+        cache: 'no-store',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.success && typeof data.data?.count === 'number') {
+            setUnreadCount(data.data.count)
+          }
+        })
+        .catch(() => {})
+    }
+    if (user) {
+      fetchUnread()
+      const interval = setInterval(fetchUnread, 30000)  // 每 30 秒刷新一次
+      return () => {
+        window.removeEventListener('auth-change', handleAuthChange)
+        clearInterval(interval)
+      }
+    }
+
     return () => {
       window.removeEventListener('auth-change', handleAuthChange)
     }
-  }, [syncFromStorage])
+  }, [syncFromStorage, user])
 
   const handleLogout = () => {
     logout()
@@ -135,6 +161,19 @@ export default function Header() {
           {/* 已登录 */}
           {user ? (
             <>
+              {/* v46.8: 通知铃铛入口 + 未读数 badge */}
+              <Link
+                href="/dashboard/notifications"
+                className="relative text-gray-500 hover:text-primary transition-colors p-1.5 rounded-full hover:bg-primary-50"
+                aria-label="通知"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
               <Link href="/dashboard" className="text-gray-600 hover:text-primary transition-colors font-medium hidden sm:inline">
                 个人中心
               </Link>
