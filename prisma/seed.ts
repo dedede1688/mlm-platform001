@@ -106,6 +106,76 @@ async function main() {
   }
 
   console.log(`业务配置创建完成（${businessConfigs.length} 项）`)
+
+  // ---- 通知模板种子 ----
+  const notificationTemplates = [
+    {
+      id: 'seed-tpl-order_paid-in_app',
+      type: 'order_paid',
+      channel: 'in_app',
+      subject: '订单支付成功',
+      content: '【敏维科技】您的订单 {{orderNo}} 已支付成功，实付金额 ¥{{payAmount}}，我们会尽快为您发货。',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-order_shipped-in_app',
+      type: 'order_shipped',
+      channel: 'in_app',
+      subject: '订单已发货',
+      content: '【敏维科技】您的订单 {{orderNo}} 已发货，物流单号 {{trackingNumber}}，请注意查收。',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-order_completed-in_app',
+      type: 'order_completed',
+      channel: 'in_app',
+      subject: '订单已完成',
+      content: '【敏维科技】您的订单 {{orderNo}} 已完成，感谢您的支持，欢迎再次光临。',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-order_cancelled-in_app',
+      type: 'order_cancelled',
+      channel: 'in_app',
+      subject: '订单已取消',
+      content: '【敏维科技】您的订单 {{orderNo}} 已取消，原因：{{reason}}。如有疑问请联系客服。',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-register_verify-in_app',
+      type: 'register_verify',
+      channel: 'in_app',
+      subject: '注册验证码',
+      content: '【敏维科技】您的注册验证码是 {{verifyCode}}，{{expireMinutes}} 分钟内有效，请勿泄露给他人。',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-password_reset-in_app',
+      type: 'password_reset',
+      channel: 'in_app',
+      subject: '密码重置',
+      content: '【敏维科技】{{userName}} 您好，您正在重置密码，点击链接完成重置：{{resetLink}}，{{expireMinutes}} 分钟内有效。',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-withdrawal_result-in_app',
+      type: 'withdrawal_result',
+      channel: 'in_app',
+      subject: '提现审核结果',
+      content: '【敏维科技】{{userName}} 您好，您的提现申请 ¥{{amount}} 已审核{{status}}。{{reason}}',
+      enabled: true,
+    },
+  ]
+
+  for (const tpl of notificationTemplates) {
+    await prisma.notificationTemplate.upsert({
+      where: { type_channel: { type: tpl.type, channel: tpl.channel } },
+      update: { content: tpl.content, subject: tpl.subject, enabled: tpl.enabled },
+      create: tpl,
+    })
+  }
+
+  console.log(`通知模板创建完成（${notificationTemplates.length} 个站内信模板）`)
   console.log('数据库初始化完成！')
 }
 

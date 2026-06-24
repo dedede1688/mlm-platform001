@@ -46,14 +46,44 @@ const CHANNELS = [
 ] as const
 
 // 每种模板类型可用的变量
-const TYPE_VARIABLES: Record<string, string[]> = {
-  order_paid: ['{{orderNo}}', '{{orderAmount}}', '{{payAmount}}', '{{userName}}'],
-  order_shipped: ['{{orderNo}}', '{{trackingNumber}}', '{{userName}}'],
-  order_completed: ['{{orderNo}}', '{{userName}}'],
-  order_cancelled: ['{{orderNo}}', '{{reason}}', '{{userName}}'],
-  register_verify: ['{{userName}}', '{{verifyCode}}', '{{expireMinutes}}'],
-  password_reset: ['{{userName}}', '{{resetLink}}', '{{expireMinutes}}'],
-  withdrawal_result: ['{{userName}}', '{{amount}}', '{{status}}', '{{reason}}', '{{rejectReason}}'],
+const TYPE_VARIABLES: Record<string, Array<{ key: string; label: string }>> = {
+  order_paid: [
+    { key: '{{orderNo}}', label: '订单号' },
+    { key: '{{orderAmount}}', label: '订单总金额' },
+    { key: '{{payAmount}}', label: '实付金额' },
+    { key: '{{userName}}', label: '用户姓名' },
+  ],
+  order_shipped: [
+    { key: '{{orderNo}}', label: '订单号' },
+    { key: '{{trackingNumber}}', label: '物流单号' },
+    { key: '{{userName}}', label: '用户姓名' },
+  ],
+  order_completed: [
+    { key: '{{orderNo}}', label: '订单号' },
+    { key: '{{userName}}', label: '用户姓名' },
+  ],
+  order_cancelled: [
+    { key: '{{orderNo}}', label: '订单号' },
+    { key: '{{reason}}', label: '取消原因' },
+    { key: '{{userName}}', label: '用户姓名' },
+  ],
+  register_verify: [
+    { key: '{{userName}}', label: '用户姓名' },
+    { key: '{{verifyCode}}', label: '验证码' },
+    { key: '{{expireMinutes}}', label: '过期分钟数' },
+  ],
+  password_reset: [
+    { key: '{{userName}}', label: '用户姓名' },
+    { key: '{{resetLink}}', label: '重置链接' },
+    { key: '{{expireMinutes}}', label: '过期分钟数' },
+  ],
+  withdrawal_result: [
+    { key: '{{userName}}', label: '用户姓名' },
+    { key: '{{amount}}', label: '提现金额' },
+    { key: '{{status}}', label: '审核结果' },
+    { key: '{{reason}}', label: '通用原因' },
+    { key: '{{rejectReason}}', label: '拒绝原因' },
+  ],
 }
 
 const defaultFormData: FormData = {
@@ -479,14 +509,16 @@ export default function AdminNotificationsPage() {
                   <div className="flex flex-wrap gap-2">
                     {availableVariables.map((v) => (
                       <button
-                        key={v}
+                        key={v.key}
                         type="button"
-                        onClick={() => handleInsertVariable(v)}
-                        className="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-700
+                        onClick={() => handleInsertVariable(v.key)}
+                        title={v.label}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700
                           rounded-md text-xs font-mono hover:bg-blue-50 hover:text-blue-700
                           transition-colors border border-gray-200"
                       >
-                        {v}
+                        <span>{v.key}</span>
+                        <span className="text-gray-400 font-sans text-[10px]">（{v.label}）</span>
                       </button>
                     ))}
                   </div>
