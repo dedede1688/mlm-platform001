@@ -1,4 +1,4 @@
-import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Network, Sliders, FileText } from 'lucide-react';
+import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Network, Sliders, FileText, Inbox } from 'lucide-react';
 
 export const MENU_ITEMS = [
   { id: 'dashboard', name: '仪表盘', path: '/admin', icon: LayoutDashboard },
@@ -12,6 +12,7 @@ export const MENU_ITEMS = [
   { id: 'finance', name: '财务管理', path: '/admin/finance', icon: DollarSign },
   { id: 'withdrawal-templates', name: '拒绝理由模板', path: '/admin/withdrawal-templates', icon: FileText },
   { id: 'notifications', name: '通知模板', path: '/admin/notifications', icon: Bell },
+  { id: 'notification-history', name: '通知发件箱', path: '/admin/notification-history', icon: Inbox },
   { id: 'settings', name: '系统设置', path: '/admin/settings', icon: Settings },
   { id: 'system-parameters', name: '系统参数', path: '/admin/settings/system-parameters', icon: Sliders },
 ];

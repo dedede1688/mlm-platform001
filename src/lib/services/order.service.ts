@@ -199,7 +199,7 @@ export class OrderService {
     const ue=paidOrder.user?.email;const up=paidOrder.user?.phone;const nv={orderNo:paidOrder.orderNo,orderAmount:paidOrder.totalAmount.toFixed(2),payAmount:paidOrder.payAmount.toFixed(2),userName:paidOrder.user?.nickname??paidOrder.user?.phone}
     if(ue)sendEmail({to:ue,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('邮件失败',{error:String(err)})})
     if(up)sendSms({to:up,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('短信失败',{error:String(err)})})
-    sendInApp({userId:paidOrder.userId,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('站内信失败',{error:String(err)})})
+    ;(async()=>{try{const b=await prisma.notificationBatch.create({data:{type:'business',title:'订单支付通知',content:'订单 '+paidOrder.orderNo+' 已支付',templateType:'order_paid',recipientCount:1,senderId:null}});await sendInApp({userId:paidOrder.userId,templateType:'order_paid',variables:nv,batchId:b.id})}catch(err){logger.error('站内信失败',{error:String(err)})}})()
     return paidOrder
   
   }
@@ -233,9 +233,7 @@ export class OrderService {
         logger.error('发送订单发货短信失败', { error: err instanceof Error ? err.message : String(err) })
       })
     }
-    sendInApp({ userId: order.userId, templateType: 'order_shipped', variables: notifyVars }).catch((err) => {
-      logger.error('发送订单发货站内信失败', { error: err instanceof Error ? err.message : String(err) })
-    })
+    ;(async()=>{try{const b=await prisma.notificationBatch.create({data:{type:'business',title:'订单发货通知',content:'订单 '+order.orderNo+' 已发货',templateType:'order_shipped',recipientCount:1,senderId:null}});await sendInApp({userId:order.userId,templateType:'order_shipped',variables:notifyVars,batchId:b.id})}catch(err){logger.error('发送订单发货站内信失败',{error:String(err)})}})()
 
     return order
   }
@@ -254,9 +252,7 @@ export class OrderService {
       orderNo: order.orderNo,
       userName: order.user?.nickname ?? order.user?.phone ?? '',
     }
-    sendInApp({ userId: order.userId, templateType: 'order_completed', variables: vars }).catch((err) => {
-      logger.error('发送订单完成站内信失败', { error: err instanceof Error ? err.message : String(err) })
-    })
+    ;(async()=>{try{const b=await prisma.notificationBatch.create({data:{type:'business',title:'订单完成通知',content:'订单 '+order.orderNo+' 已完成',templateType:'order_completed',recipientCount:1,senderId:null}});await sendInApp({userId:order.userId,templateType:'order_completed',variables:vars,batchId:b.id})}catch(err){logger.error('发送订单完成站内信失败',{error:String(err)})}})()
     return order
   }
 
@@ -448,9 +444,7 @@ export class OrderService {
         reason: '您主动取消',
         userName: cancelledOrder.user?.nickname ?? cancelledOrder.user?.phone ?? '',
       }
-      sendInApp({ userId: cancelledOrder.userId, templateType: 'order_cancelled', variables: vars }).catch((err) => {
-        logger.error('发送订单取消站内信失败', { error: err instanceof Error ? err.message : String(err) })
-      })
+      ;(async()=>{try{const b=await prisma.notificationBatch.create({data:{type:'business',title:'订单取消通知',content:'订单 '+cancelledOrder.orderNo+' 已取消',templateType:'order_cancelled',recipientCount:1,senderId:null}});await sendInApp({userId:cancelledOrder.userId,templateType:'order_cancelled',variables:vars,batchId:b.id})}catch(err){logger.error('发送订单取消站内信失败',{error:String(err)})}})()
     }
 
     return prisma.order.findUnique({ where: { id: orderId } })

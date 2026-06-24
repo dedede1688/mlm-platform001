@@ -44,6 +44,17 @@ export class NotificationService {
         : `您的提现申请 ¥${params.amount} 已被拒绝，原因：${params.rejectReason || '无'}`
     }
 
+    const batch = await prisma.notificationBatch.create({
+      data: {
+        type: 'business',
+        title,
+        content,
+        templateType: 'withdrawal_result',
+        recipientCount: 1,
+        senderId: null,
+      },
+    })
+
     return prisma.notification.create({
       data: {
         userId: params.userId,
@@ -52,6 +63,7 @@ export class NotificationService {
         content,
         sourceId: params.withdrawalId,
         sourceType: 'withdrawal',
+        batchId: batch.id,
       },
     })
   }

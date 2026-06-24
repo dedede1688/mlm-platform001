@@ -5,9 +5,11 @@ interface SendInAppParams {
   userId: string
   templateType: string
   variables: Record<string, string>
+  batchId?: string
+  senderId?: string
 }
 
-export async function sendInApp({ userId, templateType, variables }: SendInAppParams): Promise<boolean> {
+export async function sendInApp({ userId, templateType, variables, batchId, senderId }: SendInAppParams): Promise<boolean> {
   try {
     const template = await prisma.notificationTemplate.findUnique({
       where: { type_channel: { type: templateType, channel: 'in_app' } },
@@ -34,6 +36,8 @@ export async function sendInApp({ userId, templateType, variables }: SendInAppPa
         content,
         sourceType: templateType.split('_')[0],
         sourceId: null,
+        batchId: batchId ?? null,
+        senderId: senderId ?? null,
       },
     })
 

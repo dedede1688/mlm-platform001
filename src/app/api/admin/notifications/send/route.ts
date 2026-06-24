@@ -36,6 +36,17 @@ export async function POST(request: NextRequest) {
 
     const finalSubject = subject ?? template?.subject ?? (type === 'general' ? '通用通知' : '系统公告')
 
+    const batch = await prisma.notificationBatch.create({
+      data: {
+        type,
+        title: finalSubject,
+        content,
+        templateType: type,
+        recipientCount: targetUserIds.length,
+        senderId: admin.id,
+      },
+    })
+
     const data = targetUserIds.map((userId) => ({
       userId,
       type,
@@ -43,6 +54,8 @@ export async function POST(request: NextRequest) {
       content,
       sourceType: type,
       sourceId: null,
+      batchId: batch.id,
+      senderId: admin.id,
     }))
 
     const result = await prisma.notification.createMany({ data })

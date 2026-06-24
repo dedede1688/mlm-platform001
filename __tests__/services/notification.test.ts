@@ -9,7 +9,7 @@ vi.mock('@/lib/prisma', () => {
     update: vi.fn(),
     findUnique: vi.fn(),
   })
-  return { prisma: { notification: createMockChain(), notificationTemplate: createMockChain(), user: createMockChain() } }
+  return { prisma: { notification: createMockChain(), notificationTemplate: createMockChain(), notificationBatch: createMockChain(), user: createMockChain() } }
 })
 
 import { prisma } from '@/lib/prisma'
@@ -21,6 +21,7 @@ describe('NotificationService', () => {
   it('should send withdrawal approved notification with template', async () => {
     prisma.notificationTemplate.findUnique.mockResolvedValueOnce({ id: 't1', enabled: true, subject: '提现审核结果', content: '已审核{{status}}' })
     prisma.user.findUnique.mockResolvedValueOnce({ nickname: '张三', phone: '13800000001' })
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b1' })
     const notif = { id: 'n1', userId: 'u1', type: 'withdrawal_approved' }
     prisma.notification.create.mockResolvedValueOnce(notif)
     const result = await NotificationService.sendWithdrawalNotification({
@@ -28,13 +29,14 @@ describe('NotificationService', () => {
     })
     expect(result).toEqual(notif)
     expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ userId: 'u1', type: 'withdrawal_approved', title: '提现审核结果', content: '已审核通过' }),
+      data: expect.objectContaining({ userId: 'u1', type: 'withdrawal_approved', title: '提现审核结果', content: '已审核通过', batchId: 'b1' }),
     })
   })
 
   it('should send withdrawal rejected notification with template', async () => {
     prisma.notificationTemplate.findUnique.mockResolvedValueOnce({ id: 't1', enabled: true, subject: '提现审核结果', content: '已审核{{status}}' })
     prisma.user.findUnique.mockResolvedValueOnce({ nickname: '李四', phone: '13800000002' })
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b2' })
     const notif = { id: 'n2', userId: 'u1', type: 'withdrawal_rejected' }
     prisma.notification.create.mockResolvedValueOnce(notif)
     const result = await NotificationService.sendWithdrawalNotification({
@@ -42,12 +44,13 @@ describe('NotificationService', () => {
     })
     expect(result).toEqual(notif)
     expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ userId: 'u1', type: 'withdrawal_rejected', content: '已审核拒绝' }),
+      data: expect.objectContaining({ userId: 'u1', type: 'withdrawal_rejected', content: '已审核拒绝', batchId: 'b2' }),
     })
   })
 
   it('should fallback to hardcoded string when template not found', async () => {
     prisma.notificationTemplate.findUnique.mockResolvedValueOnce(null)
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b3' })
     const notif = { id: 'n3', userId: 'u1', type: 'withdrawal_approved' }
     prisma.notification.create.mockResolvedValueOnce(notif)
     const result = await NotificationService.sendWithdrawalNotification({
@@ -55,12 +58,13 @@ describe('NotificationService', () => {
     })
     expect(result).toEqual(notif)
     expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ title: '提现审核通过' }),
+      data: expect.objectContaining({ title: '提现审核通过', batchId: 'b3' }),
     })
   })
 
   it('should fallback when template is disabled', async () => {
     prisma.notificationTemplate.findUnique.mockResolvedValueOnce({ id: 't1', enabled: false })
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b4' })
     const notif = { id: 'n4', userId: 'u1', type: 'withdrawal_rejected' }
     prisma.notification.create.mockResolvedValueOnce(notif)
     const result = await NotificationService.sendWithdrawalNotification({
@@ -68,7 +72,7 @@ describe('NotificationService', () => {
     })
     expect(result).toEqual(notif)
     expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ title: '提现审核拒绝' }),
+      data: expect.objectContaining({ title: '提现审核拒绝', batchId: 'b4' }),
     })
   })
 

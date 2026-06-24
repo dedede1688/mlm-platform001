@@ -47,6 +47,8 @@ model User {
   withdrawals            Withdrawal[]
   refundRequests         RefundRequest[]
   notifications          Notification[]
+  sentNotifications      Notification[]  @relation("SentNotifications")
+  sentBatches            NotificationBatch[] @relation("SentBatches")
   paymentPasswordHash     String?   @map("payment_password_hash")   // v43-2: 支付密码 hash（bcryptjs）
   consumeBalance    Float   @default(0) @map("consume_balance")     // v43-7 Batch 2.2.a: 消费余额（来源：后台充值 + 退款）
   earningsPending   Float   @default(0) @map("earnings_pending")    // v43-7 Batch 2.2.a: 待结算收益
@@ -482,20 +484,47 @@ model WithdrawalAuditLog {
 }
 
 model Notification {
-  id         String    @id @default(uuid())
-  userId     String    @map("user_id")
-  type       String    @map("type")
+  id         String             @id @default(uuid())
+  userId     String             @map("user_id")
+  type       String             @map("type")
   title      String
   content    String
-  isRead     Boolean   @default(false) @map("is_read")
-  sourceId   String?   @map("source_id")
-  sourceType String?   @map("source_type")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isRead     Boolean            @default(false) @map("is_read")
+  sourceId   String?            @map("source_id")
+  sourceType String?            @map("source_type")
+  batchId    String?            @map("batch_id")
+  senderId   String?            @map("sender_id")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch      NotificationBatch? @relation(fields: [batchId], references: [id])
+  sender     User?              @relation("SentNotifications", fields: [senderId], references: [id])
 
   @@index([userId])
   @@index([isRead])
   @@index([type])
   @@index([createdAt])
+  @@index([batchId])
+  @@index([senderId])
   @@map("notifications")
+}
+
+model NotificationBatch {
+  id              String         @id @default(uuid())
+  type            String         @map("type")
+  title           String
+  content         String
+  senderId        String?        @map("sender_id")
+  recipientCount  Int            @default(0) @map("recipient_count")
+  readCount       Int            @default(0) @map("read_count")
+  status          String         @default("sent") @map("status")
+  templateType    String?        @map("template_type")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  sender          User?          @relation("SentBatches", fields: [senderId], references: [id])
+  notifications   Notification[]
+
+  @@index([type])
+  @@index([senderId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("notification_batches")
 }
