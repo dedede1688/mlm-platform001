@@ -40,7 +40,10 @@ export default function NotificationHistoryPage() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20' })
       if (typeFilter) params.set('type', typeFilter)
-      const res = await fetch(`/api/admin/notification-history?${params}`)
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+      const res = await fetch(`/api/admin/notification-history?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       const data = await res.json()
       if (data.success) {
         setBatches(data.data.batches)

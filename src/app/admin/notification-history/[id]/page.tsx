@@ -44,7 +44,10 @@ export default function BatchDetailPage() {
   async function fetchBatch() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/notification-history/${params.id}`)
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+      const res = await fetch(`/api/admin/notification-history/${params.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       const data = await res.json()
       if (data.success) {
         setBatch(data.data)
