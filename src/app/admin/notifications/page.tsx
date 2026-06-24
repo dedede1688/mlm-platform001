@@ -42,6 +42,7 @@ const TEMPLATE_TYPES = [
 const CHANNELS = [
   { value: 'email', label: '邮件' },
   { value: 'sms', label: '短信' },
+  { value: 'in_app', label: '站内信' },
 ] as const
 
 // 每种模板类型可用的变量
@@ -52,7 +53,7 @@ const TYPE_VARIABLES: Record<string, string[]> = {
   order_cancelled: ['{{orderNo}}', '{{reason}}', '{{userName}}'],
   register_verify: ['{{userName}}', '{{verifyCode}}', '{{expireMinutes}}'],
   password_reset: ['{{userName}}', '{{resetLink}}', '{{expireMinutes}}'],
-  withdrawal_result: ['{{userName}}', '{{amount}}', '{{status}}', '{{reason}}'],
+  withdrawal_result: ['{{userName}}', '{{amount}}', '{{status}}', '{{reason}}', '{{rejectReason}}'],
 }
 
 const defaultFormData: FormData = {
