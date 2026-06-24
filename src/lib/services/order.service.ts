@@ -3,6 +3,7 @@ import { RewardService } from './reward.service'
 import { ORDER_STATUS } from '@/lib/constants'
 import { sendEmail } from '@/lib/notification/sendEmail'
 import { sendSms } from '@/lib/notification/sendSms'
+import { sendInApp } from '@/lib/notification/sendInApp'
 import { logger } from '@/lib/logger'
 
 export class OrderService {
@@ -198,6 +199,7 @@ export class OrderService {
     const ue=paidOrder.user?.email;const up=paidOrder.user?.phone;const nv={orderNo:paidOrder.orderNo,orderAmount:paidOrder.totalAmount.toFixed(2),payAmount:paidOrder.payAmount.toFixed(2),userName:paidOrder.user?.nickname??paidOrder.user?.phone}
     if(ue)sendEmail({to:ue,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('邮件失败',{error:String(err)})})
     if(up)sendSms({to:up,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('短信失败',{error:String(err)})})
+    sendInApp({userId:paidOrder.userId,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('站内信失败',{error:String(err)})})
     return paidOrder
   
   }
@@ -231,19 +233,31 @@ export class OrderService {
         logger.error('发送订单发货短信失败', { error: err instanceof Error ? err.message : String(err) })
       })
     }
+    sendInApp({ userId: order.userId, templateType: 'order_shipped', variables: notifyVars }).catch((err) => {
+      logger.error('发送订单发货站内信失败', { error: err instanceof Error ? err.message : String(err) })
+    })
 
     return order
   }
 
   // 确认收货
   static async completeOrder(orderId: string) {
-    return prisma.order.update({
+    const order = await prisma.order.update({
       where: { id: orderId },
       data: {
         status: ORDER_STATUS.COMPLETED,
         completedAt: new Date(),
       },
+      include: { user: true },
     })
+    const vars = {
+      orderNo: order.orderNo,
+      userName: order.user?.nickname ?? order.user?.phone ?? '',
+    }
+    sendInApp({ userId: order.userId, templateType: 'order_completed', variables: vars }).catch((err) => {
+      logger.error('发送订单完成站内信失败', { error: err instanceof Error ? err.message : String(err) })
+    })
+    return order
   }
 
   // 自动确认收货（7天后）
@@ -426,6 +440,18 @@ export class OrderService {
         },
       })
     })
+
+    const cancelledOrder = await prisma.order.findUnique({ where: { id: orderId }, include: { user: true } })
+    if (cancelledOrder) {
+      const vars = {
+        orderNo: cancelledOrder.orderNo,
+        reason: '您主动取消',
+        userName: cancelledOrder.user?.nickname ?? cancelledOrder.user?.phone ?? '',
+      }
+      sendInApp({ userId: cancelledOrder.userId, templateType: 'order_cancelled', variables: vars }).catch((err) => {
+        logger.error('发送订单取消站内信失败', { error: err instanceof Error ? err.message : String(err) })
+      })
+    }
 
     return prisma.order.findUnique({ where: { id: orderId } })
   }

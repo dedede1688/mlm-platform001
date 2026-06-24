@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 校验渠道值
-    if (!['email', 'sms'].includes(channel)) {
+    if (!['email', 'sms', 'in_app'].includes(channel)) {
       return NextResponse.json(
-        { success: false, error: '渠道必须为 email 或 sms' },
+        { success: false, error: '渠道必须为 email、sms 或 in_app' },
         { status: 400 }
       )
     }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     })
     if (existing) {
       return NextResponse.json(
-        { success: false, error: `类型"${type}"的${channel === 'email' ? '邮件' : '短信'}模板已存在` },
+        { success: false, error: `类型"${type}"的${channel === 'email' ? '邮件' : channel === 'sms' ? '短信' : '站内信'}模板已存在` },
         { status: 400 }
       )
     }

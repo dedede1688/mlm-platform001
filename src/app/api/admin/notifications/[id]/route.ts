@@ -74,7 +74,7 @@ export async function PUT(
       })
       if (duplicate) {
         return NextResponse.json(
-          { success: false, error: `类型"${newType}"的${newChannel === 'email' ? '邮件' : '短信'}模板已存在` },
+          { success: false, error: `类型"${newType}"的${newChannel === 'email' ? '邮件' : newChannel === 'sms' ? '短信' : '站内信'}模板已存在` },
           { status: 400 }
         )
       }

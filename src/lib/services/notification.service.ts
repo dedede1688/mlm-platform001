@@ -1,5 +1,13 @@
 import { prisma } from '@/lib/prisma'
 
+function replaceVariables(template: string, variables: Record<string, string>): string {
+  let result = template
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replaceAll(`{{${key}}}`, value)
+  }
+  return result
+}
+
 export class NotificationService {
   static async sendWithdrawalNotification(params: {
     userId: string
@@ -8,15 +16,40 @@ export class NotificationService {
     amount: number
     rejectReason?: string
   }) {
-    const isApproved = params.type === 'withdrawal_approved'
+    const template = await prisma.notificationTemplate.findUnique({
+      where: { type_channel: { type: 'withdrawal_result', channel: 'in_app' } },
+    })
+
+    let title: string
+    let content: string
+
+    if (template && template.enabled) {
+      const status = params.type === 'withdrawal_approved' ? '通过' : '拒绝'
+      const reason = params.type === 'withdrawal_rejected' ? `原因：${params.rejectReason || '无'}` : ''
+      const user = await prisma.user.findUnique({ where: { id: params.userId }, select: { nickname: true, phone: true } })
+      const variables: Record<string, string> = {
+        userName: user?.nickname ?? user?.phone ?? '用户',
+        amount: params.amount.toFixed(2),
+        status,
+        reason,
+        rejectReason: params.rejectReason || '无',
+      }
+      title = replaceVariables(template.subject ?? '', variables)
+      content = replaceVariables(template.content, variables)
+    } else {
+      const isApproved = params.type === 'withdrawal_approved'
+      title = isApproved ? '提现审核通过' : '提现审核拒绝'
+      content = isApproved
+        ? `您的提现申请 ¥${params.amount} 已审核通过，请注意查收。`
+        : `您的提现申请 ¥${params.amount} 已被拒绝，原因：${params.rejectReason || '无'}`
+    }
+
     return prisma.notification.create({
       data: {
         userId: params.userId,
         type: params.type,
-        title: isApproved ? '提现审核通过' : '提现审核拒绝',
-        content: isApproved
-          ? `您的提现申请 ¥${params.amount} 已审核通过，请注意查收。`
-          : `您的提现申请 ¥${params.amount} 已被拒绝，原因：${params.rejectReason || '无'}`,
+        title,
+        content,
         sourceId: params.withdrawalId,
         sourceType: 'withdrawal',
       },
