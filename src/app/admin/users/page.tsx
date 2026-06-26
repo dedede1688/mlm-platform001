@@ -6,8 +6,10 @@ import { formatMoney } from '@/lib/utils/format'
 
 import {
   Users, Search, Loader2, ChevronLeft, ChevronRight,
-  X, Eye, Network, ChevronDown, ChevronUp, Wallet
+  X, Eye, Network, ChevronDown, ChevronUp, Wallet,
+  Lock, LockOpen, Download
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import ReferralTreePanel from '@/components/ReferralTreePanel'
 
 // ---- 类型定义 ----
@@ -33,6 +35,8 @@ interface UserRow {
   directSalesAmount: number
   directDistributorCount: number
   directReferralCount: number
+  orderCount: number
+  totalOrderAmount: number
   status: string
   role: string
   createdAt: string
@@ -114,6 +118,11 @@ export default function AdminUsersPage() {
   // 搜索与筛选
   const [search, setSearch] = useState('')
   const [filterLevel, setFilterLevel] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
 
 // 详情弹窗
 const [detailUser, setDetailUser] = useState<UserDetail | null>(null)
@@ -187,6 +196,11 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       params.set('pageSize', '10')
       if (search) params.set('search', search)
       if (filterLevel) params.set('level', filterLevel)
+      if (filterStatus) params.set('status', filterStatus)
+      if (startDate) params.set('startDate', startDate)
+      if (endDate) params.set('endDate', endDate)
+      params.set('sortBy', sortBy)
+      params.set('sortOrder', sortOrder)
       const res = await fetch(`/api/admin/users?${params}`, {
         headers: { Authorization: `Bearer ${authToken}` },
       })
@@ -198,7 +212,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       }
     } catch { showMessage('error', '获取会员列表失败') }
     finally { setLoading(false) }
-  }, [search, filterLevel])
+  }, [search, filterLevel, filterStatus, startDate, endDate, sortBy, sortOrder])
 
   const handleSearch = () => { if (token) fetchUsers(token, 1) }
   const handlePageChange = (p: number) => { if (token && p >= 1 && p <= pagination.totalPages) fetchUsers(token, p) }
@@ -406,7 +420,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
         )}
 
         {/* 工具栏 */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -414,11 +428,74 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                 placeholder="搜索手机号/昵称..."
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400" />
             </div>
-            <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)}
+            <select value={filterLevel} onChange={e => { setFilterLevel(e.target.value); if (token) fetchUsers(token, 1) }}
               className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 hover:border-gray-400">
               {LEVEL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
+            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); if (token) fetchUsers(token, 1) }}
+              className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 hover:border-gray-400">
+              <option value="">全部状态</option>
+              <option value="active">正常</option>
+              <option value="frozen">冻结</option>
+            </select>
             <button onClick={handleSearch} className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium whitespace-nowrap">搜索</button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">注册时间：</span>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <span className="text-gray-400">~</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">排序：</span>
+              <select value={`${sortBy}-${sortOrder}`} onChange={e => {
+                const [by, order] = e.target.value.split('-')
+                setSortBy(by)
+                setSortOrder(order)
+                if (token) fetchUsers(token, 1)
+              }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="createdAt-desc">注册时间↓</option>
+                <option value="createdAt-asc">注册时间↑</option>
+                <option value="balance-desc">余额↓</option>
+                <option value="balance-asc">余额↑</option>
+                <option value="level-desc">等级↓</option>
+                <option value="level-asc">等级↑</option>
+                <option value="directSalesAmount-desc">直推销售额↓</option>
+                <option value="directSalesAmount-asc">直推销售额↑</option>
+              </select>
+            </div>
+            <button onClick={() => {
+              const data = users.map(u => ({
+                手机号: u.phone,
+                昵称: u.nickname || '-',
+                推荐人: u.referrer ? `${u.referrer.nickname || '-'}(${u.referrer.phone.slice(-4)})` : '-',
+                等级: LEVEL_NAMES[u.level],
+                状态: u.status === 'active' ? '正常' : '冻结',
+                余额: u.balance,
+                冻结余额: u.frozenBalance,
+                消费余额: u.consumeBalance,
+                待结算: u.earningsPending,
+                可提现: u.earningsAvailable,
+                累计作废: u.earningsVoided,
+                总积分: u.totalPoints,
+                订单数: u.orderCount,
+                订单总额: u.totalOrderAmount,
+                直推人数: u.directReferralCount,
+                直推经销商: u.directDistributorCount,
+                注册时间: formatTime(u.createdAt),
+              }))
+              const ws = XLSX.utils.json_to_sheet(data)
+              const wb = XLSX.utils.book_new()
+              XLSX.utils.book_append_sheet(wb, ws, '会员列表')
+              XLSX.writeFile(wb, `会员列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
+            }} disabled={users.length === 0}
+              className="inline-flex items-center gap-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+              <Download className="w-4 h-4" />导出Excel
+            </button>
           </div>
         </div>
 
@@ -437,12 +514,17 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">昵称</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">推荐人</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">等级</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">状态</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">余额</th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">冻结余额</th>
                     <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">消费余额</th>
                     <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">待结算</th>
                     <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">可提现</th>
                     <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">累计作废</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">总积分</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">订单数</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">订单总额</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">直推人数</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">直推经销商</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">注册时间</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
@@ -474,16 +556,25 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                           </span>
                         )}
                       </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${u.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                          {u.status === 'active' ? '正常' : '冻结'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-700">¥{u.balance.toFixed(2)}</td>
+                      <td className="px-3 py-3 text-sm text-gray-500 text-right whitespace-nowrap">¥{formatMoney(u.frozenBalance)}</td>
                       <td className="px-3 py-3 text-sm text-gray-700 text-right whitespace-nowrap">¥{formatMoney(u.consumeBalance)}</td>
                       <td className="px-3 py-3 text-sm text-gray-500 text-right whitespace-nowrap">¥{formatMoney(u.earningsPending)}</td>
                       <td className="px-3 py-3 text-sm text-green-600 text-right whitespace-nowrap">¥{formatMoney(u.earningsAvailable)}</td>
                       <td className="px-3 py-3 text-sm text-red-600 text-right whitespace-nowrap">¥{formatMoney(u.earningsVoided)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{u.totalPoints}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{u.orderCount}单</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">¥{formatMoney(u.totalOrderAmount)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{u.directReferralCount}人</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{u.directDistributorCount}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{formatTime(u.createdAt)}</td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1 flex-wrap">
                           <button onClick={() => handleViewDetail(u.id)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
                             <Eye className="w-3.5 h-3.5" />详情
@@ -496,6 +587,17 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50 rounded-lg transition-colors font-medium">
                             <Wallet className="w-3.5 h-3.5" />流水
                           </Link>
+                          {u.status === 'active' ? (
+                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setNewStatus('frozen'); setOpenSections(prev => ({ ...prev, status: true })) }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
+                              <Lock className="w-3.5 h-3.5" />冻结
+                            </button>
+                          ) : (
+                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setNewStatus('active'); setOpenSections(prev => ({ ...prev, status: true })) }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors font-medium">
+                              <LockOpen className="w-3.5 h-3.5" />解冻
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -13,6 +13,11 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '20')))
     const levelParam = searchParams.get('level')?.trim() || ''
     const search = searchParams.get('search')?.trim() || ''
+    const statusParam = searchParams.get('status')?.trim() || ''
+    const startDate = searchParams.get('startDate')?.trim() || ''
+    const endDate = searchParams.get('endDate')?.trim() || ''
+    const sortBy = searchParams.get('sortBy')?.trim() || 'createdAt'
+    const sortOrder = searchParams.get('sortOrder')?.trim() || 'desc'
 
     // 构建查询条件
     const where: Record<string, unknown> = {
@@ -21,6 +26,22 @@ export async function GET(request: NextRequest) {
 
     if (levelParam !== '') {
       where.level = parseInt(levelParam)
+    }
+
+    // 状态筛选
+    if (statusParam && statusParam !== 'all') {
+      where.status = statusParam
+    }
+
+    // 注册时间范围筛选
+    if (startDate || endDate) {
+      where.createdAt = {}
+      if (startDate) {
+        (where.createdAt as Record<string, Date>).gte = new Date(startDate)
+      }
+      if (endDate) {
+        (where.createdAt as Record<string, Date>).lte = new Date(endDate + 'T23:59:59.999Z')
+      }
     }
 
     if (search) {
@@ -33,7 +54,7 @@ export async function GET(request: NextRequest) {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortBy]: sortOrder },
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: {
@@ -66,21 +87,30 @@ export async function GET(request: NextRequest) {
           _count: {
             select: { referrals: true },
           },
+          orders: {
+            where: { status: { in: ['paid', 'shipped', 'completed'] } },
+            select: { payAmount: true },
+          },
         },
       }),
       prisma.user.count({ where }),
     ])
 
     // 格式化返回数据
-    const data = users.map(u => ({
-      ...u,
-      referrer: u.referrer
-        ? { id: u.referrer.id, nickname: u.referrer.nickname, phone: u.referrer.phone }
-        : null,
-      directReferralCount: u._count.referrals,
-      _count: undefined,
-      referrerId: undefined,
-    }))
+    const data = users.map(u => {
+      const orderCount = u.orders?.length || 0
+      const totalOrderAmount = u.orders?.reduce((sum, o) => sum + (o.payAmount || 0), 0) || 0
+      const { orders, _count, referrerId, ...rest } = u
+      return {
+        ...rest,
+        referrer: u.referrer
+          ? { id: u.referrer.id, nickname: u.referrer.nickname, phone: u.referrer.phone }
+          : null,
+        directReferralCount: _count?.referrals || 0,
+        orderCount,
+        totalOrderAmount,
+      }
+    })
 
     return NextResponse.json({
       success: true,
