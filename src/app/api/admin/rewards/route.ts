@@ -209,7 +209,6 @@ function buildStats(
 ) {
   const stats: Record<string, { total: number; count: number }> = {
     referral: { total: 0, count: 0 },
-    team: { total: 0, count: 0 },
     brand_bonus: { total: 0, count: 0 },
     dividend: { total: 0, count: 0 },
   }

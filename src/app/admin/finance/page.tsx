@@ -163,14 +163,13 @@ export default function AdminFinancePage() {
   const [reviewRemark, setReviewRemark] = useState('')
 
   // 汇总统计
-  const [stats, setStats] = useState<{
-    referral: { total: number; count: number }
-    team: { total: number; count: number }
-    brand_bonus: { total: number; count: number }
-    dividend: { total: number; count: number }
-    grandTotal: number
-    grandCount: number
-  } | null>(null)
+const [stats, setStats] = useState<{
+  referral: { total: number; count: number }
+  brand_bonus: { total: number; count: number }
+  dividend: { total: number; count: number }
+  grandTotal: number
+  grandCount: number
+} | null>(null)
 
   // 获取 token
   useEffect(() => {
