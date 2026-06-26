@@ -525,3 +525,73 @@ rg -n "admin-menu" src/lib/admin-menu.ts
 - 派单存档 ≠ 完整设计 —— 派单存档写"页面存在"，但入口可能漏写
 - build 通过 ≠ 业务跑通 —— TypeScript 类型正确不等于功能正确，必须走通真实业务
 - 中间件拦截规则必须列清楚 —— 任何新建 admin 路由都要查 `pathRoleMap`，新建用户路由要知道 middleware 不鉴权，靠 API 自己 verifyToken
+
+
+### 铁律 9：useEffect 依赖 zustand store 函数引用会触发死循环（v46.10 实战总结，2026-06-26 写入）
+
+**核心教训**：`useEffect` 依赖中包含 zustand store 函数引用（如 `syncFromStorage`）会触发 **React error #185 (Maximum update depth exceeded)** 死循环，进而被 Next.js 兜底为 "client-side exception" error overlay。
+
+**v46.8 Header 铃铛真实事故**：
+
+```tsx
+// ❌ 错：依赖 [syncFromStorage, user]
+useEffect(() => {
+  syncFromStorage()  // 内部 set({ token, user }) 触发 zustand 更新
+  if (user) {
+    fetchUnread()
+    setInterval(fetchUnread, 30000)
+  }
+}, [syncFromStorage, user])
+
+// 死循环链路：
+// effect 跑 → syncFromStorage() → set({token, user}) → store 更新
+// → 组件重渲染 → effect 依赖变（user 引用变化）→ effect 重跑
+// → syncFromStorage() 再 set → 重渲染 → effect 重跑 → ... 死循环
+```
+
+**症状**（胡子哥看到的）：
+- `Minified React error #185` + `Maximum update depth exceeded`
+- Vercel 显示 `Application error: a client-side exception has occurred`
+- `/api/settings/public` 和 `/api/notifications/unread-count` 反复触发 500（effect 死循环中反复 fetch）
+
+**v46.10 修复**：
+
+```tsx
+// ✅ 对：拆成 2 个独立 effect + 用 getState() 拿稳定函数引用
+useEffect(() => {
+  // 只挂一次（空依赖）
+  const handleAuthChange = () => useAuthStore.getState().syncFromStorage()
+  window.addEventListener('auth-change', handleAuthChange)
+  return () => window.removeEventListener('auth-change', handleAuthChange)
+}, [])
+
+useEffect(() => {
+  // 只依赖 user?.id（原始值），不触发 store 更新
+  if (!user) return
+  fetchUnread()
+  const interval = setInterval(fetchUnread, 30000)
+  return () => clearInterval(interval)
+}, [user?.id])
+```
+
+**强制规则**：
+
+1. **`useEffect` 依赖不要放 zustand store 函数引用**（即使看起来"稳定"）
+2. **如果 effect 内部需要调 store action**，用 `useXxxStore.getState().action()` 拿函数（getState 永远稳定）
+3. **如果 effect 内部需要响应 store 状态变化**，依赖**原始值**（如 `user?.id`），不要依赖**对象引用**（如 `user`、`syncFromStorage`）
+4. **单 useEffect 内部不要有条件 return**（`if (user) return cleanup1; return cleanup2`），拆 effect
+5. **派单前自检**：新加 useEffect 的依赖数组有没有 store 函数引用 / 对象引用
+
+**v46.10 真实事故时间线**（30 分钟排查）：
+- T+0：胡子哥报 "Application error: a client-side exception" 截图
+- T+5：Playwright 访问首页 + /admin/notifications 一切正常（未登录态）
+- T+10：Playwright 登录测试账号 → console 抓 4 errors
+- T+15：识别 `Minified React error #185` + 两个 API 500
+- T+20：grep Header.tsx useEffect → 发现 [syncFromStorage, user] 依赖陷阱
+- T+25：mavis 自己改 + typecheck + push（commit `0748bf7`）
+- T+30：Playwright 重测 → console 0 errors + 铃铛+未读数 4 正常
+
+**教训**：
+- build 通过 ≠ 业务跑通
+- Playwright 抓 console 是定位"client-side exception"最有效的手段
+- 紧急 bug 修复可由 mavis 直接 commit（不走完整派单流程）
