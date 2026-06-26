@@ -145,6 +145,31 @@ export default function OrdersPage() {
     }
   }
 
+  // 取消订单
+  const handleCancel = async (orderId: string) => {
+    if (!token) return
+    // 二次确认
+    if (!window.confirm('确定要取消该订单吗？')) return
+    setActionLoading(orderId)
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        toast.success('订单已取消，如需购买请重新下单')
+        await fetchOrders(token)
+      } else {
+        const err = await res.json()
+        toast.error(err.error || '取消订单失败')
+      }
+    } catch {
+      toast.error('取消订单请求失败')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   // 筛选 + 分页
   const filtered = activeTab === 'all' ? orders : orders.filter((o) => o.status === activeTab)
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -235,6 +260,7 @@ export default function OrdersPage() {
                 order={order}
                 onPay={handlePay}
                 onConfirm={handleConfirm}
+                onCancel={handleCancel}
                 actionLoading={actionLoading}
                 formatDate={formatDate}
                 formatMoney={formatMoney}
@@ -287,6 +313,7 @@ function OrderCard({
   order,
   onPay,
   onConfirm,
+  onCancel,
   actionLoading,
   formatDate,
   formatMoney,
@@ -294,6 +321,7 @@ function OrderCard({
   order: Order
   onPay: (id: string) => void
   onConfirm: (id: string) => void
+  onCancel: (id: string) => void
   actionLoading: string | null
   formatDate: (s: string) => string
   formatMoney: (n: number) => string
@@ -353,13 +381,22 @@ function OrderCard({
             查看详情
           </Link>
           {order.status === 'pending' && (
-            <button
-              onClick={(e) => { e.preventDefault(); onPay(order.id) }}
-              disabled={actionLoading === order.id}
-              className="px-4 py-1.5 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors shadow-sm"
-            >
-              {actionLoading === order.id ? '支付中...' : '去支付'}
-            </button>
+            <>
+              <button
+                onClick={(e) => { e.preventDefault(); onCancel(order.id) }}
+                disabled={actionLoading === order.id}
+                className="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {actionLoading === order.id ? '处理中...' : '取消订单'}
+              </button>
+              <button
+                onClick={(e) => { e.preventDefault(); onPay(order.id) }}
+                disabled={actionLoading === order.id}
+                className="px-4 py-1.5 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {actionLoading === order.id ? '支付中...' : '去支付'}
+              </button>
+            </>
           )}
           {order.status === 'shipped' && (
             <button
