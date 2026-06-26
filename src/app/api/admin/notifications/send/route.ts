@@ -30,6 +30,25 @@ export async function POST(request: NextRequest) {
       targetUserIds = userIds
     }
 
+    // v46.9: 校验 userId 是否真实存在（防止传 "admin" 等昵称导致外键 500）
+    if (targetUserIds.length > 0) {
+      const existingUsers = await prisma.user.findMany({
+        where: { id: { in: targetUserIds } },
+        select: { id: true },
+      })
+      const existingIds = new Set(existingUsers.map((u) => u.id))
+      const invalidIds = targetUserIds.filter((id) => !existingIds.has(id))
+      if (invalidIds.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `收件人 userId 不存在（${invalidIds.length} 个）：${invalidIds.slice(0, 3).join(', ')}${invalidIds.length > 3 ? '...' : ''}。请到会员管理页面查看真实 UUID。`,
+          },
+          { status: 400 }
+        )
+      }
+    }
+
     const template = await prisma.notificationTemplate.findUnique({
       where: { type_channel: { type, channel: 'in_app' } },
     })

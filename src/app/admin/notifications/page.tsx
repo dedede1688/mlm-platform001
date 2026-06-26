@@ -702,7 +702,7 @@ export default function AdminNotificationsPage() {
               {sendType === 'general' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">收件人用户ID（每行一个）</label>
-                  <textarea value={sendUserIds} onChange={e => setSendUserIds(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 resize-none font-mono text-sm" rows={3} placeholder="每行一个用户ID，或用逗号分隔" />
+                  <textarea value={sendUserIds} onChange={e => setSendUserIds(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 resize-none font-mono text-sm" rows={3} placeholder="每行一个 UUID（例如：c5b3f7e2-1234-5678-9abc-def012345678），用换行或逗号分隔。可到 /admin/users 查看真实 userId。" />
                 </div>
               )}
               <div>

@@ -431,3 +431,97 @@ const paidOrder = await OrderService.payOrder(orderId)
 - **夸克**：正常
 - **遨游**：有 CSS 兼容问题（CSS Grid / 某些 flex 行为异常）
 - 胡子哥偏好深色导航栏 + 橙色主题（夸克风格）
+
+
+### 铁律 7：新建 admin 页面 fetch 必须含 Authorization header（v46.6 实战总结，2026-06-25 写入）
+
+**核心教训**：v46.5 新建 `src/app/admin/notification-history/page.tsx` 和 `[id]/page.tsx` 时，fetch **漏写了 `Authorization: Bearer ${token}` header**，结果：
+- middleware 拦截 `/api/admin/*` 路由强制要 Bearer token，没传就 401
+- 胡子哥看不到发件箱（"暂无发送记录"）
+- 排查 1 小时才定位（中间踩了 enum 中文/英文不一致、SQL JOIN 模拟查询的坑）
+
+**v46.6 修复**（commit `febe85f`）：
+- 两个 fetch 加 `headers: { Authorization: \`Bearer ${token}\` }`
+- token 从 `localStorage.getItem('token')` 拿
+
+**强制规则**：
+
+任何新建的 admin 页面 fetch 都**必须**包含：
+```typescript
+const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+const res = await fetch(`/api/admin/xxx`, {
+  headers: { Authorization: `Bearer ${token}` },
+})
+```
+
+**middleware 拦截点**（`src/middleware.ts`）：
+- 所有 `/api/admin/*` 路由强制要 Bearer token（line 75-87）
+- 401 时返回 `{ success: false, error: '未提供认证令牌' }` + `x-trace-id` header
+- 不传就 401，前端 catch 吞掉 → 显示"暂无数据"兜底文案
+
+**派单前必查清单**（v46.6+）：
+1. grep `src/app/admin/**/*.tsx` 的 fetch 调用
+2. grep `src/middleware.ts` 的 `pathRoleMap`，确认新建 API 路由角色映射
+3. 任何一个 fetch 漏 header → 整个页面 401
+
+**v46.5 真实事故时间线**（40 分钟排查）：
+- T+0：胡子哥发"发件箱空"截图
+- T+5：Mavis 指出"还没触发数据" → 让用户手动触发
+- T+15：胡子哥触发"通用通知"失败（userId 填错"admin"） → 改用"系统公告" → 成功
+- T+20：发件箱还是空 → 怀疑 API 查询 bug
+- T+30：SQL JOIN 模拟查 5 条 batch → 数据没问题
+- T+35：胡子哥抓 DevTools Console → 发现 401 + React hydration error #418
+- T+40：Mavis 读 middleware.ts → 发现是 Authorization header 漏写
+
+**教训**：下次 v46.5 风格的派单（新建 admin 页面），**派单前必须 grep fetch 鉴权 header 模式**，不能只看代码逻辑对不对。
+
+
+### 铁律 8：派单检查清单 —— "用户能完整看到" 6 步（v46.5/v46.6/v46.7/v46.8 实战总结，2026-06-25 写入）
+
+**核心教训**：v46.5 通知发件箱连续 4 个版本都有派单疏漏，全部是"用户根本看不到"的问题。
+
+**4 个真实事故时间线**（2026-06-24 至 2026-06-25 凌晨）：
+
+| 时间 | 版本 | 事故 | 排查耗时 | 修复 commit |
+|------|------|------|---------|------------|
+| 23:50 | v46.5 | 列表页/详情页 fetch 漏 Authorization: Bearer header → middleware 401 | 40 分钟 | v46.6 `febe85f` |
+| 02:35 | v46.6 | 用户端通知页面没顶栏入口 → 测试账号找不到通知 | 立即发现 | v46.8 `830c070` |
+| 02:40 | v46.7 | 业务触发 IIFE `(async()=>{...})()` 在 Vercel Serverless Function return 后被 GC 回收，batch.create 没真正执行 | 30 分钟 | v46.7 `aafcc40` |
+| 02:50 | v46.8 | `/api/notifications/unread-count` API 不存在 → Header 铃铛拉不到数据 | 立即修 | v46.8 `830c070` |
+
+**强制规则：v46.x+ 派单前 6 步检查清单**：
+
+1. **页面存在** —— grep `src/app/**/page.tsx`，确认每个新页面都有对应文件
+2. **页面有入口** —— admin 菜单（`src/lib/admin-menu.ts`）OR 顶栏铃铛（`src/components/layout/Header.tsx`）OR 侧边栏，**不能裸页面**
+3. **fetch 加 Authorization** —— grep `fetch('/api/admin/`，确认每个 fetch 都有 `headers: { Authorization: \`Bearer ${token}\` }`
+4. **异步操作必须 await** —— `(async()=>{...})()` 在 Vercel Serverless Function 会被 GC 回收，必须 `await (async()=>{...})()`
+5. **catch 块暴露错误** —— `console.error` + `logger.error` 双重保险，含 Prisma `code` + `meta`
+6. **业务链路真实跑通** —— 不只看 build + 代码，要走通真实业务流程（铁律 6）
+
+**派单前 grep 模板**：
+
+```bash
+# 1. fetch 鉴权 header 完整性
+rg -n "fetch\(`/api/admin/" src/app/admin/ --type tsx | rg -v "Authorization"
+
+# 2. IIFE 异步模式（在 Vercel 上会被 GC）
+rg -n "\(async\(\) => \{" src/lib/ --type ts
+
+# 3. 新建 API 路由的鉴权模式
+rg -n "verifyToken|verifyPermission" src/app/api/new-route/route.ts
+
+# 4. 新建页面的入口
+rg -n "admin-menu" src/lib/admin-menu.ts
+```
+
+**middleware 鉴权规则**（`src/middleware.ts`）：
+
+- 只对 `/api/admin/*` 路径强制 Bearer token 鉴权
+- 其他 API（`/api/notifications`、`/api/orders` 等）**不鉴权**，但代码里**要自己 verifyToken**
+- middleware **只为 `/api/admin/*` 注入 `x-user-id` header**，其他 API 路由**不能依赖 x-user-id**
+
+**经验教训**：
+
+- 派单存档 ≠ 完整设计 —— 派单存档写"页面存在"，但入口可能漏写
+- build 通过 ≠ 业务跑通 —— TypeScript 类型正确不等于功能正确，必须走通真实业务
+- 中间件拦截规则必须列清楚 —— 任何新建 admin 路由都要查 `pathRoleMap`，新建用户路由要知道 middleware 不鉴权，靠 API 自己 verifyToken
