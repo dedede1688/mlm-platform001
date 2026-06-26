@@ -50,6 +50,9 @@ export default function Header() {
         setSettings(defaultSettings)
       })
 
+    // v46.10.1: mount 时立即从 localStorage 同步登录状态（修复刷新页面后 Header 不知道已登录）
+    useAuthStore.getState().syncFromStorage()
+
     // 监听同页面登录/退出事件（只挂一次）
     const handleAuthChange = () => {
       useAuthStore.getState().syncFromStorage()
