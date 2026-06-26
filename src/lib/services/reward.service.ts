@@ -376,7 +376,6 @@ export class RewardService {
       totalAmount,
       referralTotal,
       brandBonusTotal,
-      teamTotal: 0,
       dividendTotal,
       totalCount: paidRewards.length + dividends.length,
     }

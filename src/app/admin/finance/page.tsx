@@ -514,16 +514,11 @@ export default function AdminFinancePage() {
           <>
             {/* 汇总统计卡片 */}
             {stats && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500">
                   <p className="text-xs text-gray-500 mb-1">直推奖</p>
                   <p className="text-lg font-bold text-gray-900">¥{stats.referral.total.toFixed(2)}</p>
                   <p className="text-xs text-gray-400">{stats.referral.count} 笔</p>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-indigo-500">
-                  <p className="text-xs text-gray-500 mb-1">团队奖</p>
-                  <p className="text-lg font-bold text-gray-900">¥{stats.team.total.toFixed(2)}</p>
-                  <p className="text-xs text-gray-400">{stats.team.count} 笔</p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500">
                   <p className="text-xs text-gray-500 mb-1">品牌管理奖</p>
