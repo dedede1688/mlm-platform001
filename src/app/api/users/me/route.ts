@@ -71,7 +71,8 @@ export async function GET(request: NextRequest) {
         parentId: user.parentId,
         directDistributorCount: actualDistributorCount,
         directSalesAmount: user.directSalesAmount,
-        upgradeProductCount: user.upgradeProductCount,
+        upgradeProductCount: user.upgradeProductCount ?? 0,
+        hasUpgradeProduct: (user.upgradeProductCount ?? 0) >= 1, // v50 E: 会员双轨制派生字段
         hasPaymentPassword: !!user.paymentPasswordHash, // v43-4: 前端判断设置/修改模式
         referrals: user.referrals,
         createdAt: user.createdAt,

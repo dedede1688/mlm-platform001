@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
-  TrendingUp, Award, Clock, MapPin, ShieldCheck
+  TrendingUp, Award, Clock, MapPin, ShieldCheck,
+  CheckCircle2, Lock
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 
@@ -26,6 +27,8 @@ interface UserInfo {
   unlockedPoints: number
   lockedPoints: number
   directDistributorCount: number
+  upgradeProductCount: number
+  hasUpgradeProduct: boolean
 }
 
 // ---- 等级配置 ----
@@ -358,6 +361,54 @@ export default function DashboardPage() {
                   color="text-secondary bg-amber-50"
                 />
               </div>
+            </div>
+
+            {/* v50 E: 会员身份双轨制卡片 */}
+            <div className="card-base p-4 sm:p-5 mb-4 sm:mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">会员身份</h3>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  user.hasUpgradeProduct ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {user.hasUpgradeProduct ? '✅ 已解锁' : '🔒 未解锁'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-gray-700">会员价购物</span>
+                  <span className="text-xs text-green-600 font-medium ml-auto">已开通</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {user.hasUpgradeProduct ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Lock className="w-4 h-4 text-gray-400" />
+                  )}
+                  <span className="text-sm text-gray-700">推荐奖 20%</span>
+                  <span className={`text-xs font-medium ml-auto ${
+                    user.hasUpgradeProduct ? 'text-green-600' : 'text-gray-400'
+                  }`}>
+                    {user.hasUpgradeProduct ? '已解锁' : '未解锁'}
+                  </span>
+                </div>
+              </div>
+
+              {!user.hasUpgradeProduct && (
+                <Link
+                  href="/products?category=upgrade"
+                  className="block w-full text-center bg-gradient-to-r from-orange-500 to-amber-500 text-white py-2.5 rounded-lg text-sm font-medium hover:from-orange-600 hover:to-amber-600 transition-all"
+                >
+                  💡 购买 1 件升级品即可解锁推荐奖
+                </Link>
+              )}
+
+              {user.hasUpgradeProduct && (
+                <p className="text-xs text-gray-500 text-center">
+                  ✅ 推荐奖已解锁，推荐好友下单即可获得 20% 推荐奖
+                </p>
+              )}
             </div>
 
             {/* 等级信息 */}
