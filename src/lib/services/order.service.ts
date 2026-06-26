@@ -582,4 +582,59 @@ export class OrderService {
       }
     })()
   }
+
+  // v46.11: 抽公共方法 - 余额变动通知（给 admin/users/[id]/balance 路由调用）
+  static async notifyBalanceChange(params: {
+    userId: string
+    adjustType: string  // balance / frozenBalance / recharge / consume_void / earnings_add / earnings_void
+    amount: number
+    newBalance: number
+    reason: string
+    operatorId?: string
+  }) {
+    const typeLabelMap: Record<string, string> = {
+      balance: '余额调账',
+      frozenBalance: '冻结余额调账',
+      recharge: '充值',
+      consume_void: '消费余额作废',
+      earnings_add: '收益到账',
+      earnings_void: '收益作废',
+    }
+    const changeType = typeLabelMap[params.adjustType] || params.adjustType
+    const sign = params.amount > 0 ? '+' : ''
+    const variables = {
+      changeType,
+      changeAmount: `${sign}${params.amount.toFixed(2)}`,
+      newBalance: params.newBalance.toFixed(2),
+      reason: params.reason,
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '账户余额变动通知',
+            content: `${changeType} ¥${variables.changeAmount}，当前余额 ¥${variables.newBalance}`,
+            templateType: 'balance_change',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'balance_change',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v46.11 notifyBalanceChange]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('余额变动通知失败', { error: String(err) })
+      }
+    })()
+  }
 }

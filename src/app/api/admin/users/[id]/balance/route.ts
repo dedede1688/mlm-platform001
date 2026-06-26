@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderService } from '@/lib/services/order.service'
 
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
 type AdjustType = typeof VALID_TYPES[number]
@@ -136,6 +137,16 @@ export async function POST(
       newValue: { [result.mapping.main]: result.updated[result.mapping.main] },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
+    })
+
+    // v46.11: 触发余额变动通知（修复调账路由没调 sendInApp 的死代码问题）
+    await OrderService.notifyBalanceChange({
+      userId: id,
+      adjustType: type as string,
+      amount,
+      newBalance: result.updated.balance,
+      reason: reason.trim(),
+      operatorId: admin.id,
     })
 
     const fieldLabel = result.mapping.label
