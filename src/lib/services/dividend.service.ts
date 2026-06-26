@@ -63,12 +63,43 @@ export class DividendService {
         },
       })
 
-      // 3. 计算分红池（已支付订单总额的5%）
+      // 3. v50 B: 计算总订单金额 + 5 级独立池（替代 v1 单池累加算法）
       const totalOrderAmount = paidOrders.reduce((sum, order) => sum + order.payAmount, 0)
-      const dividendRate = await getBusinessConfig<number>('dividend.director.rate', 0.05)
-      const dividendPool = Math.round(totalOrderAmount * dividendRate * 100) / 100
 
-      if (dividendPool <= 0) {
+      // 读取 5 个独立池比例
+      const [
+        directorRate, managerRate, supervisorRate, presidentRate, boardRate,
+      ] = await Promise.all([
+        getBusinessConfig<number>('dividend.director.rate', 0.05),
+        getBusinessConfig<number>('dividend.manager.rate', 0.05),
+        getBusinessConfig<number>('dividend.supervisor.rate', 0.05),
+        getBusinessConfig<number>('dividend.president.rate', 0.05),
+        getBusinessConfig<number>('dividend.board.rate', 0.05),
+      ])
+
+      // 读取 5 个 include_upstream 开关
+      const [
+        directorInclude, managerInclude, supervisorInclude, presidentInclude, boardInclude,
+      ] = await Promise.all([
+        getBusinessConfig<boolean>('dividend.director.include_upstream', false),
+        getBusinessConfig<boolean>('dividend.manager.include_upstream', false),
+        getBusinessConfig<boolean>('dividend.supervisor.include_upstream', false),
+        getBusinessConfig<boolean>('dividend.president.include_upstream', false),
+        getBusinessConfig<boolean>('dividend.board.include_upstream', false),
+      ])
+
+      // 5 级独立池总额（v2: 每级算自己的池，不累加）
+      const poolsTotal: Record<number, number> = {
+        3: Math.round(totalOrderAmount * directorRate * 100) / 100,
+        4: Math.round(totalOrderAmount * managerRate * 100) / 100,
+        5: Math.round(totalOrderAmount * supervisorRate * 100) / 100,
+        6: Math.round(totalOrderAmount * presidentRate * 100) / 100,
+        7: Math.round(totalOrderAmount * boardRate * 100) / 100,
+      }
+
+      const totalDividendPool = Object.values(poolsTotal).reduce((sum, v) => sum + v, 0)
+
+      if (totalDividendPool <= 0) {
         return {
           dividendPool: 0,
           totalOrders: paidOrders.length,
@@ -98,7 +129,7 @@ export class DividendService {
 
       if (eligibleUsers.length === 0) {
         return {
-          dividendPool,
+          dividendPool: totalDividendPool,
           totalOrders: paidOrders.length,
           totalOrderAmount,
           eligibleUsers: 0,
@@ -108,52 +139,69 @@ export class DividendService {
         }
       }
 
-      // 5. 按等级分组统计人数
-      const levelCounts = new Map<number, number>()
-      for (const user of eligibleUsers) {
-        levelCounts.set(user.level, (levelCounts.get(user.level) || 0) + 1)
+      console.log(`[分红结算 v2] 5级独立池总额: ¥${totalDividendPool}, 参与用户: ${eligibleUsers.length}人`)
+
+      // 5. v50 B: 5 级独立池分配算法（替代 v1 累加算法）
+      // 每个池独立计算：pool_total = totalOrderAmount × rate
+      // include_upstream=true 时，本级 + 更高级（不含董事，董事池独占）参与平分
+      // 用户可同时拿多个池的分红（如总监 S 可同时拿主任池+经理池+总监池+董事池）
+      const poolConfig: Record<number, { total: number; includeUpstream: boolean }> = {
+        3: { total: poolsTotal[3], includeUpstream: directorInclude },
+        4: { total: poolsTotal[4], includeUpstream: managerInclude },
+        5: { total: poolsTotal[5], includeUpstream: supervisorInclude },
+        6: { total: poolsTotal[6], includeUpstream: presidentInclude },
+        7: { total: poolsTotal[7], includeUpstream: boardInclude },
       }
 
-      console.log(`[分红结算] 分红池: ¥${dividendPool}, 参与用户: ${eligibleUsers.length}人`)
-      console.log(`[分红结算] 等级分布:`, Object.fromEntries(levelCounts))
+      // 用户累计分红：{ userId: { level: perPerson } }
+      const userDividends: Record<string, Record<number, number>> = {}
 
-      // 6. 累加分配算法
-      // 算法说明：
-      //   设各级别人数为 Z(主任), M(经理), D(总监), P(总裁), B(董事)
-      //   主任每人分红 = 分红池 / (Z + M + D + P + B)
-      //   经理每人分红 = 主任分红 + 分红池 / (M + D + P + B)
-      //   总监每人分红 = 经理分红 + 分红池 / (D + P + B)
-      //   总裁每人分红 = 总监分红 + 分红池 / (P + B)
-      //   董事每人分红 = 总裁分红 + 分红池 / B
+      // 按从高到低处理（董事→总裁→总监→经理→主任）
+      for (const level of [7, 6, 5, 4, 3]) {
+        const config = poolConfig[level]
+        if (config.total <= 0) continue
 
-      const levelDividendPerPerson = new Map<number, number>()
-      let cumulativeDividend = 0
-
-      for (const level of this.DIVIDEND_LEVELS) {
-        // 计算该级别及以上的人数总和
-        let countAbove = 0
-        for (const [l, count] of levelCounts) {
-          if (l >= level) {
-            countAbove += count
+        let eligibleLevels: number[]
+        if (level === 7) {
+          // 董事池永远只覆盖董事
+          eligibleLevels = [7]
+        } else if (config.includeUpstream) {
+          // 包含上级：本级 + 更高级（不含董事，因为董事池独占）
+          eligibleLevels = []
+          for (let l = level; l <= 6; l++) {
+            eligibleLevels.push(l)
           }
+        } else {
+          // 仅本级
+          eligibleLevels = [level]
         }
 
-        if (countAbove > 0) {
-          const levelShare = dividendPool / countAbove
-          cumulativeDividend += levelShare
-          levelDividendPerPerson.set(level, Math.round(cumulativeDividend * 100) / 100)
+        const candidates = eligibleUsers.filter(u => eligibleLevels.includes(u.level))
+        if (candidates.length === 0) continue
+
+        const perPerson = Math.round((config.total / candidates.length) * 100) / 100
+
+        for (const user of candidates) {
+          if (!userDividends[user.id]) userDividends[user.id] = {}
+          userDividends[user.id][level] = perPerson
         }
       }
 
-      console.log('[分红结算] 各级别每人分红:', Object.fromEntries(levelDividendPerPerson))
+      // 6. 计算每个用户的总分红（多个池的 perPerson 之和）
+      const userTotalDividends: Record<string, number> = {}
+      for (const [userId, levelMap] of Object.entries(userDividends)) {
+        userTotalDividends[userId] = Math.round(Object.values(levelMap).reduce((sum, amt) => sum + amt, 0) * 100) / 100
+      }
+
+      console.log('[分红结算 v2] 用户分红明细:', userTotalDividends)
 
       // 7. 获取一个订单ID用于分红记录关联（取第一个已支付订单）
       const referenceOrderId = paidOrders.length > 0 ? paidOrders[0].id : ''
 
-      // 8. 为每个用户创建分红记录并更新余额
+      // 8. 为每个用户创建分红记录并更新余额（v50 B: 用 userTotalDividends 替代 levelDividendPerPerson）
       const details = []
       for (const user of eligibleUsers) {
-        const dividendAmount = levelDividendPerPerson.get(user.level) || 0
+        const dividendAmount = userTotalDividends[user.id] || 0
 
         if (dividendAmount > 0) {
           // 查询用户当前余额（事务内）
@@ -169,7 +217,7 @@ export class DividendService {
               orderId: referenceOrderId,
               amount: dividendAmount,
               userLevel: user.level,
-              totalPool: dividendPool,
+              totalPool: totalDividendPool,
               dividendDate: new Date(),
             },
           })
@@ -197,7 +245,7 @@ export class DividendService {
               amount: +dividendAmount,
               balance: currentUser!.balance + dividendAmount,
               frozenBalance: currentUser!.frozenBalance,
-              description: `每日分红结算，发放 ¥${dividendAmount}，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}`,
+              description: `每日分红结算（v2 5级独立池），发放 ¥${dividendAmount}，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}`,
             },
           })
 
@@ -224,13 +272,13 @@ export class DividendService {
       }
 
       return {
-        dividendPool,
+        dividendPool: totalDividendPool,
         totalOrders: paidOrders.length,
         totalOrderAmount,
         eligibleUsers: eligibleUsers.length,
         distributedUsers: details.length,
         details,
-        message: '分红结算成功',
+        message: '分红结算成功（v2 5级独立池）',
       }
     })
   }
