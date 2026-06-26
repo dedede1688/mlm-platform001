@@ -641,9 +641,9 @@ const [treeUserName, setTreeUserName] = useState<string>('')
 
       {/* 详情弹窗 */}
       {detailUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[5vh]">
           <div className="absolute inset-0 bg-black/50" onClick={() => setDetailUser(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto">
             {/* 标题 */}
             <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between rounded-t-2xl z-10">
               <h2 className="text-lg font-semibold text-gray-900">会员详情</h2>
