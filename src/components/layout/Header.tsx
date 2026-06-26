@@ -50,16 +50,21 @@ export default function Header() {
         setSettings(defaultSettings)
       })
 
-    // 从 localStorage 同步登录状态
-    syncFromStorage()
-
-    // 监听同页面登录/退出事件
+    // 监听同页面登录/退出事件（只挂一次）
     const handleAuthChange = () => {
-      syncFromStorage()
+      useAuthStore.getState().syncFromStorage()
     }
     window.addEventListener('auth-change', handleAuthChange)
 
-    // v46.8: 拉取未读通知数
+    return () => {
+      window.removeEventListener('auth-change', handleAuthChange)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // v46.10: 拉取未读通知数（独立 effect，避免与 syncFromStorage 互相触发死循环）
+  useEffect(() => {
+    if (!user) return
     const fetchUnread = () => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
       fetch('/api/notifications/unread-count', {
@@ -75,19 +80,11 @@ export default function Header() {
         })
         .catch(() => {})
     }
-    if (user) {
-      fetchUnread()
-      const interval = setInterval(fetchUnread, 30000)  // 每 30 秒刷新一次
-      return () => {
-        window.removeEventListener('auth-change', handleAuthChange)
-        clearInterval(interval)
-      }
-    }
-
-    return () => {
-      window.removeEventListener('auth-change', handleAuthChange)
-    }
-  }, [syncFromStorage, user])
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 30000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const handleLogout = () => {
     logout()
