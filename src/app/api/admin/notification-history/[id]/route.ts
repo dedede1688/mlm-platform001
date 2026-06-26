@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ['super_admin', 'support_admin'])
     if (authError || !admin) return authError!
 
     const { id } = await params

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
     if (authError || !admin) return authError!
 
     const body = await request.json()

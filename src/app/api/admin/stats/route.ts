@@ -62,7 +62,7 @@ interface StatsData {
 
 export async function GET(request: NextRequest) {
   // 权限校验
-  const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+  const { user: admin, error: authError } = await verifyPermission(request, ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'])
   if (authError || !admin) return authError!
 
   try {

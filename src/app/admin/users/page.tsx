@@ -548,7 +548,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {u.role === 'admin' || u.role === 'super_admin' ? (
+                        {u.role === 'super_admin' || u.role === 'goods_admin' || u.role === 'finance_admin' || u.role === 'support_admin' || u.role === 'auditor' ? (
                           <span className="text-gray-400">-</span>
                         ) : (
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[u.level] || 'bg-gray-100 text-gray-500'}`}>

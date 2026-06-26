@@ -27,7 +27,7 @@ export async function GET(
     }
 
     // 检查权限
-    if (order.userId !== user.userId && user.role !== 'admin') {
+    if (order.userId !== user.userId && !['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor'].includes(user.role || '')) {
       return NextResponse.json(
         { error: '无权查看' },
         { status: 403 }

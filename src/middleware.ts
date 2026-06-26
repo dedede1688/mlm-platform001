@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // ---- 路径与所需角色映射 ----
 
 const pathRoleMap: Record<string, string[]> = {
-  '/api/admin/orders': ['super_admin', 'goods_admin', 'support_admin'],
+  '/api/admin/orders': ['super_admin', 'goods_admin'],
   '/api/admin/products': ['super_admin', 'goods_admin'],
   '/api/admin/categories': ['super_admin', 'goods_admin'],
   '/api/admin/banners': ['super_admin', 'goods_admin'],
@@ -15,10 +15,10 @@ const pathRoleMap: Record<string, string[]> = {
   '/api/admin/settle-dividends': ['super_admin', 'finance_admin'],
   '/api/admin/manual-reward': ['super_admin', 'finance_admin'],
   '/api/admin/rewards': ['super_admin', 'finance_admin', 'auditor'],
-  '/api/admin/statistics': ['super_admin', 'finance_admin', 'auditor'],
-  '/api/admin/stats': ['super_admin', 'finance_admin', 'auditor'],
+  '/api/admin/statistics': ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor'],
+  '/api/admin/stats': ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'],
   '/api/admin/logs': ['super_admin', 'auditor'],
-  '/api/admin/notifications': ['super_admin', 'support_admin'],
+  '/api/admin/notifications': ['super_admin'],
 }
 
 // ---- 辅助函数 ----

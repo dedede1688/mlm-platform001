@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 // GET /api/admin/refunds — 获取退款申请列表
 export async function GET(request: NextRequest) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ['super_admin', 'finance_admin'])
     if (authError || !admin) return authError!
 
     const { searchParams } = new URL(request.url)

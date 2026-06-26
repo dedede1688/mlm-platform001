@@ -60,7 +60,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+  const { user: admin, error: authError } = await verifyPermission(request, ['super_admin', 'support_admin'])
   if (authError || !admin) return authError!
 
   // v38: 缓存检查

@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 // GET /api/admin/notifications — 获取所有通知模板
 export async function GET(request: NextRequest) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
     if (authError || !admin) return authError!
 
     const templates = await prisma.notificationTemplate.findMany({
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/notifications — 创建通知模板
 export async function POST(request: NextRequest) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
     if (authError || !admin) return authError!
 
     const body = await request.json()

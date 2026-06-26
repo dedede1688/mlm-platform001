@@ -132,7 +132,7 @@ export async function GET(
       )
     }
 
-    if (order.userId !== user.userId && user.role !== 'admin') {
+    if (order.userId !== user.userId && !['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor'].includes(user.role || '')) {
       return NextResponse.json(
         { success: false, error: '无权查看' },
         { status: 403 }

@@ -13,7 +13,7 @@ interface TrendItem {
 // ---- GET /api/admin/stats/trend?days=7 ----
 
 export async function GET(request: NextRequest) {
-  const { user: admin, error: authError } = await verifyPermission(request, ['admin', 'super_admin'])
+  const { user: admin, error: authError } = await verifyPermission(request, ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'])
   if (authError || !admin) return authError!
 
   try {
