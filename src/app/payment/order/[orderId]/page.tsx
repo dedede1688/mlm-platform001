@@ -8,6 +8,7 @@ import {
   Loader2, Shield, Lock
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
+import { toast } from '@/components/ToastProvider'
 
 // ---- 类型 ----
 
@@ -124,6 +125,10 @@ export default function PaymentPage() {
       })
       const data = await res.json()
       if (res.ok && data.success) {
+        // v50 F：检查推荐奖未解锁提示
+        if (data.data?.unlockRequired && data.data?.unlockAmount) {
+          toast.warning(`您还未购买升级品，本次推荐奖 ¥${data.data.unlockAmount.toFixed(2)} 未发放。购买升级品即可解锁。`)
+        }
         setPaySuccess(true)
         setTimeout(() => {
           router.push(`/dashboard/orders/${order.id}`)

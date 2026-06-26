@@ -273,6 +273,12 @@ export default function ProductDetailPage() {
         return null
       }
 
+      // v50 F：检查推荐奖未解锁提示
+      const verifyData = await verifyRes.json()
+      if (verifyData.data?.unlockRequired && verifyData.data?.unlockAmount) {
+        toast.warning(`您还未购买升级品，本次推荐奖 ¥${verifyData.data.unlockAmount.toFixed(2)} 未发放。购买升级品即可解锁。`)
+      }
+
       // 3. 成功：关闭弹窗 + 跳转订单详情
       setCheckoutOpen(false)
       toast.success('购买成功！')

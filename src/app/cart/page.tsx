@@ -227,6 +227,13 @@ export default function CartPage() {
     }
 
     // 3. 成功：删除购物车项 + 跳转订单详情
+    const verifyData = await verifyRes.json()
+
+    // v50 F：检查推荐奖未解锁提示
+    if (verifyData.data?.unlockRequired && verifyData.data?.unlockAmount) {
+      toast.warning(`您还未购买升级品，本次推荐奖 ¥${verifyData.data.unlockAmount.toFixed(2)} 未发放。购买升级品即可解锁。`)
+    }
+
     await fetch(`/api/cart/${checkoutItem.id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },

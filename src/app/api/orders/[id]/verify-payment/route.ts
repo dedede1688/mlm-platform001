@@ -124,13 +124,19 @@ export async function POST(
     })
 
     // 触发奖励发放（直接调 RewardService，避免 payOrder 重复 update status 失败）
-    await RewardService.processOrderRewards(orderId)
+    const rewardResult = await RewardService.processOrderRewards(orderId)
 
     // v46.10.3: 触发订单支付通知（修复 verify-payment 不调 payOrder 导致的 IIFE 死代码）
     await OrderService.notifyOrderPaid(orderId)
 
     return successResponse(
-      { orderId, status: 'paid' },
+      {
+        orderId,
+        status: 'paid',
+        // v50 F: 透传推荐奖未解锁信号，前端据此弹 Toast 提示用户购买升级品
+        unlockRequired: rewardResult?.referralUnlockRequired ?? false,
+        unlockAmount: rewardResult?.referralUnlockAmount,
+      },
       '支付成功'
     )
   } catch (error: any) {

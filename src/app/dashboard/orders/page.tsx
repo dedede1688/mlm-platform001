@@ -112,6 +112,10 @@ export default function OrdersPage() {
       const data = await res.json()
       if (data.success) {
         toast.success('支付成功')
+        // v50 F：检查推荐奖未解锁提示
+        if (data.data?.unlockRequired && data.data?.unlockAmount) {
+          toast.warning(`您还未购买升级品，本次推荐奖 ¥${data.data.unlockAmount.toFixed(2)} 未发放。购买升级品即可解锁。`)
+        }
         await fetchOrders(token)
       } else {
         toast.error(data.message || '支付失败')

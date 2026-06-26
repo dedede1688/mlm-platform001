@@ -51,7 +51,7 @@ function computeMaxLayers(referrer: { level: number; directDistributorCount: num
 }
 
 export class RewardService {
-  static async createReferralReward(orderId: string, orderAmount: number, referrerId: string, fromUserId: string) {
+  static async createReferralReward(orderId: string, orderAmount: number, referrerId: string, fromUserId: string): Promise<{ unlockRequired: boolean; amount?: number }> {
     const rate = await getBusinessConfig<number>('reward.referral_rate', 0.20)
 
     const referrer = await prisma.user.findUnique({
@@ -60,7 +60,7 @@ export class RewardService {
     })
     if (!referrer || referrer.upgradeProductCount < 1) {
       logger.info(`直推奖未发放：推荐人 ${referrerId} 未购买升级品，订单 ${orderId}`)
-      return
+      return { unlockRequired: true, amount: orderAmount * rate }
     }
 
     const amount = orderAmount * rate
@@ -103,6 +103,8 @@ export class RewardService {
         })
       }
     })
+
+    return { unlockRequired: false, amount }
   }
 
   static async createBrandBonusReward(orderId: string, orderAmount: number, buyerId: string, referrerId: string) {
@@ -278,7 +280,7 @@ export class RewardService {
     }
   }
 
-  static async processOrderRewards(orderId: string) {
+  static async processOrderRewards(orderId: string): Promise<{ referralUnlockRequired?: boolean; referralUnlockAmount?: number }> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -289,7 +291,7 @@ export class RewardService {
       },
     })
 
-    if (!order || order.status !== 'paid') return
+    if (!order || order.status !== 'paid') return {}
 
     const buyer = order.user
     const orderAmount = order.payAmount
@@ -297,8 +299,9 @@ export class RewardService {
       (item: { product: { isUpgradeProduct: boolean } }) => item.product.isUpgradeProduct
     )
 
+    let referralResult: { unlockRequired: boolean; amount?: number } | undefined
     if (buyer.referrerId) {
-      await this.createReferralReward(orderId, orderAmount, buyer.referrerId, buyer.id)
+      referralResult = await this.createReferralReward(orderId, orderAmount, buyer.referrerId, buyer.id)
     }
 
     if (buyer.referrerId && !hasUpgradeProduct) {
@@ -308,6 +311,11 @@ export class RewardService {
     await this.createDividendReward(orderId, orderAmount, buyer.id)
 
     await this.checkUpgradeFromOrder(buyer.id, order)
+
+    return {
+      referralUnlockRequired: referralResult?.unlockRequired,
+      referralUnlockAmount: referralResult?.unlockRequired ? referralResult.amount : undefined,
+    }
   }
 
   static async checkUpgradeFromOrder(userId: string, order: { items: Array<{ product: { isUpgradeProduct: boolean }; quantity: number }>; payAmount: number }) {
