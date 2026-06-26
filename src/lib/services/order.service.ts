@@ -499,4 +499,87 @@ export class OrderService {
       },
     })
   }
+
+  // v46.10.3: 抽公共方法 - 订单支付通知（给 verify-payment 路由调用，修复死代码）
+  static async notifyOrderPaid(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: true },
+    })
+    if (!order) return
+    const nv = {
+      orderNo: order.orderNo,
+      orderAmount: order.totalAmount.toFixed(2),
+      payAmount: order.payAmount.toFixed(2),
+      userName: order.user?.nickname ?? order.user?.phone,
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '订单支付通知',
+            content: '订单 ' + order.orderNo + ' 已支付',
+            templateType: 'order_paid',
+            recipientCount: 1,
+            senderId: null,
+          },
+        })
+        await sendInApp({
+          userId: order.userId,
+          templateType: 'order_paid',
+          variables: nv,
+          batchId: b.id,
+        })
+      } catch (err) {
+        console.error('[v46.10.3 notifyOrderPaid]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('站内信失败', { error: String(err) })
+      }
+    })()
+  }
+
+  // v46.10.3: 抽公共方法 - 订单发货通知（给 admin/orders 路由调用，修复死代码）
+  static async notifyOrderShipped(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: true },
+    })
+    if (!order) return
+    const notifyVars = {
+      orderNo: order.orderNo,
+      trackingNumber: (order as any).trackingNumber || '',
+      userName: order.user?.nickname ?? order.user?.phone,
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '订单发货通知',
+            content: '订单 ' + order.orderNo + ' 已发货',
+            templateType: 'order_shipped',
+            recipientCount: 1,
+            senderId: null,
+          },
+        })
+        await sendInApp({
+          userId: order.userId,
+          templateType: 'order_shipped',
+          variables: notifyVars,
+          batchId: b.id,
+        })
+      } catch (err) {
+        console.error('[v46.10.3 notifyOrderShipped]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('发货通知失败', { error: String(err) })
+      }
+    })()
+  }
 }
