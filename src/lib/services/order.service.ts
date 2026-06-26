@@ -637,4 +637,92 @@ export class OrderService {
       }
     })()
   }
+
+  // v46.12: 抽公共方法 - 退款审核通知（admin 通过/拒绝退款申请时触发）
+  static async notifyRefundReview(params: {
+    userId: string
+    refundId: string
+    action: 'approve' | 'reject'
+    adminComment?: string
+    operatorId?: string
+  }) {
+    const result = params.action === 'approve' ? '通过' : '拒绝'
+    const variables: Record<string, string> = {
+      result,
+      refundId: params.refundId,
+      refundReason: params.action === 'reject' && params.adminComment
+        ? `，原因：${params.adminComment}`
+        : '',
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: `退款审核${result}通知`,
+            content: `退款申请已${result}${variables.refundReason}`,
+            templateType: 'refund_review',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'refund_review',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v46.12 notifyRefundReview]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('退款审核通知失败', { error: String(err) })
+      }
+    })()
+  }
+
+  // v46.12: 抽公共方法 - 退款完成通知（admin 确认退款完成时触发）
+  static async notifyRefundCompleted(params: {
+    userId: string
+    orderId: string
+    orderNo: string
+    amount: number
+    operatorId?: string
+  }) {
+    const variables = {
+      orderNo: params.orderNo,
+      amount: params.amount.toFixed(2),
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '退款完成通知',
+            content: `订单 ${params.orderNo} 退款 ¥${params.amount.toFixed(2)} 已完成`,
+            templateType: 'refund_completed',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'refund_completed',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v46.12 notifyRefundCompleted]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('退款完成通知失败', { error: String(err) })
+      }
+    })()
+  }
 }

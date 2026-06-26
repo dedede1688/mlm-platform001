@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderService } from '@/lib/services/order.service'
 
 // PATCH /api/admin/refunds/[id]/review — 审核退款申请（通过/拒绝）
 export async function PATCH(
@@ -61,6 +62,15 @@ export async function PATCH(
       newValue: { status: newStatus, adminComment: adminComment?.trim() || null },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
+    })
+
+    // v46.12: 触发退款审核通知（修复 review 路由没调 sendInApp 的死代码）
+    await OrderService.notifyRefundReview({
+      userId: refundRequest.userId,
+      refundId: id,
+      action,
+      adminComment: adminComment?.trim(),
+      operatorId: admin.id,
     })
 
     return NextResponse.json({

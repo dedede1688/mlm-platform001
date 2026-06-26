@@ -56,6 +56,21 @@ export async function PATCH(
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
+    // v46.12: 触发退款完成通知（修复 complete 路由 + requestRefund 都没调 sendInApp 的死代码）
+    const refundOrder = await prisma.order.findUnique({
+      where: { id: refundRequest.orderId },
+      select: { orderNo: true, userId: true, payAmount: true },
+    })
+    if (refundOrder) {
+      await OrderService.notifyRefundCompleted({
+        userId: refundOrder.userId,
+        orderId: refundRequest.orderId,
+        orderNo: refundOrder.orderNo,
+        amount: refundOrder.payAmount,
+        operatorId: admin.id,
+      })
+    }
+
     return NextResponse.json({
       success: true,
       data: updated,
