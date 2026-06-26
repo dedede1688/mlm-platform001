@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
       where: {
         userId: auth.userId,
         ...(type && { type }),
+        // v50 O: 过滤掉已退款的奖励记录（退款时 reward.service 已标记 status='refunded'）
+        status: { not: 'refunded' },
       },
       include: {
         order: {
