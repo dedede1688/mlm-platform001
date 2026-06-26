@@ -16,7 +16,7 @@ interface PublicSettings {
   copyright: string
 }
 
-const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'goods_admin', 'goods_manager', 'finance_admin', 'finance_viewer', 'order_manager', 'user_manager', 'support_admin', 'auditor']
+const ALL_ADMIN_ROLES = ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor']
 
 const defaultSettings: PublicSettings = {
   siteName: '敏维科技',

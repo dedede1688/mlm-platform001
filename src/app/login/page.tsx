@@ -59,7 +59,7 @@ function LoginForm() {
         
         // 跳转：优先 redirect 参数，否则管理员跳 /admin，普通用户跳 /dashboard
         const userRole = data.data.user?.role || ''
-        const adminRoles = ['super_admin', 'admin', 'goods_manager', 'order_manager', 'user_manager', 'finance_viewer']
+        const adminRoles = ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor']
         if (redirectUrl) {
           router.push(redirectUrl)
         } else if (adminRoles.includes(userRole)) {

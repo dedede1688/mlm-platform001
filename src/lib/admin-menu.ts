@@ -18,11 +18,26 @@ export const MENU_ITEMS = [
 ];
 
 export const ROLE_MENUS: Record<string, string[]> = {
+  // 超级管理员：全部菜单
   super_admin: MENU_ITEMS.map(item => item.id),
-  admin: MENU_ITEMS.map(item => item.id),
-  goods_manager: ['dashboard', 'categories', 'products'],
-  order_manager: ['dashboard', 'orders'],
-  user_manager: ['dashboard', 'users', 'referral-tree'],
-  finance_viewer: ['dashboard', 'finance'],
-  finance_admin: ['dashboard', 'finance', 'withdrawal-templates'],
+
+  // 商品管理员：商品/订单/分类/轮播图
+  goods_admin: [
+    'dashboard', 'banners', 'categories', 'products', 'orders'
+  ],
+
+  // 财务管理员：财务/提现/退款
+  finance_admin: [
+    'dashboard', 'finance', 'withdrawal-templates', 'refunds'
+  ],
+
+  // 客服管理员：用户/推荐树/通知发件箱
+  support_admin: [
+    'dashboard', 'users', 'referral-tree', 'notification-history'
+  ],
+
+  // 审计员：只看仪表盘和日志（只读）
+  auditor: [
+    'dashboard', 'logs'
+  ],
 };
