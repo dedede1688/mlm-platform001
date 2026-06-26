@@ -166,6 +166,14 @@ async function main() {
       enabled: true,
     },
     {
+      id: 'seed-tpl-refund_submitted-in_app',
+      type: 'refund_submitted',
+      channel: 'in_app',
+      subject: '退款申请已提交',
+      content: '【敏维科技】{{userName}} 您好，您的订单 {{orderNo}} 退款申请已提交，金额 ¥{{amount}}，等待管理员审核。',
+      enabled: true,
+    },
+    {
       id: 'seed-tpl-general-in_app',
       type: 'general',
       channel: 'in_app',

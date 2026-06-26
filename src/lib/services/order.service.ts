@@ -810,4 +810,50 @@ export class OrderService {
       }
     })()
   }
+
+  // v50 M: 用户提交退款申请时发站内信通知（补全退款流程第 1 个节点）
+  static async notifyRefundSubmitted(params: {
+    userId: string
+    refundId: string
+    orderId: string
+    orderNo: string
+    amount: number
+  }) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: params.userId },
+        select: { nickname: true, phone: true },
+      })
+      const userName = user?.nickname || user?.phone || '用户'
+
+      const batch = await prisma.notificationBatch.create({
+        data: {
+          type: 'business',
+          title: '退款申请已提交',
+          content: `订单 ${params.orderNo} 退款申请已提交，等待审核`,
+          templateType: 'refund_submitted',
+          recipientCount: 1,
+          senderId: null,
+        },
+      })
+
+      await sendInApp({
+        userId: params.userId,
+        templateType: 'refund_submitted',
+        variables: {
+          userName,
+          orderNo: params.orderNo,
+          amount: params.amount.toFixed(2),
+        },
+        batchId: batch.id,
+      })
+    } catch (err) {
+      console.error('[v50 M notifyRefundSubmitted]', {
+        error: String(err),
+        code: (err as any)?.code,
+        meta: (err as any)?.meta,
+      })
+      logger.error('发送退款申请站内信失败', { error: String(err) })
+    }
+  }
 }

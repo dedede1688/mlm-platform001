@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { OrderService } from '@/lib/services/order.service'
 
 // POST /api/orders/[id]/refund — 用户申请退款
 export async function POST(
@@ -89,6 +90,19 @@ export async function POST(
         images: images && images.length > 0 ? images : Prisma.JsonNull,
         status: 'pending',
       },
+    })
+
+    // v50 M: 触发退款申请通知（补全退款流程第 1 个节点通知）
+    const orderForNotify = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { orderNo: true },
+    })
+    await OrderService.notifyRefundSubmitted({
+      userId: user.userId,
+      refundId: refundRequest.id,
+      orderId,
+      orderNo: orderForNotify?.orderNo || orderId,
+      amount: order.payAmount,
     })
 
     return NextResponse.json({
