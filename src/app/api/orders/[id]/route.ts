@@ -47,48 +47,46 @@ export async function GET(
   }
 }
 
-// 支付订单
+// 支付订单（v50.1-K：强制支付密码校验，路由层只做校验+调Service）
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
+  const orderId = (await params).id
   try {
     const user = await verifyToken(request)
     if (!user) {
       return NextResponse.json(
-        { error: '未登录' },
+        { success: false, error: '未登录' },
         { status: 401 }
       )
     }
 
-    const order = await OrderService.getOrderDetail(id)
+    const body = await request.json()
+    const { password } = body as { password: string }
 
-    if (!order) {
+    if (!password) {
       return NextResponse.json(
-        { error: '订单不存在' },
-        { status: 404 }
+        { success: false, error: '请输入支付密码' },
+        { status: 400 }
       )
     }
 
-    if (order.userId !== user.userId) {
-      return NextResponse.json(
-        { error: '无权操作' },
-        { status: 403 }
-      )
-    }
-
-    const updatedOrder = await OrderService.payOrder(id)
+    // 业务逻辑全部走Service
+    const updatedOrder = await OrderService.verifyPayment(orderId, password)
 
     return NextResponse.json({
       success: true,
       data: updatedOrder,
+      message: '支付成功',
     })
   } catch (error: any) {
     console.error('Pay order error:', error)
+    const msg = error.message || '支付失败'
+    const status = msg === '支付密码错误' ? 401 : 500
     return NextResponse.json(
-      { error: '支付失败' },
-      { status: 500 }
+      { success: false, error: msg },
+      { status }
     )
   }
 }

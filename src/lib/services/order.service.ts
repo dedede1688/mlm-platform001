@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/notification/sendEmail'
 import { sendSms } from '@/lib/notification/sendSms'
 import { sendInApp } from '@/lib/notification/sendInApp'
 import { logger } from '@/lib/logger'
+import { verifyPaymentPassword } from '@/lib/auth/payment-password'
 
 export class OrderService {
   // 创建订单（一单一品一件）
@@ -201,7 +202,91 @@ export class OrderService {
     if(up)sendSms({to:up,templateType:'order_paid',variables:nv}).catch(function(err){logger.error('短信失败',{error:String(err)})})
     await (async()=>{try{const b=await prisma.notificationBatch.create({data:{type:'business',title:'订单支付通知',content:'订单 '+paidOrder.orderNo+' 已支付',templateType:'order_paid',recipientCount:1,senderId:null}});await sendInApp({userId:paidOrder.userId,templateType:'order_paid',variables:nv,batchId:b.id})}catch(err){console.error('[v46.7 站内信失败 payOrder]',{error:String(err),code:(err as any)?.code,meta:(err as any)?.meta});logger.error('站内信失败',{error:String(err)})}})()
     return paidOrder
-  
+  }
+
+  // 验证支付密码并支付订单（v50.1-K：统一支付密码校验入口）
+  static async verifyPayment(orderId: string, password: string) {
+    // 查订单
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+    })
+    if (!order) throw new Error('订单不存在')
+    if (order.status !== ORDER_STATUS.PENDING) throw new Error('订单不存在或状态已变更')
+
+    // 查用户支付密码hash
+    const pwUser = await prisma.user.findUnique({
+      where: { id: order.userId },
+      select: { paymentPasswordHash: true },
+    })
+
+    const pwHash = pwUser?.paymentPasswordHash
+    if (!pwHash) throw new Error('尚未设置支付密码，请先设置')
+
+    // 校验支付密码
+    const valid = await verifyPaymentPassword(password, pwHash)
+    if (!valid) throw new Error('支付密码错误')
+
+    // 事务：标记订单为已支付 + 扣减余额 + 写balance_record
+    const paidOrder = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: { id: orderId, status: ORDER_STATUS.PENDING },
+        data: {
+          status: ORDER_STATUS.PAID,
+          paymentVerified: true,
+          paidAt: new Date(),
+        },
+      })
+      if (updated.count === 0) throw new Error('订单不存在或状态已变更')
+
+      if (order.payAmount > 0) {
+        const freshUser = await tx.user.findUnique({
+          where: { id: order.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+        if (!freshUser) throw new Error('用户不存在')
+
+        const balanceUpdated = await tx.user.updateMany({
+          where: {
+            id: order.userId,
+            balance: { gte: order.payAmount },
+          },
+          data: {
+            balance: { decrement: order.payAmount },
+            consumeBalance: { increment: order.payAmount },
+          },
+        })
+        if (balanceUpdated.count === 0) throw new Error('可用余额不足')
+
+        const newBalance = freshUser.balance - order.payAmount
+        await tx.balanceRecord.create({
+          data: {
+            userId: order.userId,
+            type: 'payment',
+            amount: -order.payAmount,
+            balance: newBalance,
+            frozenBalance: freshUser.frozenBalance,
+            sourceType: 'order',
+            sourceId: orderId,
+            description: `订单 ${order.orderNo} 支付`,
+          },
+        })
+      }
+
+      return await tx.order.findUnique({
+        where: { id: orderId },
+        include: { user: true, items: { include: { product: true } } },
+      })
+    })
+
+    if (!paidOrder) throw new Error('订单不存在')
+
+    // 触发奖励发放
+    await RewardService.processOrderRewards(orderId)
+
+    // 触发订单支付通知
+    await this.notifyOrderPaid(orderId)
+
+    return paidOrder
   }
 
 // 发货
