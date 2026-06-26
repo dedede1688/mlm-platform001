@@ -1,6 +1,7 @@
 import { PointsService } from '@/lib/services/points.service'
 import { logger } from '@/lib/logger'
 import { DividendService } from '@/lib/services/dividend.service'
+import { OrderService } from '@/lib/services/order.service'
 
 // 每日任务
 export async function runDailyTasks() {
@@ -9,7 +10,7 @@ export async function runDailyTasks() {
   logger.info('  时间:', { time: new Date().toLocaleString('zh-CN') })
   logger.info('========================================\n')
 
-  const results: { pointsUnlock?: { success: boolean; count?: number; error?: string }; dividendSettle?: { success: boolean; data?: unknown; error?: string } } = {}
+  const results: { pointsUnlock?: { success: boolean; count?: number; error?: string }; dividendSettle?: { success: boolean; data?: unknown; error?: string }; autoCompleteOrders?: { success: boolean; count?: number; error?: string } } = {}
 
   try {
     // 1. 执行积分解锁
@@ -29,6 +30,16 @@ export async function runDailyTasks() {
   } catch (error) {
     logger.error('❌ 分红结算失败', { error: error instanceof Error ? error.message : String(error) })
     results.dividendSettle = { success: false, error: error instanceof Error ? error.message : '未知错误' }
+  }
+
+  // 3. v50 L: 自动确认收货
+  try {
+    const autoCompletedCount = await OrderService.autoCompleteOrders()
+    logger.info(`✅ 自动确认收货完成: ${autoCompletedCount} 个订单已处理`)
+    results.autoCompleteOrders = { success: true, count: autoCompletedCount }
+  } catch (error) {
+    logger.error('❌ 自动确认收货失败', { error: error instanceof Error ? error.message : String(error) })
+    results.autoCompleteOrders = { success: false, error: error instanceof Error ? error.message : '未知错误' }
   }
 
   logger.info('\n========================================')

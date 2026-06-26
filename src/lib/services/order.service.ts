@@ -6,6 +6,7 @@ import { sendSms } from '@/lib/notification/sendSms'
 import { sendInApp } from '@/lib/notification/sendInApp'
 import { logger } from '@/lib/logger'
 import { verifyPaymentPassword } from '@/lib/auth/payment-password'
+import { getSystemParameter } from '@/lib/config/system-parameters'
 
 export class OrderService {
   // 创建订单（一单一品一件）
@@ -341,16 +342,17 @@ export class OrderService {
     return order
   }
 
-  // 自动确认收货（7天后）
+  // 自动确认收货（v50 L: 用 system-parameters 替换硬编码 7 天）
   static async autoCompleteOrders() {
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const autoConfirmDays = Number(await getSystemParameter('auto_confirm_days'))
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - autoConfirmDays)
 
     const orders = await prisma.order.findMany({
       where: {
         status: ORDER_STATUS.SHIPPED,
         shippedAt: {
-          lte: sevenDaysAgo,
+          lte: cutoffDate,
         },
       },
     })
