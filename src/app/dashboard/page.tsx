@@ -54,6 +54,8 @@ export default function DashboardPage() {
   const [totalRewards, setTotalRewards] = useState(0)
   const [teamCount, setTeamCount] = useState(0)
   const [pendingOrders, setPendingOrders] = useState(0)
+  const [referralRate, setReferralRate] = useState(0.20)
+  const [brandBonusRate, setBrandBonusRate] = useState(0.20)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -78,6 +80,9 @@ export default function DashboardPage() {
         const data = await userRes.value.json()
         if (data.success) {
           setUser(data.data)
+          // v50 G: 动态百分比
+          if (data.data.referralRate !== undefined) setReferralRate(data.data.referralRate)
+          if (data.data.brandBonusRate !== undefined) setBrandBonusRate(data.data.brandBonusRate)
         } else {
           localStorage.removeItem('token')
           router.push('/login')
@@ -428,8 +433,8 @@ export default function DashboardPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {[
-                      { lv: 1, name: '会员', desc: '会员价购物、推荐奖20%' },
-                      { lv: 2, name: '经销商', desc: '+品牌管理奖20%、购物积分' },
+                      { lv: 1, name: '会员', desc: `会员价购物、推荐奖${(referralRate * 100).toFixed(0)}%` },
+                      { lv: 2, name: '经销商', desc: `+品牌管理奖${(brandBonusRate * 100).toFixed(0)}%、购物积分` },
                       { lv: 3, name: '主任', desc: '+分红奖5%资格' },
                       { lv: 7, name: '董事', desc: '最高等级、全部权益' },
                     ].map((row) => (

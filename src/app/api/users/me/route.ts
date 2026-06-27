@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
+import { getBusinessConfig } from '@/lib/config/business'
 
 // 获取当前用户信息
 export async function GET(request: NextRequest) {
@@ -34,6 +35,10 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       )
     }
+
+    // v50 G: 读取动态百分比（与 service 层一致，有 60s 缓存）
+    const referralRate = await getBusinessConfig<number>('reward.referral_rate', 0.20)
+    const brandBonusRate = await getBusinessConfig<number>('reward.brand_bonus_rate', 0.20)
 
     // 实时校正直推经销商数量（防止字段与实际不一致）
     const actualDistributorCount = await prisma.user.count({
@@ -76,6 +81,9 @@ export async function GET(request: NextRequest) {
         hasPaymentPassword: !!user.paymentPasswordHash, // v43-4: 前端判断设置/修改模式
         referrals: user.referrals,
         createdAt: user.createdAt,
+        // v50 G: 等级 desc 动态百分比
+        referralRate,
+        brandBonusRate,
       },
     })
   } catch (error) {
