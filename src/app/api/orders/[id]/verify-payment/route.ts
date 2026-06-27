@@ -5,6 +5,7 @@ import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPaymentPassword } from '@/lib/auth/payment-password'
 import { RewardService } from '@/lib/services/reward.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { invalidateCache } from '@/lib/utils/stats-cache'
 import { ORDER_STATUS } from '@/lib/constants'
 
 // POST /api/orders/[id]/verify-payment — 验证支付密码 + 标记已支付
@@ -15,6 +16,7 @@ export async function POST(
   const orderId = (await params).id
 
   try {
+    invalidateCache('admin-stats')  // v51.5: 支付成功后 stats 失效
     const user = await verifyToken(request)
     if (!user) {
       return errorResponse('未登录', 401)

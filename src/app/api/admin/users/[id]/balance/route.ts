@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { invalidateCache } from '@/lib/utils/stats-cache'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
@@ -37,6 +38,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    invalidateCache('admin-stats')  // v51.5: 调账后 stats 失效
     const { user: admin, error: authError } = await verifyPermission(
       request, ['support_admin', 'super_admin']
     )

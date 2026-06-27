@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { invalidateCache } from '@/lib/utils/stats-cache'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
@@ -12,6 +13,7 @@ export async function PATCH(
 ) {
   const { id } = await params
   try {
+    invalidateCache('admin-stats')  // v51.5: 退款完成后 stats 失效
     const { user: admin, error: authError } = await verifyPermission(request, ['super_admin', 'finance_admin'])
     if (authError || !admin) return authError!
 

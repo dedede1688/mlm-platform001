@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { OrderService } from '@/lib/services/order.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse } from '@/lib/api-response'
+import { invalidateCache } from '@/lib/utils/stats-cache'
 
 // 获取订单列表
 export async function GET(request: NextRequest) {
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
 // 创建订单
 export async function POST(request: NextRequest) {
   try {
+    invalidateCache('admin-stats')  // v51.5: 订单创建后 stats 失效
     const user = await verifyToken(request)
     if (!user) {
       return errorResponse('未登录', 401)
