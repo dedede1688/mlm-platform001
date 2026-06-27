@@ -154,13 +154,12 @@ function LoginForm() {
                   记住我
                 </label>
               </div>
-              <button
-                type="button"
-                onClick={handleClearSavedPhone}
-                className="text-sm text-blue-600 hover:text-blue-800"
+              <Link
+                href="/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
               >
-                清除记录
-              </button>
+                忘记密码？
+              </Link>
             </div>
 
             <button

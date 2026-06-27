@@ -54,6 +54,7 @@ model User {
   earningsPending   Float   @default(0) @map("earnings_pending")    // v43-7 Batch 2.2.a: 待结算收益
   earningsAvailable Float   @default(0) @map("earnings_available")  // v43-7 Batch 2.2.a: 可提现收益
   earningsVoided    Float   @default(0) @map("earnings_voided")     // v43-7 Batch 2.2.a: 累计作废（审计）
+  passwordResetCodes      PasswordResetCode[]
 
   @@index([referrerId])
   @@index([parentId])
@@ -527,4 +528,20 @@ model NotificationBatch {
   @@index([status])
   @@index([createdAt])
   @@map("notification_batches")
+}
+
+model PasswordResetCode {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  phone       String   @db.VarChar(20)
+  code        String   @db.VarChar(6)
+  expiresAt   DateTime @map("expires_at")
+  used        Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([phone, code])
+  @@index([expiresAt])
+  @@map("password_reset_codes")
 }
