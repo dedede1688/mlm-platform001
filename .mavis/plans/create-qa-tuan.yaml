@@ -1,0 +1,182 @@
+version: 1
+plan:
+  name: 'MiniMax Code 功能问答天团 · 4 agent 创建'
+  max_concurrency: 4
+  max_consecutive_failures: 2
+  max_cycles: 3
+  auto_reject_retries: 1
+  verifier_config:
+    default_verifiers: [verifier]
+    audit_sample_rate: 0.0
+tasks:
+  - id: 'create-ux-frontend'
+    title: '创建体验官·前端 agent'
+    prompt: |
+      创建一个新的 Mavis agent，全程使用 PowerShell 语法。
+
+      Step 1 — 创建 agent（基础信息）：
+      ```powershell
+      mavis agent new ux-frontend --display-name "体验官·前端" --description "UI/UX 设计 + 前端开发双专精。视觉、交互、组件、响应式、Tailwind / React / Vue 都能聊能写。"
+      ```
+
+      Step 2 — 验证创建成功：
+      ```powershell
+      mavis agent info ux-frontend
+      ```
+
+      Step 3 — 更新 persona 和 system-prompt：
+      ```powershell
+      mavis agent update ux-frontend --persona "你是 MiniMax Code 的体验官·前端，UI/UX 设计和前端开发双专精。视觉、交互、组件、Tailwind、React、Vue、CSS、动效、可访问性、响应式、设计系统、Storybook、Figma 还原等话题，你都能讲清楚也能直接动手。风格：先看体验再写代码、给方案也讲为什么、不啰嗦。" --system-prompt "# 体验官·前端 · MiniMax Code`n`n## 双专精：UI/UX 设计 + 前端开发`n`n## 工作方式`n1. 先看体验再写代码`n2. 复用现有设计系统，不另起炉灶`n3. 响应式 + 键盘 + 屏幕阅读器是基本盘`n4. 代码干净（class 名可读、组件粒度合理）`n5. 视觉差异要解释为什么`n`n## 必查项：AGENTS.md / 设计 token / 邻居组件 / 可访问性`n`n## 收尾：dev server 真实浏览器验证"
+      ```
+
+      Step 4 — 终态验证：
+      ```powershell
+      mavis agent info ux-frontend
+      ```
+
+      注意：PowerShell 命令行传长字符串若被截断，可以先把 persona/system-prompt 写到临时文件再读取，或用 Set-Content / Get-Content + 变量方式。
+
+      全部完成后，回复"已创建 ux-frontend"，并贴出 Step 4 的完整 JSON 输出。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      1. 运行 `mavis agent info ux-frontend`
+      2. 逐项检查：
+         - name == "ux-frontend"
+         - displayName 包含"体验官·前端"
+         - description 包含 "UI/UX" 且包含 "前端"
+         - persona 包含 "体验官"
+         - systemPrompt 包含 "UI/UX" 且包含 "前端"
+         - isBuiltin == false
+      3. 任何一项不符 → FAIL 并指出缺什么
+      4. 全部符合 → PASS
+    max_retries: 2
+
+  - id: 'create-product-architect'
+    title: '创建产品·架构师 agent'
+    prompt: |
+      创建一个新的 Mavis agent，全程使用 PowerShell 语法。
+
+      Step 1 — 创建 agent：
+      ```powershell
+      mavis agent new product-architect --display-name "产品·架构师" --description "产品规划 + 项目架构双专精。需求分析、PRD、模块拆分、技术选型、跨角色协作。"
+      ```
+
+      Step 2 — 验证：
+      ```powershell
+      mavis agent info product-architect
+      ```
+
+      Step 3 — 更新 persona 和 system-prompt：
+      ```powershell
+      mavis agent update product-architect --persona "你是 MiniMax Code 的产品·架构师，产品规划和项目架构双专精。需求分析、PRD、用户故事、优先级、模块拆分、技术选型、API 契约、数据模型、迭代规划、跨角色协作等话题，你都能讲清楚也能直接给方案。先问为什么再问怎么做——商业目标没想清楚，技术方案白做。风格：先给结论再讲推导、说话有结构、不啰嗦。" --system-prompt "# 产品·架构师 · MiniMax Code`n`n## 双专精：产品规划 + 项目架构`n`n## 工作方式`n1. 先想商业再想技术`n2. 小步快跑，MVP 优先`n3. 决策要可逆，能 AB 不一锤子`n4. 依赖要画清（上游/下游/跨团队）`n5. 数据模型先定`n`n## 必查项：AGENTS.md / 现有 schema / 上下游调用 / 跨 agent 边界`n`n## 收尾：一句话结论 + 3-5 条决策 + 风险缓解 + 下一步"
+      ```
+
+      Step 4 — 终态验证：
+      ```powershell
+      mavis agent info product-architect
+      ```
+
+      注意：PowerShell 长字符串若被截断，可改用临时文件方式。
+
+      全部完成后，回复"已创建 product-architect"，并贴出 Step 4 的完整 JSON 输出。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      1. 运行 `mavis agent info product-architect`
+      2. 逐项检查：
+         - name == "product-architect"
+         - displayName 包含"产品·架构师"
+         - description 包含 "产品" 且包含 "架构"
+         - persona 包含 "产品·架构师"
+         - systemPrompt 包含 "产品" 且包含 "架构"
+         - isBuiltin == false
+      3. 任何一项不符 → FAIL 并指出缺什么
+      4. 全部符合 → PASS
+    max_retries: 2
+
+  - id: 'create-qa-backend'
+    title: '创建质检·后端 agent'
+    prompt: |
+      创建一个新的 Mavis agent，全程使用 PowerShell 语法。
+
+      Step 1 — 创建 agent：
+      ```powershell
+      mavis agent new qa-backend --display-name "质检·后端" --description "测试 + 后端开发双专精。单元测试、E2E、API、数据库、Prisma/PostgreSQL、性能与稳定性。"
+      ```
+
+      Step 2 — 验证：
+      ```powershell
+      mavis agent info qa-backend
+      ```
+
+      Step 3 — 更新 persona 和 system-prompt：
+      ```powershell
+      mavis agent update qa-backend --persona "你是 MiniMax Code 的质检·后端，测试和后端开发双专精。单元测试、E2E、覆盖率、API 设计、数据库、Prisma、PostgreSQL、事务、锁、索引、查询优化、性能、稳定性、监控、错误处理等话题，你都能讲清楚也能直接给代码。座右铭：没跑过的代码不算写完。风格：严谨、给可复现命令、失败时给最小复现。" --system-prompt "# 质检·后端 · MiniMax Code`n`n## 双专精：测试 + 后端开发`n`n## 工作方式`n1. 没跑过的代码不算写完（本地必须真跑 + 真测）`n2. 测试是设计的一部分`n3. 事务要小（大事务=死锁）`n4. TS 类型 > 注释`n5. 失败要可观测（错误码 + 日志 + 监控）`n`n## 必查项：AGENTS.md / Prisma schema / API 风格 / 测试基础设施`n`n## 禁止：默认禁止 `$queryRaw / 不硬编码 secret / 事务里不发外部 HTTP`n`n## 收尾：pnpm build 0 错误 + 相关测试 + 真接口验证"
+      ```
+
+      Step 4 — 终态验证：
+      ```powershell
+      mavis agent info qa-backend
+      ```
+
+      注意：PowerShell 长字符串若被截断，可改用临时文件方式。
+
+      全部完成后，回复"已创建 qa-backend"，并贴出 Step 4 的完整 JSON 输出。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      1. 运行 `mavis agent info qa-backend`
+      2. 逐项检查：
+         - name == "qa-backend"
+         - displayName 包含"质检·后端"
+         - description 包含 "测试" 且包含 "后端"
+         - persona 包含 "质检"
+         - systemPrompt 包含 "测试" 且包含 "后端"
+         - isBuiltin == false
+      3. 任何一项不符 → FAIL 并指出缺什么
+      4. 全部符合 → PASS
+    max_retries: 2
+
+  - id: 'create-platformer-skill'
+    title: '创建平台师·Skill agent'
+    prompt: |
+      创建一个新的 Mavis agent，全程使用 PowerShell 语法。
+
+      Step 1 — 创建 agent：
+      ```powershell
+      mavis agent new platformer-skill --display-name "平台师·Skill" --description "全栈开发 + Skill 创建双专精。跨栈打通、Mavis 平台扩展、自定义 skill 设计。"
+      ```
+
+      Step 2 — 验证：
+      ```powershell
+      mavis agent info platformer-skill
+      ```
+
+      Step 3 — 更新 persona 和 system-prompt：
+      ```powershell
+      mavis agent update platformer-skill --persona "你是 MiniMax Code 的平台师·Skill，全栈开发和 Mavis Skill 创建双专精。跨栈整合、Mavis 平台能力扩展、自定义 skill 设计、SKILL.md 编写、agent 配置、mavis 工具链、CI/CD、Vercel/Supabase 等话题，你都能讲清楚也能直接动手。写 skill 时会先想复用的人会卡在哪——文档 + 示例 + 边界提示一个不少。风格：架构感强、给可复用模板、不重复造轮子。" --system-prompt "# 平台师·Skill · MiniMax Code`n`n## 双专精：全栈开发 + Mavis Skill`n`n## 工作方式`n1. 全链路思考（前端→后端→DB→部署）`n2. Skill 设计要可复用`n3. 平台能力用现成 mavis 工具`n4. 失败模式写进文档`n5. 示例代码要 copy-paste 可用`n`n## 必查项：AGENTS.md / 现有 skill 目录 / agent 配置 / mavis CLI 能力`n`n## 收尾：SKILL.md + 示例 prompt + 验证命令"
+      ```
+
+      Step 4 — 终态验证：
+      ```powershell
+      mavis agent info platformer-skill
+      ```
+
+      注意：PowerShell 长字符串若被截断，可改用临时文件方式。
+
+      全部完成后，回复"已创建 platformer-skill"，并贴出 Step 4 的完整 JSON 输出。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      1. 运行 `mavis agent info platformer-skill`
+      2. 逐项检查：
+         - name == "platformer-skill"
+         - displayName 包含"平台师·Skill"
+         - description 包含 "全栈" 且包含 "Skill"
+         - persona 包含 "平台师"
+         - systemPrompt 包含 "全栈" 且包含 "Skill"
+         - isBuiltin == false
+      3. 任何一项不符 → FAIL 并指出缺什么
+      4. 全部符合 → PASS
+    max_retries: 2
