@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import jwt from 'jsonwebtoken'
 
 // ---- 路径与所需角色映射 ----
 
@@ -28,22 +29,26 @@ const pathRoleMap: Record<string, string[]> = {
 
 // ---- 辅助函数 ----
 
-// 注意：Next.js Middleware 强制使用 Edge Runtime，
-// 在 Vercel 上 Edge Runtime 与 Node.js Runtime 的环境变量加载可能不同，
-// 会导致 middleware 里的 JWT 验证与 API 路由不一致。
-// 解决方案：middleware 仅做"存在性检查"和"角色检查"，
-// 不验证签名。签名验证由各 API 路由用 Node.js Runtime 完成。
-
-function parseJwtPayload(token: string): { userId?: string; phone?: string; role?: string } | null {
+/**
+ * v55.2: 真正验证 JWT 签名（之前 v51.3 e1c5153 因 Edge Runtime 环境变量不一致导致 401 而不验证）
+ * 现在 runtime='nodejs'（line 138），JWT_SECRET 可读，恢复签名验证。
+ * 验证失败返回 null，由调用方决定返回 401。
+ */
+function verifyJwtPayload(token: string): { userId?: string; phone?: string; role?: string } | null {
   try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    const payloadJson = Buffer.from(
-      parts[1].replace(/-/g, '+').replace(/_/g, '/'),
-      'base64'
-    ).toString('utf-8')
-    return JSON.parse(payloadJson)
+    const secret = process.env.JWT_SECRET
+    if (!secret) {
+      console.error('[v55.2 middleware] JWT_SECRET 未配置')
+      return null
+    }
+    const decoded = jwt.verify(token, secret) as { userId?: string; phone?: string; role?: string }
+    return {
+      userId: decoded.userId,
+      phone: decoded.phone,
+      role: decoded.role,
+    }
   } catch {
+    // 签名失败 / 过期 / 格式错误 → 返回 null，不抛错（避免 middleware crash）
     return null
   }
 }
@@ -66,12 +71,13 @@ function matchPath(pathname: string): string | null {
 
 // ---- Middleware 主逻辑 ----
 //
-// 注意：Next.js Middleware 只能运行在 Edge Runtime 上，
-// Edge Runtime 的 process.env 与 Node.js Runtime 不完全一致，
-// 可能导致 JWT_SECRET 验证行为不同（这是生产环境 401 的根本原因）。
+// v55.2: runtime='nodejs' 已设置（line 138），JWT_SECRET 可读。
+// middleware 现在真正验证 JWT 签名（jwt.verify），
+// 配合各 API 路由内的 verifyPermission 形成双保险。
 //
-// 为避免此问题，middleware 仅检查 token 是否存在并解析出用户信息，
-// 不做严格的 JWT 签名验证；真正的验证由各 API 路由内部完成。
+// 安全策略：
+//   1. middleware 验证签名 + 角色检查（早期拦截）
+//   2. API 路由 verifyPermission 再次验证签名 + 查库确认角色（最终防线）
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -93,13 +99,19 @@ export function middleware(request: NextRequest) {
 
   const token = authHeader.replace('Bearer ', '')
 
-  // 仅解析 token 拿到角色信息（不验证签名，由 API 路由用 Node.js Runtime 自己验证）
+  // v55.2: 真正验证 JWT 签名（jwt.verify），失败返回 401
   let userRole = ''
   let userId = ''
-  const payload = parseJwtPayload(token)
+  const payload = verifyJwtPayload(token)
   if (payload) {
     userRole = payload.role || ''
     userId = payload.userId || ''
+  } else {
+    // 签名验证失败（伪造/过期/格式错误）→ 401，不放过
+    return NextResponse.json(
+      { success: false, error: '认证令牌无效或已过期' },
+      { status: 401, headers: { 'x-trace-id': traceId } }
+    )
   }
 
   // 匹配路径角色
