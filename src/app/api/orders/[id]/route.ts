@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OrderService } from '@/lib/services/order.service'
+import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { verifyToken } from '@/lib/utils/auth'
 
 // 获取订单详情
@@ -73,7 +74,7 @@ export async function POST(
     }
 
     // 业务逻辑全部走Service
-    const updatedOrder = await OrderService.verifyPayment(orderId, password)
+    const updatedOrder = await OrderLifecycleService.verifyPayment(orderId, password)
 
     return NextResponse.json({
       success: true,
@@ -122,7 +123,7 @@ export async function PUT(
       )
     }
 
-    const updatedOrder = await OrderService.completeOrder(id)
+    const updatedOrder = await OrderLifecycleService.completeOrder(id)
 
     return NextResponse.json({
       success: true,
@@ -168,7 +169,7 @@ export async function DELETE(
       )
     }
 
-    await OrderService.cancelOrder(id)
+    await OrderLifecycleService.cancelOrder(id)
 
     return NextResponse.json({
       success: true,

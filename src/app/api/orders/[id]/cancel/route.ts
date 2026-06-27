@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { OrderService } from '@/lib/services/order.service'
+import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 
 // POST /api/orders/[id]/cancel — 取消订单（待支付状态）
 export async function POST(
@@ -33,7 +34,7 @@ export async function POST(
     }
 
     // 调用 Service 层取消（含事务：退库存 + 退积分 + 更新状态）
-    const cancelledOrder = await OrderService.cancelOrder(orderId)
+    const cancelledOrder = await OrderLifecycleService.cancelOrder(orderId)
 
     return successResponse(cancelledOrder, '订单已取消')
   } catch (error: any) {

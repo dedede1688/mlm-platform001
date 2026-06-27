@@ -52,6 +52,7 @@ vi.mock('@/lib/logger', () => ({
 
 import { prisma } from '@/lib/prisma'
 import { OrderService } from '@/lib/services/order.service'
+import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 
 describe('OrderService', () => {
   beforeEach(() => {
@@ -154,7 +155,7 @@ describe('OrderService', () => {
       const { RewardService } = await import('@/lib/services/reward.service')
       vi.mocked(RewardService.processOrderRewards).mockResolvedValueOnce(undefined as any)
 
-      const result = await OrderService.payOrder('o1')
+      const result = await OrderLifecycleService.payOrder('o1')
       expect(result).toBeDefined()
       expect(result.status).toBe('paid')
 
@@ -172,7 +173,7 @@ describe('OrderService', () => {
         status: 'paid',
       })
 
-      await expect(OrderService.payOrder('o1'))
+      await expect(OrderLifecycleService.payOrder('o1'))
         .rejects.toThrow('订单不存在或状态已变更')
     })
   })
@@ -201,7 +202,7 @@ describe('OrderService', () => {
       prisma.order.update.mockResolvedValueOnce({ id: 'o1', status: 'refunded' })
       prisma.order.findUnique.mockResolvedValueOnce({ id: 'o1', status: 'refunded' })
 
-      await OrderService.requestRefund('o1')
+      await OrderLifecycleService.requestRefund('o1')
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
       expect(userUpdateCall.data).toMatchObject({

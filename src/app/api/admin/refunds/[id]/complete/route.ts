@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderService } from '@/lib/services/order.service'
+import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 
 // PATCH /api/admin/refunds/[id]/complete — 确认退款完成
 export async function PATCH(
@@ -38,7 +39,7 @@ export async function PATCH(
     //   5) 改订单 status=REFUNDED
     // 【安全】requestRefund 内部有状态校验（order.status 必须是 PAID 或 SHIPPED），
     //        重复调会被自然防住（第二次会报"订单状态不允许退款"）。
-    await OrderService.requestRefund(refundRequest.orderId)
+    await OrderLifecycleService.requestRefund(refundRequest.orderId)
 
     const updated = await prisma.refundRequest.update({
       where: { id },
