@@ -47,6 +47,43 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
+  // v52.2: 全局安全 headers（防 XSS/点击劫持/MIME 嗅探/HTTPS 降级）
+  async headers() {
+    // CSP 注意：使用 unsafe-inline/unsafe-eval 兼容 Next.js 内联资源
+    // （Next.js 14+ 可用 nonce 收紧，本期先宽松）
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ')
+
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: csp },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+        ],
+      },
+      // /api/ 路由额外的 X-Permitted-Cross-Domain-Policies
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
+        ],
+      },
+    ]
+  },
 }
 
 module.exports = withNextIntl(nextConfig)
