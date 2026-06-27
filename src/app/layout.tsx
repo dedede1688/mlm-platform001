@@ -103,6 +103,29 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // v53.0: Organization JSON-LD（Google 知识图谱：公司信息 + 联系方式）
+  const organizationLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "敏维科技",
+    url: SITE_URL,
+    logo: `${SITE_URL}/logo.svg`,
+    description: DEFAULT_SEO_DESCRIPTION,
+    contactPoint: {
+      "@type": "ContactPoint",
+      telephone: "+86-18566793066",
+      contactType: "customer service",
+      areaServed: "CN",
+      availableLanguage: ["zh-Hans"],
+    },
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "广州市",
+      addressRegion: "广东省",
+      addressCountry: "CN",
+    },
+  };
+
   return (
     <html
       lang="zh-CN"
@@ -110,6 +133,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>
+          {/* v53.0: 全站 Organization JSON-LD（增强 Google 知识图谱收录） */}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+          />
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />

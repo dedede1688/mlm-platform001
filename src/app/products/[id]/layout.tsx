@@ -25,6 +25,19 @@ interface ProductLd {
   }
 }
 
+// v53.0: BreadcrumbList schema（面包屑导航，Google 搜索结果显示）
+interface BreadcrumbItem {
+  '@type': 'ListItem'
+  position: number
+  name: string
+  item: string
+}
+interface BreadcrumbLd {
+  '@context': string
+  '@type': 'BreadcrumbList'
+  itemListElement: BreadcrumbItem[]
+}
+
 // v52.3: 构建 Product schema JSON-LD
 function buildProductLd(p: {
   id: string
@@ -52,6 +65,19 @@ function buildProductLd(p: {
         : 'https://schema.org/OutOfStock',
       url: `${SITE_URL}/products/${p.id}`,
     },
+  }
+}
+
+// v53.0: 构建 BreadcrumbList JSON-LD
+function buildBreadcrumbLd(productName: string, productId: string): BreadcrumbLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首页', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: '商品', item: `${SITE_URL}/products` },
+      { '@type': 'ListItem', position: 3, name: productName, item: `${SITE_URL}/products/${productId}` },
+    ],
   }
 }
 
@@ -90,7 +116,8 @@ export default async function ProductLayout(
   { children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  let ldJson: string | null = null
+  let productLdJson: string | null = null
+  let breadcrumbLdJson: string | null = null
 
   try {
     const product = await prisma.product.findUnique({
@@ -106,7 +133,8 @@ export default async function ProductLayout(
       },
     })
     if (product) {
-      ldJson = JSON.stringify(buildProductLd(product))
+      productLdJson = JSON.stringify(buildProductLd(product))
+      breadcrumbLdJson = JSON.stringify(buildBreadcrumbLd(product.name, product.id))
     }
   } catch (error) {
     console.error('[ProductLayout] JSON-LD fetch failed:', error)
@@ -114,10 +142,16 @@ export default async function ProductLayout(
 
   return (
     <>
-      {ldJson && (
+      {productLdJson && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: ldJson }}
+          dangerouslySetInnerHTML={{ __html: productLdJson }}
+        />
+      )}
+      {breadcrumbLdJson && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: breadcrumbLdJson }}
         />
       )}
       {children}
