@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart3, Users, DollarSign, TrendingUp, Loader2 } from 'lucide-react'
+import { BarChart3, Users, DollarSign, TrendingUp, Loader2, Filter } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 
 // ---- 类型 ----
@@ -24,6 +24,12 @@ interface FinanceReport {
   period: { days: number; startDate: string; endDate: string }
 }
 
+interface FunnelLevel { level: number; key: string; label: string; count: number; color: string; parent: string | null }
+interface FunnelReport {
+  funnel: FunnelLevel[]
+  rates: { firstOrderRate: number; repeatRate: number; threePlusRate: number; fivePlusRate: number }
+}
+
 const LEVEL_COLORS: Record<number, string> = {
   1: 'bg-gray-100 text-gray-700',
   2: 'bg-blue-100 text-blue-700',
@@ -37,11 +43,12 @@ const LEVEL_COLORS: Record<number, string> = {
 // ---- 主组件 ----
 
 export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState<'sales' | 'members' | 'finance'>('sales')
+  const [activeTab, setActiveTab] = useState<'sales' | 'members' | 'finance' | 'funnel'>('sales')
   const [days, setDays] = useState(30)
   const [sales, setSales] = useState<SalesReport | null>(null)
   const [members, setMembers] = useState<MembersReport | null>(null)
   const [finance, setFinance] = useState<FinanceReport | null>(null)
+  const [funnel, setFunnel] = useState<FunnelReport | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -59,10 +66,12 @@ export default function ReportsPage() {
       fetchReport<SalesReport>(`/api/admin/reports/sales?days=${days}`),
       fetchReport<MembersReport>(`/api/admin/reports/members`),
       fetchReport<FinanceReport>(`/api/admin/reports/finance?days=${days}`),
-    ]).then(([s, m, f]) => {
+      fetchReport<FunnelReport>(`/api/admin/reports/funnel`),
+    ]).then(([s, m, f, fn]) => {
       setSales(s)
       setMembers(m)
       setFinance(f)
+      setFunnel(fn)
     }).catch(err => console.error('[Reports]', err)).finally(() => setLoading(false))
   }, [days])
 
@@ -94,6 +103,7 @@ export default function ReportsPage() {
           { key: 'sales' as const, label: '销售报表', icon: <TrendingUp className="w-4 h-4" /> },
           { key: 'members' as const, label: '会员报表', icon: <Users className="w-4 h-4" /> },
           { key: 'finance' as const, label: '财务报表', icon: <DollarSign className="w-4 h-4" /> },
+          { key: 'funnel' as const, label: '转化漏斗', icon: <Filter className="w-4 h-4" /> },
         ].map(t => (
           <button
             key={t.key}
@@ -227,6 +237,72 @@ export default function ReportsPage() {
               </div>
             </div>
             <p className="text-xs text-gray-400 mt-4">统计区间: {finance.period.startDate} 至 {finance.period.endDate}（近{finance.period.days}天）</p>
+          </div>
+        </div>
+      )}
+
+      {!loading && activeTab === 'funnel' && funnel && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatCard label="注册→首单" value={`${funnel.rates.firstOrderRate}%`} color="bg-blue-50 text-blue-600" />
+            <StatCard label="首单→复购" value={`${funnel.rates.repeatRate}%`} color="bg-cyan-50 text-cyan-600" />
+            <StatCard label="首单→3 单+" value={`${funnel.rates.threePlusRate}%`} color="bg-green-50 text-green-600" />
+            <StatCard label="首单→5 单+" value={`${funnel.rates.fivePlusRate}%`} color="bg-emerald-50 text-emerald-600" />
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">5 级转化漏斗</h2>
+            <div className="space-y-4">
+              {funnel.funnel.map((step, i) => {
+                const max = funnel.funnel[0].count
+                const widthPct = max > 0 ? (step.count / max) * 100 : 0
+                const parentStep = step.parent ? funnel.funnel.find(s => s.key === step.parent) : null
+                const conversionRate = parentStep && parentStep.count > 0
+                  ? Math.round((step.count / parentStep.count) * 100 * 10) / 10
+                  : null
+                const bgColor = step.color.replace('bg-', 'bg-').replace('-500', '-100')
+                const textColor = step.color.replace('bg-', 'text-').replace('-500', '-700')
+                return (
+                  <div key={step.key}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-6 h-6 rounded-full ${step.color} text-white text-xs font-bold flex items-center justify-center`}>
+                          L{step.level}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">{step.label}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {conversionRate !== null && (
+                          <span className={`text-xs font-medium ${textColor}`}>
+                            ↑ 转化 {conversionRate}%
+                          </span>
+                        )}
+                        <span className="text-lg font-bold text-gray-900 tabular-nums">
+                          {step.count.toLocaleString()}
+                          <span className="text-xs text-gray-400 font-normal ml-1">人</span>
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`relative h-10 rounded-lg overflow-hidden ${bgColor}`}>
+                      <div
+                        className={`absolute inset-y-0 left-0 ${step.color} transition-all duration-500 rounded-lg flex items-center justify-end pr-3`}
+                        style={{ width: `${widthPct}%` }}
+                      >
+                        {widthPct > 20 && (
+                          <span className="text-white text-xs font-medium">{widthPct.toFixed(1)}%</span>
+                        )}
+                      </div>
+                      {widthPct <= 20 && (
+                        <span className="absolute inset-y-0 left-2 flex items-center text-xs font-medium text-gray-600">
+                          {widthPct.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-xs text-gray-400 mt-6">统计区间: 全部时间（漏斗按历史累计计算，不受页面顶部时间切换影响）</p>
           </div>
         </div>
       )}
