@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { invalidateCache } from '@/lib/utils/stats-cache'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
@@ -39,6 +40,14 @@ export async function POST(
 ) {
   try {
     invalidateCache('admin-stats')  // v51.5: 调账后 stats 失效
+
+    // v52.1: rate-limit - IP 维度，10 次/分钟（防暴力调账）
+    const clientIP = getClientIP(request)
+    const ipLimitResult = checkRateLimit(`balance-adjust:ip:${clientIP}`, 10, 60 * 1000)
+    if (!ipLimitResult.allowed) {
+      return rateLimitResponse('调账请求过于频繁，请稍后再试', ipLimitResult.resetIn)
+    }
+
     const { user: admin, error: authError } = await verifyPermission(
       request, ['support_admin', 'super_admin']
     )

@@ -6,6 +6,7 @@ import { verifyPaymentPassword } from '@/lib/auth/payment-password'
 import { RewardService } from '@/lib/services/reward.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { invalidateCache } from '@/lib/utils/stats-cache'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { ORDER_STATUS } from '@/lib/constants'
 
 // POST /api/orders/[id]/verify-payment — 验证支付密码 + 标记已支付
@@ -17,6 +18,14 @@ export async function POST(
 
   try {
     invalidateCache('admin-stats')  // v51.5: 支付成功后 stats 失效
+
+    // v52.1: rate-limit - IP 维度，10 次/分钟（防暴力支付）
+    const clientIP = getClientIP(request)
+    const ipLimitResult = checkRateLimit(`verify-payment:ip:${clientIP}`, 10, 60 * 1000)
+    if (!ipLimitResult.allowed) {
+      return rateLimitResponse('支付请求过于频繁，请稍后再试', ipLimitResult.resetIn)
+    }
+
     const user = await verifyToken(request)
     if (!user) {
       return errorResponse('未登录', 401)

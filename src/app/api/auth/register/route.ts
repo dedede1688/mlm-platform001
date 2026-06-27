@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { UserService } from '@/lib/services/user.service'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 
 // 注册输入校验 schema
 const registerSchema = z.object({
@@ -30,6 +31,13 @@ const registerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // v52.1: rate-limit - IP 维度，3 次/分钟（防批量注册）
+    const clientIP = getClientIP(request)
+    const ipLimitResult = checkRateLimit(`register:ip:${clientIP}`, 3, 60 * 1000)
+    if (!ipLimitResult.allowed) {
+      return rateLimitResponse('注册请求过于频繁，请稍后再试', ipLimitResult.resetIn)
+    }
+
     const body = await request.json()
 
     // 使用 zod 校验输入
