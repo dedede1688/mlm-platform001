@@ -1,12 +1,13 @@
 'use client'
 // v7.0-fix: 修复构建错误 - 调试日志语法优化
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Image from 'next/image'
 import {
   Package, Plus, Search, Edit2, Trash2, Loader2,
   ChevronLeft, ChevronRight, X, Image as ImageIcon, ToggleLeft, ToggleRight,
-  PlusCircle, MinusCircle, ClipboardCopy
+  PlusCircle, MinusCircle, ClipboardCopy,
+  AlertTriangle, CheckSquare, Square, CheckCheck, XCircle
 } from 'lucide-react'
 import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ImageUpload'
@@ -89,6 +90,9 @@ const defaultForm: FormData = {
   videoUrl: '',
 }
 
+// v53.2: 库存预警阈值（≤ 此值触发预警，=0 显示「缺货」）
+const LOW_STOCK_THRESHOLD = 10
+
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
@@ -99,6 +103,11 @@ export default function AdminProductsPage() {
   const [search, setSearch] = useState('')
   const [filterUpgrade, setFilterUpgrade] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+
+  // v53.2: 多选 + 仅看低库存筛选
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [lowStockOnly, setLowStockOnly] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   // 弹窗
   const [showModal, setShowModal] = useState(false)
@@ -521,6 +530,98 @@ const handleDuplicate = async (product: Product) => {
     }
   }
 
+  // v53.2: 多选 + 批量操作
+  // 当前页所有商品 ID（用于全选/反选）
+  const currentPageIds = useMemo(() => products.map(p => p.id), [products])
+
+  // 是否全选当前页
+  const isAllCurrentPageSelected = useMemo(
+    () => currentPageIds.length > 0 && currentPageIds.every(id => selectedIds.has(id)),
+    [currentPageIds, selectedIds]
+  )
+
+  // 当前页低库存商品数量（仅作展示用，跨页总计需要后端聚合）
+  const lowStockCount = useMemo(
+    () => products.filter(p => p.stock <= LOW_STOCK_THRESHOLD).length,
+    [products]
+  )
+
+  // 全选/反选当前页
+  const handleToggleSelectAll = () => {
+    if (isAllCurrentPageSelected) {
+      // 取消当前页所有选中
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        currentPageIds.forEach(id => next.delete(id))
+        return next
+      })
+    } else {
+      // 全选当前页
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        currentPageIds.forEach(id => next.add(id))
+        return next
+      })
+    }
+  }
+
+  // 单选切换
+  const handleToggleSelectOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  // 清除所有选择
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+  }
+
+  // 批量上下架
+  const handleBulkUpdate = async (newStatus: 'active' | 'inactive') => {
+    if (!token || selectedIds.size === 0) return
+    const actionText = newStatus === 'active' ? '上架' : '下架'
+    if (!confirm(`确认${actionText}已选的 ${selectedIds.size} 个商品？`)) return
+
+    setBulkLoading(true)
+    try {
+      const res = await fetch('/api/admin/products/bulk', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ids: Array.from(selectedIds),
+          status: newStatus,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', data.message || `已${actionText} ${data.data?.updated || 0} 个商品`)
+        setSelectedIds(new Set())
+        fetchProducts(token, pagination.page)
+      } else {
+        showMessage('error', data.message || `批量${actionText}失败`)
+      }
+    } catch {
+      showMessage('error', '网络错误，请重试')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  // v53.2: 分页/筛选变化时清空选择（避免跨页误操作）
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [pagination.page, filterStatus, filterUpgrade, search])
+
   // benefits 操作
   // ---- 规格操作 ----
   const addSpecGroup = () => {
@@ -676,17 +777,92 @@ const handleDuplicate = async (product: Product) => {
                 搜索
               </button>
             </div>
-            {/* 新增按钮 */}
-            <button
-              onClick={handleAdd}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white
-                rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              新增商品
-            </button>
+            <div className="flex items-center gap-3">
+              {/* v53.2: 仅看低库存切换 */}
+              <button
+                onClick={() => setLowStockOnly(v => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg transition-colors font-medium whitespace-nowrap border ${
+                  lowStockOnly
+                    ? 'bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100'
+                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400'
+                }`}
+                title="仅显示库存 ≤ 10 的商品"
+              >
+                <AlertTriangle className={`w-4 h-4 ${lowStockOnly ? 'text-orange-500' : 'text-gray-400'}`} />
+                低库存
+                {lowStockCount > 0 && (
+                  <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
+                    lowStockOnly
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-orange-100 text-orange-700'
+                  }`}>
+                    {lowStockCount}
+                  </span>
+                )}
+              </button>
+              {/* 新增按钮 */}
+              <button
+                onClick={handleAdd}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white
+                  rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                新增商品
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* v53.2: 库存预警条（仅在有低库存时显示） */}
+        {!loading && lowStockCount > 0 && !lowStockOnly && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0" />
+            <div className="flex-1 text-sm text-orange-800">
+              当前页有 <span className="font-bold">{lowStockCount}</span> 个商品库存 ≤ {LOW_STOCK_THRESHOLD}（含 <span className="font-bold">{products.filter(p => p.stock === 0).length}</span> 个已缺货），请及时补货
+            </div>
+            <button
+              onClick={() => setLowStockOnly(true)}
+              className="text-sm font-medium text-orange-700 hover:text-orange-900 hover:underline whitespace-nowrap"
+            >
+              查看 →
+            </button>
+          </div>
+        )}
+
+        {/* v53.2: 批量操作工具栏（多选时显示） */}
+        {selectedIds.size > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-3 flex-wrap">
+            <CheckCheck className="w-5 h-5 text-blue-500 flex-shrink-0" />
+            <div className="text-sm text-blue-800">
+              已选 <span className="font-bold">{selectedIds.size}</span> 个商品
+            </div>
+            <div className="flex-1" />
+            <button
+              onClick={() => handleBulkUpdate('active')}
+              disabled={bulkLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bulkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ToggleRight className="w-3.5 h-3.5" />}
+              批量上架
+            </button>
+            <button
+              onClick={() => handleBulkUpdate('inactive')}
+              disabled={bulkLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bulkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+              批量下架
+            </button>
+            <button
+              onClick={handleClearSelection}
+              disabled={bulkLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-white rounded-lg transition-colors text-sm font-medium"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              取消选择
+            </button>
+          </div>
+        )}
 
         {/* 商品列表 */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
@@ -702,9 +878,23 @@ const handleDuplicate = async (product: Product) => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full table-auto" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
+              <table className="w-full table-auto" style={{ tableLayout: 'fixed', minWidth: '1240px' }}>
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
+                    {/* v53.2: 多选 checkbox 列 */}
+                    <th className="px-3 py-3 text-left w-[40px]">
+                      <button
+                        onClick={handleToggleSelectAll}
+                        className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:bg-gray-200"
+                        title={isAllCurrentPageSelected ? '取消全选当前页' : '全选当前页'}
+                      >
+                        {isAllCurrentPageSelected ? (
+                          <CheckSquare className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <Square className="w-4 h-4 text-gray-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[80px]">图片</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">名称</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[100px]">分类</th>
@@ -717,8 +907,56 @@ const handleDuplicate = async (product: Product) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {products.map(product => (
-                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                  {(() => {
+                    // v53.2: 仅看低库存过滤（在客户端再过滤一次，避免改后端 API）
+                    const displayProducts = lowStockOnly
+                      ? products.filter(p => p.stock <= LOW_STOCK_THRESHOLD)
+                      : products
+                    if (displayProducts.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={10} className="px-4 py-20 text-center text-gray-400">
+                            {lowStockOnly ? (
+                              <div className="flex flex-col items-center gap-2">
+                                <AlertTriangle className="w-10 h-10 text-gray-300" />
+                                <p>当前页暂无低库存商品</p>
+                                <button
+                                  onClick={() => setLowStockOnly(false)}
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  查看全部商品 →
+                                </button>
+                              </div>
+                            ) : '暂无商品数据'}
+                          </td>
+                        </tr>
+                      )
+                    }
+                    return displayProducts.map(product => {
+                      const isSelected = selectedIds.has(product.id)
+                      const isLowStock = product.stock > 0 && product.stock <= LOW_STOCK_THRESHOLD
+                      const isOutOfStock = product.stock === 0
+                      return (
+                        <tr
+                          key={product.id}
+                          className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-blue-50/60' : ''} ${
+                            isOutOfStock ? 'bg-red-50/30' : isLowStock ? 'bg-orange-50/30' : ''
+                          }`}
+                        >
+                          {/* v53.2: 多选 checkbox */}
+                          <td className="px-3 py-3">
+                            <button
+                              onClick={() => handleToggleSelectOne(product.id)}
+                              className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:bg-gray-200"
+                              title={isSelected ? '取消选择' : '选择此商品'}
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="w-4 h-4 text-blue-600" />
+                              ) : (
+                                <Square className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                          </td>
                       {/* 图片 */}
                       <td className="px-4 py-3">
                         {product.images && product.images.length > 0 ? (
@@ -765,17 +1003,23 @@ const handleDuplicate = async (product: Product) => {
                       <td className="px-4 py-3 text-gray-700">¥{product.retailPrice.toFixed(2)}</td>
                       {/* 会员价 */}
                       <td className="px-4 py-3 text-blue-600 font-medium">¥{product.memberPrice.toFixed(2)}</td>
-                      {/* 库存 */}
+                      {/* 库存 - v53.2 增强：低库存加 ⚠️ 图标 + 强色边框 */}
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          product.stock > 10
-                            ? 'bg-green-50 text-green-700'
-                            : product.stock > 0
-                            ? 'bg-yellow-50 text-yellow-700'
-                            : 'bg-red-50 text-red-700'
-                        }`}>
-                          {product.stock}
-                        </span>
+                        {isOutOfStock ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-300">
+                            <AlertTriangle className="w-3 h-3" />
+                            缺货
+                          </span>
+                        ) : isLowStock ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-300">
+                            <AlertTriangle className="w-3 h-3" />
+                            {product.stock}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                            {product.stock}
+                          </span>
+                        )}
                       </td>
                       {/* 升级产品 */}
                       <td className="px-4 py-3">
@@ -840,7 +1084,9 @@ const handleDuplicate = async (product: Product) => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                      )
+                    })
+                  })()}
                 </tbody>
               </table>
             </div>
