@@ -29,18 +29,26 @@ interface SalesStats {
   week: number
   month: number
   total: number
+  // v51.0: 环比% 字段
+  todayVsYesterday: number
+  weekVsLastWeek: number
+  monthVsLastMonth: number
 }
 
 interface OrderStats {
   today: number
   pending: number
   total: number
+  // v51.0: 环比% 字段
+  todayVsYesterday: number
 }
 
 interface UserStats {
   todayNew: number
   total: number
   active7d: number
+  // v51.0: 环比% 字段
+  todayNewVsYesterday: number
 }
 
 interface ProductStats {
@@ -182,18 +190,24 @@ export default function AdminDashboardPage() {
                 label="今日销售额"
                 value={`¥${formatMoney(stats.sales.today)}`}
                 color="text-green-600 bg-green-50"
+                delta={stats.sales.todayVsYesterday}
+                deltaLabel="vs 昨日"
               />
               <MetricCard
                 icon={<DollarSign className="w-5 h-5" />}
                 label="本周销售额"
                 value={`¥${formatMoney(stats.sales.week)}`}
                 color="text-green-600 bg-green-50"
+                delta={stats.sales.weekVsLastWeek}
+                deltaLabel="vs 上周"
               />
               <MetricCard
                 icon={<DollarSign className="w-5 h-5" />}
                 label="本月销售额"
                 value={`¥${formatMoney(stats.sales.month)}`}
                 color="text-green-600 bg-green-50"
+                delta={stats.sales.monthVsLastMonth}
+                deltaLabel="vs 上月"
               />
               <MetricCard
                 icon={<TrendingUp className="w-5 h-5" />}
@@ -208,6 +222,8 @@ export default function AdminDashboardPage() {
                 label="今日订单数"
                 value={String(stats.orders.today)}
                 color="text-blue-600 bg-blue-50"
+                delta={stats.orders.todayVsYesterday}
+                deltaLabel="vs 昨日"
               />
               <MetricCard
                 icon={<Clock className="w-5 h-5" />}
@@ -228,6 +244,8 @@ export default function AdminDashboardPage() {
                 label="今日新增用户"
                 value={String(stats.users.todayNew)}
                 color="text-purple-600 bg-purple-50"
+                delta={stats.users.todayNewVsYesterday}
+                deltaLabel="vs 昨日"
               />
               <MetricCard
                 icon={<Users className="w-5 h-5" />}
@@ -290,6 +308,16 @@ export default function AdminDashboardPage() {
               }`}
             >
               近30天
+            </button>
+            <button
+              onClick={() => handleDaysChange(90)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                days === 90
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              近90天
             </button>
             <span className="text-sm text-gray-500">{getDateRange()}</span>
           </div>
@@ -365,10 +393,24 @@ interface MetricCardProps {
   value: string
   color: string
   highlight?: boolean
+  // v51.0: 环比% 字段（正数=增长绿色↑，负数=下降红色↓，0=持平灰色→）
+  delta?: number
+  deltaLabel?: string  // v51.0: 环比描述（如"vs 昨日"），可不传
 }
 
-function MetricCard({ icon, label, value, color, highlight }: MetricCardProps) {
+function MetricCard({ icon, label, value, color, highlight, delta, deltaLabel }: MetricCardProps) {
   const [textColor, bgColor] = color.split(' ')
+  // v51.0: 环比% 颜色 + 图标
+  const deltaColor = delta === undefined || delta === 0
+    ? 'text-gray-400'
+    : delta > 0
+    ? 'text-green-600'
+    : 'text-red-600'
+  const deltaArrow = delta === undefined || delta === 0
+    ? '→'
+    : delta > 0
+    ? '↑'
+    : '↓'
   return (
     <div className={`bg-white rounded-xl shadow-lg p-5 flex items-center gap-4 hover:shadow-xl transition-shadow ${
       highlight ? 'ring-2 ring-red-300 cursor-pointer' : ''
@@ -376,9 +418,16 @@ function MetricCard({ icon, label, value, color, highlight }: MetricCardProps) {
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${bgColor} ${textColor}`}>
         {icon}
       </div>
-      <div>
+      <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-500">{label}</p>
-        <p className="text-xl font-bold text-gray-900">{value}</p>
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <p className="text-xl font-bold text-gray-900">{value}</p>
+          {delta !== undefined && (
+            <span className={`text-xs font-semibold ${deltaColor} whitespace-nowrap`} title={deltaLabel}>
+              {deltaArrow} {Math.abs(delta)}%{deltaLabel && <span className="text-gray-400 font-normal ml-1">{deltaLabel}</span>}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

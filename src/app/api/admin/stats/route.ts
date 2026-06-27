@@ -31,18 +31,26 @@ interface SalesStats {
   week: number
   month: number
   total: number
+  // v51.0: 环比% 字段（与上一周期对比，正数=增长，负数=下降）
+  todayVsYesterday: number   // 今日 vs 昨日百分比变化
+  weekVsLastWeek: number     // 本周 vs 上周
+  monthVsLastMonth: number   // 本月 vs 上月
 }
 
 interface OrderStats {
   today: number
   pending: number
   total: number
+  // v51.0: 环比% 字段
+  todayVsYesterday: number   // 今日订单数 vs 昨日
 }
 
 interface UserStats {
   todayNew: number
   total: number
   active7d: number
+  // v51.0: 环比% 字段
+  todayNewVsYesterday: number  // 今日新增用户 vs 昨日
 }
 
 interface ProductStats {
@@ -56,6 +64,13 @@ interface StatsData {
   users: UserStats
   products: ProductStats
   refundPending: number
+}
+
+// ---- 计算环比% ----
+
+function calcDelta(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0
+  return Math.round(((current - previous) / previous) * 100 * 10) / 10
 }
 
 // ---- GET /api/admin/stats ----
@@ -73,14 +88,34 @@ export async function GET(request: NextRequest) {
     const sevenDaysAgo = new Date(now)
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
+    // ---- 环比对比范围 ----
+    const yesterdayStart = new Date(todayStart)
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1)
+
+    const lastWeekEnd = new Date(weekStart)  // 本周一 = 上周日结束
+    const lastWeekStart = new Date(lastWeekEnd)
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7)
+
+    const lastMonthEnd = new Date(monthStart)  // 本月 1 号 = 上月结束
+    const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth() - 1, 1)
+
     // 已支付/已完成的订单条件
     const paidStatuses = ['paid', 'shipped', 'completed']
 
-    // ---- 销售概览 ----
-    const [todaySales, weekSales, monthSales, totalSales] = await Promise.all([
+    // ---- 销售概览（本期 + 上期）----
+    const [
+      todaySales, yesterdaySales,
+      weekSales, lastWeekSales,
+      monthSales, lastMonthSales,
+      totalSales,
+    ] = await Promise.all([
       prisma.order.aggregate({
         _sum: { payAmount: true },
         where: { status: { in: paidStatuses }, createdAt: { gte: todayStart } },
+      }),
+      prisma.order.aggregate({
+        _sum: { payAmount: true },
+        where: { status: { in: paidStatuses }, createdAt: { gte: yesterdayStart, lt: todayStart } },
       }),
       prisma.order.aggregate({
         _sum: { payAmount: true },
@@ -88,7 +123,15 @@ export async function GET(request: NextRequest) {
       }),
       prisma.order.aggregate({
         _sum: { payAmount: true },
+        where: { status: { in: paidStatuses }, createdAt: { gte: lastWeekStart, lt: weekStart } },
+      }),
+      prisma.order.aggregate({
+        _sum: { payAmount: true },
         where: { status: { in: paidStatuses }, createdAt: { gte: monthStart } },
+      }),
+      prisma.order.aggregate({
+        _sum: { payAmount: true },
+        where: { status: { in: paidStatuses }, createdAt: { gte: lastMonthStart, lt: monthStart } },
       }),
       prisma.order.aggregate({
         _sum: { payAmount: true },
@@ -101,12 +144,22 @@ export async function GET(request: NextRequest) {
       week: weekSales._sum.payAmount || 0,
       month: monthSales._sum.payAmount || 0,
       total: totalSales._sum.payAmount || 0,
+      // v51.0: 环比% = ((当前 - 上期) / 上期) * 100
+      todayVsYesterday: calcDelta(todaySales._sum.payAmount || 0, yesterdaySales._sum.payAmount || 0),
+      weekVsLastWeek: calcDelta(weekSales._sum.payAmount || 0, lastWeekSales._sum.payAmount || 0),
+      monthVsLastMonth: calcDelta(monthSales._sum.payAmount || 0, lastMonthSales._sum.payAmount || 0),
     }
 
-    // ---- 订单统计 ----
-    const [todayOrders, pendingOrders, totalOrders] = await Promise.all([
+    // ---- 订单统计（本期 + 上期）----
+    const [
+      todayOrders, yesterdayOrders,
+      pendingOrders, totalOrders,
+    ] = await Promise.all([
       prisma.order.count({
         where: { createdAt: { gte: todayStart } },
+      }),
+      prisma.order.count({
+        where: { createdAt: { gte: yesterdayStart, lt: todayStart } },
       }),
       prisma.order.count({
         where: { status: { in: ['pending', 'paid'] } },
@@ -118,12 +171,16 @@ export async function GET(request: NextRequest) {
       today: todayOrders,
       pending: pendingOrders,
       total: totalOrders,
+      todayVsYesterday: calcDelta(todayOrders, yesterdayOrders),
     }
 
-    // ---- 用户统计 ----
-    const [todayNewUsers, totalUsers, activeOrders7d] = await Promise.all([
+    // ---- 用户统计（本期 + 上期）----
+    const [todayNewUsers, yesterdayNewUsers, totalUsers, activeOrders7d] = await Promise.all([
       prisma.user.count({
         where: { createdAt: { gte: todayStart } },
+      }),
+      prisma.user.count({
+        where: { createdAt: { gte: yesterdayStart, lt: todayStart } },
       }),
       prisma.user.count(),
       prisma.order.findMany({
@@ -137,6 +194,7 @@ export async function GET(request: NextRequest) {
       todayNew: todayNewUsers,
       total: totalUsers,
       active7d: activeOrders7d.length,
+      todayNewVsYesterday: calcDelta(todayNewUsers, yesterdayNewUsers),
     }
 
     // ---- 商品统计 ----
