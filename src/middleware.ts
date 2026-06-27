@@ -18,6 +18,12 @@ const pathRoleMap: Record<string, string[]> = {
   '/api/admin/stats': ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'],
   '/api/admin/logs': ['super_admin', 'auditor'],
   '/api/admin/notifications': ['super_admin'],
+  '/api/admin/notification-history': ['super_admin', 'support_admin'],
+  '/api/admin/points': ['super_admin', 'points_admin'],
+  '/api/admin/referral-tree': ['super_admin', 'support_admin'],
+  '/api/admin/reports': ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'],
+  '/api/admin/system-config': ['super_admin'],
+  '/api/admin/withdrawal-templates': ['super_admin', 'finance_admin'],
 }
 
 // ---- 辅助函数 ----

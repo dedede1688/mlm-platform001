@@ -289,4 +289,230 @@ export class OrderNotificationService {
       logger.error('发送退款申请站内信失败', { error: String(err) })
     }
   }
+
+  // v54 阶段4: 订单完成通知
+  static async notifyOrderCompleted(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: true },
+    })
+    if (!order) return
+    const variables = {
+      orderNo: order.orderNo,
+      userName: order.user?.nickname ?? order.user?.phone ?? '',
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '订单完成通知',
+            content: '订单 ' + order.orderNo + ' 已完成',
+            templateType: 'order_completed',
+            recipientCount: 1,
+            senderId: null,
+          },
+        })
+        await sendInApp({
+          userId: order.userId,
+          templateType: 'order_completed',
+          variables,
+          batchId: b.id,
+        })
+      } catch (err) {
+        console.error('[v54 notifyOrderCompleted]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('订单完成通知失败', { error: String(err) })
+      }
+    })()
+  }
+
+  // v54 阶段4: 订单取消通知
+  static async notifyOrderCancelled(params: { orderId: string; reason?: string }) {
+    const order = await prisma.order.findUnique({
+      where: { id: params.orderId },
+      include: { user: true },
+    })
+    if (!order) return
+    const reason = params.reason || '管理员操作'
+    const variables = {
+      orderNo: order.orderNo,
+      reason,
+      userName: order.user?.nickname ?? order.user?.phone ?? '',
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '订单取消通知',
+            content: '订单 ' + order.orderNo + ' 已取消',
+            templateType: 'order_cancelled',
+            recipientCount: 1,
+            senderId: null,
+          },
+        })
+        await sendInApp({
+          userId: order.userId,
+          templateType: 'order_cancelled',
+          variables,
+          batchId: b.id,
+        })
+      } catch (err) {
+        console.error('[v54 notifyOrderCancelled]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('订单取消通知失败', { error: String(err) })
+      }
+    })()
+  }
+
+  // v54 阶段4: 账户状态变更通知
+  static async notifyUserStatusChange(params: {
+    userId: string
+    status: 'active' | 'frozen'
+    reason: string
+    operatorId?: string
+  }) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { nickname: true, phone: true },
+    })
+    if (!user) return
+    const statusLabel = params.status === 'active' ? '解封' : '冻结'
+    const variables = {
+      userName: user.nickname ?? user.phone ?? '',
+      statusLabel,
+      reason: params.reason,
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: `账户${statusLabel}通知`,
+            content: `您的账户已被${statusLabel}，原因：${params.reason}`,
+            templateType: 'user_status_change',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'user_status_change',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v54 notifyUserStatusChange]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('账户状态变更通知失败', { error: String(err) })
+      }
+    })()
+  }
+
+  // v54 阶段4: 积分作废通知
+  static async notifyPointsVoid(params: {
+    userId: string
+    amount: number
+    reason: string
+    remainingPoints: number
+    operatorId?: string
+  }) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { nickname: true, phone: true },
+    })
+    if (!user) return
+    const variables = {
+      userName: user.nickname ?? user.phone ?? '',
+      amount: params.amount.toString(),
+      reason: params.reason,
+      remainingPoints: params.remainingPoints.toString(),
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '积分作废通知',
+            content: `您的 ${params.amount} 积分已被作废，原因：${params.reason}`,
+            templateType: 'points_void',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'points_void',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v54 notifyPointsVoid]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('积分作废通知失败', { error: String(err) })
+      }
+    })()
+  }
+
+  // v54 阶段4: 手动奖励到账通知
+  static async notifyManualReward(params: {
+    userId: string
+    amount: number
+    reason: string
+    operatorId?: string
+  }) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { nickname: true, phone: true },
+    })
+    if (!user) return
+    const variables = {
+      userName: user.nickname ?? user.phone ?? '',
+      amount: params.amount.toFixed(2),
+      reason: params.reason,
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '手动奖励到账通知',
+            content: `您收到一笔手动奖励 ¥${params.amount.toFixed(2)}，原因：${params.reason}`,
+            templateType: 'manual_reward',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'manual_reward',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v54 notifyManualReward]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('手动奖励通知失败', { error: String(err) })
+      }
+    })()
+  }
 }

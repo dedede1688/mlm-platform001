@@ -12,7 +12,6 @@ interface PublicSettings {
   contactPhone: string
   serviceTime: string
   companyName: string
-  icp: string
   copyright: string
 }
 
@@ -24,7 +23,6 @@ const defaultSettings: PublicSettings = {
   contactPhone: '18566793066',
   serviceTime: '周一至周日 9:00-21:00',
   companyName: '广州敏维科技有限公司',
-  icp: '粤ICP备XXXXXXXX号',
   copyright: '2026',
 }
 

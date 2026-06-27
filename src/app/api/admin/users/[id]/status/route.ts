@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // PUT /api/admin/users/[id]/status — 管理员变更会员状态（冻结/解封）
 export async function PUT(
@@ -66,6 +67,14 @@ export async function PUT(
       newValue: { status: updated.status },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
+    })
+
+    // v54 阶段4: 通知用户账户状态变更
+    await OrderNotificationService.notifyUserStatusChange({
+      userId: id,
+      status,
+      reason,
+      operatorId: admin.id,
     })
 
     const actionLabel = status === 'active' ? '解封' : '冻结'

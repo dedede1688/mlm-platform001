@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { UserService } from './user.service'
-import { MEMBER_LEVELS } from '@/lib/constants'
+import { MEMBER_LEVELS, BALANCE_SELECT } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
 import { logger } from '@/lib/logger'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
@@ -81,7 +81,7 @@ export class RewardService {
 
       const before = await tx.user.findUnique({
         where: { id: referrerId },
-        select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
+        select: BALANCE_SELECT,
       })
 
       await tx.user.update({
@@ -161,7 +161,7 @@ export class RewardService {
 
       const before = await tx.user.findUnique({
         where: { id: target.userId },
-        select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
+        select: BALANCE_SELECT,
       })
 
       await tx.user.update({
@@ -256,7 +256,7 @@ export class RewardService {
 
           const before = await tx.user.findUnique({
             where: { id: member.userId },
-            select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
+            select: BALANCE_SELECT,
           })
 
           await tx.user.update({
@@ -409,7 +409,7 @@ export class RewardService {
       for (const reward of rewards) {
         const user = await tx.user.findUnique({
           where: { id: reward.userId },
-          select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
+          select: BALANCE_SELECT,
         })
         if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
 
@@ -447,7 +447,7 @@ export class RewardService {
       for (const dividend of dividends) {
         const user = await tx.user.findUnique({
           where: { id: dividend.userId },
-          select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
+          select: BALANCE_SELECT,
         })
         if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
 

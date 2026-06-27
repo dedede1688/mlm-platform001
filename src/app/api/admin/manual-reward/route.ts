@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // POST /api/admin/manual-reward — 手动发放奖励（管理员）
 // 请求体：{ userId, amount, type?, reason }
@@ -99,6 +100,14 @@ export async function POST(request: NextRequest) {
       newValue: { userId, amount, type: rewardType, reason: rewardReason },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
+    })
+
+    // v54 阶段4: 通知用户手动奖励到账
+    await OrderNotificationService.notifyManualReward({
+      userId,
+      amount,
+      reason: rewardReason,
+      operatorId: admin.id,
     })
 
     return NextResponse.json({

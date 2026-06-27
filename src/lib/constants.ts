@@ -49,3 +49,13 @@ export const REWARD_TYPE = {
   BRAND_BONUS: 'brand_bonus',
   DIVIDEND: 'dividend',
 } as const
+
+// v54 阶段5: 余额/收益字段统一 select 常量（防并发/流水场景复用）
+export const BALANCE_SELECT = {
+  balance: true,
+  frozenBalance: true,
+  consumeBalance: true,
+  earningsAvailable: true,
+  earningsPending: true,
+  earningsVoided: true,
+} as const

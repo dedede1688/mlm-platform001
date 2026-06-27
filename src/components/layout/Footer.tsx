@@ -24,7 +24,7 @@ const defaultSettings: PublicSettings = {
   serviceTime: '周一至周日 9:00-21:00',
   companyName: '广州敏维科技有限公司',
   companyAddress: '广州市花都区金谷南路',
-  icp: '粤ICP备XXXXXXXX号',
+  icp: '',
   copyright: '2026',
 }
 
@@ -104,7 +104,9 @@ export default function Footer() {
         {/* 底部版权区 */}
         <div className="pt-6 border-t border-gray-700 text-center text-sm text-gray-500">
           <p>&copy; {loading ? '2026' : s.copyright} {loading ? '' : s.companyName}. All rights reserved.</p>
-          <p className="mt-1">{loading ? <span className="inline-block h-4 w-28 bg-gray-700 rounded animate-pulse" /> : s.icp}</p>
+          {(loading || s.icp) && (
+            <p className="mt-1">{loading ? <span className="inline-block h-4 w-28 bg-gray-700 rounded animate-pulse" /> : s.icp}</p>
+          )}
         </div>
       </div>
     </footer>

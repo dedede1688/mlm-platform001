@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // 合法的状态流转规则
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -33,7 +34,11 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { status, trackingNumber } = body as { status?: string; trackingNumber?: string }
+    const { status, trackingNumber, reason } = body as {
+      status?: string
+      trackingNumber?: string
+      reason?: string
+    }
 
     // 验证 status 参数
     if (!status || !ALLOWED_STATUSES.includes(status)) {
@@ -92,6 +97,18 @@ export async function PATCH(
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })
+
+    // v54 阶段4: admin 状态变更后通知用户
+    if (status === 'shipped') {
+      await OrderNotificationService.notifyOrderShipped(id)
+    } else if (status === 'completed') {
+      await OrderNotificationService.notifyOrderCompleted(id)
+    } else if (status === 'cancelled') {
+      await OrderNotificationService.notifyOrderCancelled({
+        orderId: id,
+        reason: typeof reason === 'string' && reason.trim() ? reason.trim() : '管理员操作',
+      })
+    }
 
     return NextResponse.json({
       success: true,

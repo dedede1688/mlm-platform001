@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { logOperation } from '@/lib/utils/operation-log'
 import { getBusinessConfig } from '@/lib/config/business'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 export class PointsService {
   // 获取用户积分信息
@@ -316,6 +317,15 @@ export class PointsService {
       targetId: userId,
       oldValue: result.oldValue,
       newValue: result.newValue,
+    })
+
+    // v54 阶段4: 通知用户积分作废
+    await OrderNotificationService.notifyPointsVoid({
+      userId,
+      amount,
+      reason,
+      remainingPoints: result.newValue.unlockedPoints,
+      operatorId: adminId,
     })
 
     logger.info(`积分作废成功: userId=${userId}, amount=${amount}, reason=${reason}`)

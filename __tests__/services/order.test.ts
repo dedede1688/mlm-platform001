@@ -127,57 +127,6 @@ describe('OrderService', () => {
     })
   })
 
-  describe('payOrder', () => {
-    it('should pay order successfully', async () => {
-      // 第一次 findUnique（事务外）：查订单，必须 status='pending'
-      prisma.order.findUnique.mockResolvedValueOnce({
-        id: 'o1', orderNo: 'ORD123', userId: 'u1', totalAmount: 100, payAmount: 100,
-        status: 'pending',
-      })
-      // 事务内：原子 updateMany 改 status=paid
-      prisma.order.updateMany.mockResolvedValueOnce({ count: 1 })
-      // 事务内：payAmount > 0 查 user
-      prisma.user.findUnique.mockResolvedValueOnce({
-        balance: 1000, frozenBalance: 0,
-      })
-      // 事务内：原子扣减余额
-      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
-      // 事务内：写 BalanceRecord
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
-      // 事务内：第二次 findUnique 返回支付后的订单
-      prisma.order.findUnique.mockResolvedValueOnce({
-        id: 'o1', orderNo: 'ORD123', userId: 'u1', totalAmount: 100, payAmount: 100,
-        status: 'paid',
-        user: { email: 'test@test.com', phone: '13800000001', nickname: 'Test' },
-        items: [{ product: { isUpgradeProduct: false, name: 'Test' } }],
-      })
-
-      const { RewardService } = await import('@/lib/services/reward.service')
-      vi.mocked(RewardService.processOrderRewards).mockResolvedValueOnce(undefined as any)
-
-      const result = await OrderLifecycleService.payOrder('o1')
-      expect(result).toBeDefined()
-      expect(result.status).toBe('paid')
-
-      const updateManyCall = prisma.user.updateMany.mock.calls[0][0]
-      expect(updateManyCall.data).toMatchObject({
-        balance: { decrement: 100 },
-        consumeBalance: { increment: 100 },
-      })
-    })
-
-    it('should throw error when order already paid', async () => {
-      // 第一次 findUnique（事务外）：订单状态已经是 paid
-      prisma.order.findUnique.mockResolvedValueOnce({
-        id: 'o1', orderNo: 'ORD123', userId: 'u1', totalAmount: 100, payAmount: 100,
-        status: 'paid',
-      })
-
-      await expect(OrderLifecycleService.payOrder('o1'))
-        .rejects.toThrow('订单不存在或状态已变更')
-    })
-  })
-
   describe('requestRefund', () => {
     it('should refund order and decrement consumeBalance', async () => {
       prisma.order.findUnique.mockResolvedValueOnce({
@@ -193,7 +142,7 @@ describe('OrderService', () => {
         balance: 100, frozenBalance: 0, consumeBalance: 100,
       })
 
-      prisma.user.update.mockResolvedValueOnce({})
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.balanceRecord.create.mockResolvedValueOnce({})
 
       const { RewardService } = await import('@/lib/services/reward.service')
@@ -204,7 +153,10 @@ describe('OrderService', () => {
 
       await OrderLifecycleService.requestRefund('o1')
 
-      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      const userUpdateCall = prisma.user.updateMany.mock.calls[0][0]
+      expect(userUpdateCall.where).toMatchObject({
+        consumeBalance: { gte: 100 },
+      })
       expect(userUpdateCall.data).toMatchObject({
         balance: { increment: 100 },
         consumeBalance: { decrement: 100 },

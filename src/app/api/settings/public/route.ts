@@ -65,7 +65,7 @@ export async function GET() {
         serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
         companyName: config.companyName ?? '广州敏维科技有限公司',
         companyAddress: config.companyAddress ?? '广州市花都区金谷南路',
-        icp: config.icp ?? '粤ICP备XXXXXXXX号',
+        icp: config.icp ?? '',
         copyright: config.copyright ?? '2026',
         aboutUs: config.aboutUs ?? null,
         termsHtml: config.termsHtml ?? null,

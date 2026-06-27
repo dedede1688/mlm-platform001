@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
+import { BALANCE_SELECT } from '@/lib/constants'
 
 
 export class AdminService {
@@ -285,7 +286,7 @@ export class AdminService {
         await prisma.$transaction(async (tx) => {
           const user = await tx.user.findUnique({
             where: { id: userId },
-            select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
+            select: BALANCE_SELECT,
           })
           if (!user) throw new Error(`用户 ${userId} 不存在`)
 
