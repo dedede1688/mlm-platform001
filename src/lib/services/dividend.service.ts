@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
+import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
 
 export class DividendService {
@@ -207,7 +208,7 @@ export class DividendService {
           // 查询用户当前余额（事务内）
           const currentUser = await tx.user.findUnique({
             where: { id: user.id },
-            select: { balance: true, frozenBalance: true },
+            select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
           })
 
           // 创建分红记录
@@ -236,6 +237,7 @@ export class DividendService {
           })
 
           // 记录余额流水
+          const afterDividend = currentUser ? { consumeBalance: currentUser.consumeBalance, earningsAvailable: currentUser.earningsAvailable + dividendAmount, earningsPending: currentUser.earningsPending, earningsVoided: currentUser.earningsVoided } : { consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0 }
           await tx.balanceRecord.create({
             data: {
               userId: user.id,
@@ -245,7 +247,7 @@ export class DividendService {
               amount: +dividendAmount,
               balance: currentUser!.balance + dividendAmount,
               frozenBalance: currentUser!.frozenBalance,
-              description: `每日分红结算（v2 5级独立池），发放 ¥${dividendAmount}，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}`,
+              description: `每日分红结算（v2 5级独立池），发放 ¥${dividendAmount}，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}${currentUser ? format4FieldDelta(currentUser, afterDividend) : ''}`,
             },
           })
 

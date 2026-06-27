@@ -3,6 +3,7 @@ import { UserService } from './user.service'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
 import { logger } from '@/lib/logger'
+import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
 async function findBrandBonusRecipients(
   buyerId: string,
@@ -80,7 +81,7 @@ export class RewardService {
 
       const before = await tx.user.findUnique({
         where: { id: referrerId },
-        select: { balance: true, frozenBalance: true },
+        select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
       })
 
       await tx.user.update({
@@ -89,6 +90,7 @@ export class RewardService {
       })
 
       if (before) {
+        const after = { consumeBalance: before.consumeBalance, earningsAvailable: before.earningsAvailable + amount, earningsPending: before.earningsPending, earningsVoided: before.earningsVoided }
         await tx.balanceRecord.create({
           data: {
             userId: referrerId,
@@ -98,7 +100,7 @@ export class RewardService {
             frozenBalance: before.frozenBalance,
             sourceType: 'reward',
             sourceId: reward.id,
-            description: `直推奖 +¥${amount.toFixed(2)}，订单 ${orderId}`,
+            description: `直推奖 +¥${amount.toFixed(2)}，订单 ${orderId}${format4FieldDelta(before, after)}`,
           },
         })
       }
@@ -159,7 +161,7 @@ export class RewardService {
 
       const before = await tx.user.findUnique({
         where: { id: target.userId },
-        select: { balance: true, frozenBalance: true },
+        select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
       })
 
       await tx.user.update({
@@ -168,6 +170,7 @@ export class RewardService {
       })
 
       if (before) {
+        const after = { consumeBalance: before.consumeBalance, earningsAvailable: before.earningsAvailable + amount, earningsPending: before.earningsPending, earningsVoided: before.earningsVoided }
         await tx.balanceRecord.create({
           data: {
             userId: target.userId,
@@ -177,7 +180,7 @@ export class RewardService {
             frozenBalance: before.frozenBalance,
             sourceType: 'reward',
             sourceId: reward.id,
-            description: `品牌管理奖（第${target.layer}层）+¥${amount.toFixed(2)}，订单 ${orderId}`,
+            description: `品牌管理奖（第${target.layer}层）+¥${amount.toFixed(2)}，订单 ${orderId}${format4FieldDelta(before, after)}`,
           },
         })
       }
@@ -253,7 +256,7 @@ export class RewardService {
 
           const before = await tx.user.findUnique({
             where: { id: member.userId },
-            select: { balance: true, frozenBalance: true },
+            select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
           })
 
           await tx.user.update({
@@ -262,6 +265,7 @@ export class RewardService {
           })
 
           if (before) {
+            const after = { consumeBalance: before.consumeBalance, earningsAvailable: before.earningsAvailable + perUserAmount, earningsPending: before.earningsPending, earningsVoided: before.earningsVoided }
             await tx.balanceRecord.create({
               data: {
                 userId: member.userId,
@@ -271,7 +275,7 @@ export class RewardService {
                 frozenBalance: before.frozenBalance,
                 sourceType: 'dividend',
                 sourceId: dividend.id,
-                description: `分红奖（${pool.configKey}池）+¥${perUserAmount.toFixed(2)}，订单 ${orderId}`,
+                description: `分红奖（${pool.configKey}池）+¥${perUserAmount.toFixed(2)}，订单 ${orderId}${format4FieldDelta(before, after)}`,
               },
             })
           }
@@ -402,7 +406,7 @@ export class RewardService {
       for (const reward of rewards) {
         const user = await tx.user.findUnique({
           where: { id: reward.userId },
-          select: { balance: true, frozenBalance: true },
+          select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
         })
         if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
 
@@ -411,6 +415,7 @@ export class RewardService {
         }
 
         const newBalance = user.balance - reward.amount
+        const afterRefundReward = { consumeBalance: user.consumeBalance, earningsAvailable: user.earningsAvailable - reward.amount, earningsPending: user.earningsPending, earningsVoided: user.earningsVoided }
 
         await tx.user.update({
           where: { id: reward.userId },
@@ -431,7 +436,7 @@ export class RewardService {
             frozenBalance: user.frozenBalance,
             sourceType: 'reward',
             sourceId: reward.id,
-            description: `扣回奖励（${reward.type}），订单退款`,
+            description: `扣回奖励（${reward.type}），订单退款${format4FieldDelta(user, afterRefundReward)}`,
           },
         })
       }
@@ -439,7 +444,7 @@ export class RewardService {
       for (const dividend of dividends) {
         const user = await tx.user.findUnique({
           where: { id: dividend.userId },
-          select: { balance: true, frozenBalance: true },
+          select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
         })
         if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
 
@@ -448,6 +453,7 @@ export class RewardService {
         }
 
         const newBalance = user.balance - dividend.amount
+        const afterRefundDiv = { consumeBalance: user.consumeBalance, earningsAvailable: user.earningsAvailable, earningsPending: user.earningsPending, earningsVoided: user.earningsVoided + dividend.amount }
 
         await tx.user.update({
           where: { id: dividend.userId },
@@ -467,7 +473,7 @@ export class RewardService {
             frozenBalance: user.frozenBalance,
             sourceType: 'reward',
             sourceId: dividend.id,
-            description: `扣回分红，订单退款`,
+            description: `扣回分红，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
           },
         })
       }

@@ -7,6 +7,7 @@ import { sendInApp } from '@/lib/notification/sendInApp'
 import { logger } from '@/lib/logger'
 import { verifyPaymentPassword } from '@/lib/auth/payment-password'
 import { getSystemParameter } from '@/lib/config/system-parameters'
+import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
 export class OrderService {
   // 创建订单（一单一品一件）
@@ -187,12 +188,13 @@ export class OrderService {
       const updated = await tx.order.updateMany({ where: { id: orderId, status: ORDER_STATUS.PENDING }, data: { status: ORDER_STATUS.PAID, paymentVerified: true, paidAt: new Date() } })
       if (updated.count === 0) throw new Error('订单不存在或状态已变更')
       if (order.payAmount > 0) {
-        const freshUser = await tx.user.findUnique({ where: { id: order.userId }, select: { balance: true, frozenBalance: true } })
+        const freshUser = await tx.user.findUnique({ where: { id: order.userId }, select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true } })
         if (!freshUser) throw new Error('用户不存在')
         const bu = await tx.user.updateMany({ where: { id: order.userId, balance: { gte: order.payAmount } }, data: { balance: { decrement: order.payAmount }, consumeBalance: { increment: order.payAmount } } })
         if (bu.count === 0) throw new Error('可用余额不足')
         const nb = freshUser.balance - order.payAmount
-        await tx.balanceRecord.create({ data: { userId: order.userId, type: 'payment', amount: -order.payAmount, balance: nb, frozenBalance: freshUser.frozenBalance, sourceType: 'order', sourceId: orderId, description: '订单 ' + order.orderNo + ' 支付' } })
+        const afterPay1 = { consumeBalance: freshUser.consumeBalance + order.payAmount, earningsAvailable: freshUser.earningsAvailable, earningsPending: freshUser.earningsPending, earningsVoided: freshUser.earningsVoided }
+        await tx.balanceRecord.create({ data: { userId: order.userId, type: 'payment', amount: -order.payAmount, balance: nb, frozenBalance: freshUser.frozenBalance, sourceType: 'order', sourceId: orderId, description: '订单 ' + order.orderNo + ' 支付' + format4FieldDelta(freshUser, afterPay1) } })
       }
       return await tx.order.findUnique({ where: { id: orderId }, include: { user: true, items: { include: { product: true } } } })
     })
@@ -242,7 +244,7 @@ export class OrderService {
       if (order.payAmount > 0) {
         const freshUser = await tx.user.findUnique({
           where: { id: order.userId },
-          select: { balance: true, frozenBalance: true },
+          select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
         })
         if (!freshUser) throw new Error('用户不存在')
 
@@ -259,6 +261,7 @@ export class OrderService {
         if (balanceUpdated.count === 0) throw new Error('可用余额不足')
 
         const newBalance = freshUser.balance - order.payAmount
+        const afterPay2 = { consumeBalance: freshUser.consumeBalance + order.payAmount, earningsAvailable: freshUser.earningsAvailable, earningsPending: freshUser.earningsPending, earningsVoided: freshUser.earningsVoided }
         await tx.balanceRecord.create({
           data: {
             userId: order.userId,
@@ -268,7 +271,7 @@ export class OrderService {
             frozenBalance: freshUser.frozenBalance,
             sourceType: 'order',
             sourceId: orderId,
-            description: `订单 ${order.orderNo} 支付`,
+            description: `订单 ${order.orderNo} 支付${format4FieldDelta(freshUser, afterPay2)}`,
           },
         })
       }
@@ -422,7 +425,7 @@ export class OrderService {
       if (order.payAmount > 0) {
         const refundUser = await tx.user.findUnique({
           where: { id: order.userId },
-          select: { balance: true, frozenBalance: true, consumeBalance: true },
+          select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
         })
         if (refundUser) {
           await tx.user.update({
@@ -430,6 +433,7 @@ export class OrderService {
             data: { balance: { increment: order.payAmount }, consumeBalance: { decrement: order.payAmount } },
           })
           const newBalance = refundUser.balance + order.payAmount
+          const afterRefund = { consumeBalance: refundUser.consumeBalance - order.payAmount, earningsAvailable: refundUser.earningsAvailable, earningsPending: refundUser.earningsPending, earningsVoided: refundUser.earningsVoided }
           await tx.balanceRecord.create({
             data: {
               userId: order.userId,
@@ -439,7 +443,7 @@ export class OrderService {
               frozenBalance: refundUser.frozenBalance,
               sourceType: 'order',
               sourceId: orderId,
-              description: '订单 ' + order.orderNo + ' 退款',
+              description: '订单 ' + order.orderNo + ' 退款' + format4FieldDelta(refundUser, afterRefund),
             },
           })
         }

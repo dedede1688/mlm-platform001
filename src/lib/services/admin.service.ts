@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
 
 export class AdminService {
@@ -284,7 +285,7 @@ export class AdminService {
         await prisma.$transaction(async (tx) => {
           const user = await tx.user.findUnique({
             where: { id: userId },
-            select: { balance: true, frozenBalance: true },
+            select: { balance: true, frozenBalance: true, consumeBalance: true, earningsAvailable: true, earningsPending: true, earningsVoided: true },
           })
           if (!user) throw new Error(`用户 ${userId} 不存在`)
 
@@ -296,6 +297,7 @@ export class AdminService {
           })
 
           // 写 BalanceRecord 流水
+          const afterAdminDiv = { consumeBalance: user.consumeBalance, earningsAvailable: user.earningsAvailable, earningsPending: user.earningsPending, earningsVoided: user.earningsVoided }
           await tx.balanceRecord.create({
             data: {
               userId,
@@ -305,7 +307,7 @@ export class AdminService {
               frozenBalance: user.frozenBalance,
               sourceType: 'dividend',
               sourceId: null,
-              description: `每日分红结算，发放 ¥${amount}，分红数：${dividendIds.join(',')}`,
+              description: `每日分红结算，发放 ¥${amount}，分红数：${dividendIds.join(',')}${format4FieldDelta(user, afterAdminDiv)}`,
             },
           })
         })
