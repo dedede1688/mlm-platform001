@@ -62,6 +62,7 @@ vi.mock('@/lib/logger', () => ({
 
 import { RewardService } from '@/lib/services/reward.service'
 import { getBusinessConfig } from '@/lib/config/business'
+import { UserService } from '@/lib/services/user.service'
 
 describe('RewardService', () => {
   beforeEach(() => {
@@ -390,6 +391,50 @@ describe('RewardService', () => {
 
       expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
       expect(prisma.user.update).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('v54 H: checkUpgradeFromOrder', () => {
+    it('升级品订单 → 买家 directSalesAmount += payAmount', async () => {
+      const userId = 'buyer-h1'
+      const order = {
+        items: [
+          { product: { isUpgradeProduct: true }, quantity: 10 },
+        ],
+        payAmount: 5000,
+      }
+
+      prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'referrer-h1' })
+
+      await RewardService.checkUpgradeFromOrder(userId, order)
+
+      // v54 H: buyer's own directSalesAmount should be incremented
+      expect(UserService.addDirectSales).toHaveBeenCalledWith(userId, 5000)
+      // referrer's directSalesAmount should also be incremented
+      expect(UserService.addDirectSales).toHaveBeenCalledWith('referrer-h1', 5000)
+      expect(UserService.addUpgradeProductCount).toHaveBeenCalledWith(userId, 10)
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith(userId)
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith('referrer-h1')
+    })
+
+    it('普通订单 → 买家 directSalesAmount += payAmount', async () => {
+      const userId = 'buyer-h2'
+      const order = {
+        items: [
+          { product: { isUpgradeProduct: false }, quantity: 1 },
+        ],
+        payAmount: 500,
+      }
+
+      prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'referrer-h2' })
+
+      await RewardService.checkUpgradeFromOrder(userId, order)
+
+      // v54 H: buyer's own directSalesAmount should be incremented
+      expect(UserService.addDirectSales).toHaveBeenCalledWith(userId, 500)
+      // referrer's directSalesAmount should also be incremented
+      expect(UserService.addDirectSales).toHaveBeenCalledWith('referrer-h2', 500)
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith('referrer-h2')
     })
   })
 })

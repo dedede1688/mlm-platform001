@@ -529,7 +529,7 @@ export default function AdminRefundsPage() {
                 <span className="text-gray-500">退款金额：</span>
                 <span className="text-orange-600 font-semibold">¥{formatMoney(completeModal.amount)}</span>
               </p>
-              <p className="text-xs text-gray-400">确认后状态将变更为"已完成"，实际退款逻辑后续可扩展。</p>
+              <p className="text-xs text-gray-400">确认后将执行退款，金额将退回用户余额。</p>
             </div>
             <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
               <button

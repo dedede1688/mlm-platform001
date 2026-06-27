@@ -24,6 +24,7 @@ vi.mock('@/lib/prisma', () => {
 vi.mock('@/lib/services/points.service', () => ({
   PointsService: {
     createPointsRecord: vi.fn(),
+    createPointsUnlockSchedule: vi.fn().mockResolvedValue({ id: 'sched-1' }),
   },
 }))
 
@@ -32,9 +33,14 @@ vi.mock('@/lib/config/business', () => ({
   invalidateBusinessConfigCache: vi.fn(),
 }))
 
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+}))
+
 import { prisma } from '@/lib/prisma'
 import { PointsService } from '@/lib/services/points.service'
 import { UserService } from '@/lib/services/user.service'
+import { logger } from '@/lib/logger'
 
 describe('UserService', () => {
   beforeEach(() => {
@@ -201,6 +207,83 @@ describe('UserService', () => {
 
       expect(result).toBe(1)
       expect(prisma.user.update).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('v54 D: 升级为经销商创建积分释放计划', () => {
+    it('升级为经销商后创建 PointsUnlockSchedule (rate=0.01, totalDays=100)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u-d1', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: 'ref-d1',
+      })
+      prisma.user.update.mockResolvedValue({})
+      vi.mocked(PointsService.createPointsRecord).mockResolvedValue({} as any)
+      vi.mocked(PointsService.createPointsUnlockSchedule).mockResolvedValue({ id: 'sched-d1' })
+
+      const { getBusinessConfig } = await import('@/lib/config/business')
+      vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+        if (key === 'upgrade.points_per_box') return 500
+        if (key === 'upgrade.daily_unlock_rate') return 0.01
+        if (key === 'upgrade.distributor.box_count') return 10
+        if (key.startsWith('upgrade.') && key.endsWith('.sales_amount')) return 999999
+        return defaultValue
+      })
+
+      await UserService.checkAndUpgradeLevel('u-d1')
+
+      expect(PointsService.createPointsRecord).toHaveBeenCalledTimes(1)
+      expect(PointsService.createPointsUnlockSchedule).toHaveBeenCalledTimes(1)
+      const call = vi.mocked(PointsService.createPointsUnlockSchedule).mock.calls[0][0]
+      expect(call.totalPoints).toBe(5000)
+      expect(call.dailyUnlockRate).toBe(0.01)
+      expect(call.totalDays).toBe(100)
+      expect(call.orderId).toBe('')
+    })
+
+    it('rate=0.02 时 totalDays=50', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u-d2', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: null,
+      })
+      prisma.user.update.mockResolvedValue({})
+      vi.mocked(PointsService.createPointsRecord).mockResolvedValue({} as any)
+      vi.mocked(PointsService.createPointsUnlockSchedule).mockResolvedValue({ id: 'sched-d2' })
+
+      const { getBusinessConfig } = await import('@/lib/config/business')
+      vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+        if (key === 'upgrade.points_per_box') return 500
+        if (key === 'upgrade.daily_unlock_rate') return 0.02
+        if (key === 'upgrade.distributor.box_count') return 10
+        if (key.startsWith('upgrade.') && key.endsWith('.sales_amount')) return 999999
+        return defaultValue
+      })
+
+      await UserService.checkAndUpgradeLevel('u-d2')
+
+      const call = vi.mocked(PointsService.createPointsUnlockSchedule).mock.calls[0][0]
+      expect(call.dailyUnlockRate).toBe(0.02)
+      expect(call.totalDays).toBe(50)
+    })
+
+    it('schedule 创建失败不影响主业务', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u-d3', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: null,
+      })
+      prisma.user.update.mockResolvedValue({})
+      vi.mocked(PointsService.createPointsRecord).mockResolvedValue({} as any)
+      vi.mocked(PointsService.createPointsUnlockSchedule).mockRejectedValueOnce(new Error('DB error'))
+
+      const { getBusinessConfig } = await import('@/lib/config/business')
+      vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+        if (key === 'upgrade.points_per_box') return 500
+        if (key === 'upgrade.daily_unlock_rate') return 0.01
+        if (key === 'upgrade.distributor.box_count') return 10
+        if (key.startsWith('upgrade.') && key.endsWith('.sales_amount')) return 999999
+        return defaultValue
+      })
+
+      // Should not throw
+      const result = await UserService.checkAndUpgradeLevel('u-d3')
+      expect(result).toBe(2) // Still upgraded to DISTRIBUTOR
+      expect(logger.error).toHaveBeenCalled()
     })
   })
 

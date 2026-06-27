@@ -155,6 +155,38 @@ export class PointsService {
     }
   }
 
+  // v54 D: 创建积分释放计划（升级为经销商时调用）
+  static async createPointsUnlockSchedule(data: {
+    userId: string
+    orderId: string | null
+    totalPoints: number
+    dailyUnlockRate: number
+    totalDays: number
+    nextUnlockDate: Date
+  }): Promise<{ id: string }> {
+    // 将积分锁定到 lockedPoints，dailyUnlock 会逐步释放到 unlockedPoints
+    await prisma.user.update({
+      where: { id: data.userId },
+      data: { lockedPoints: { increment: data.totalPoints } },
+    })
+
+    return prisma.pointsUnlockSchedule.create({
+      data: {
+        userId: data.userId,
+        orderId: data.orderId || '',
+        totalPoints: data.totalPoints,
+        unlockedPoints: 0,
+        remainingPoints: data.totalPoints,
+        dailyUnlockRate: data.dailyUnlockRate,
+        totalDays: data.totalDays,
+        completedDays: 0,
+        status: 'active',
+        nextUnlockDate: data.nextUnlockDate,
+      },
+      select: { id: true },
+    })
+  }
+
   // 每日积分解锁（定时任务调用）
   static async dailyUnlock(): Promise<number> {
     const unlockSchedules = await prisma.pointsUnlockSchedule.findMany({

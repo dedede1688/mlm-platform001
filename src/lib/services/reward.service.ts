@@ -327,6 +327,9 @@ export class RewardService {
       (item) => item.product.isUpgradeProduct
     )
 
+    // v54 H: 升级品订单计入买家自己的销售额（业务规则 §7.4）
+    await UserService.addDirectSales(userId, order.payAmount)
+
     if (hasUpgradeProduct) {
       await UserService.addUpgradeProductCount(userId,
         order.items

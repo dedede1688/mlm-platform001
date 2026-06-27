@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { PointsService } from './points.service'
 import { getBusinessConfig } from '@/lib/config/business'
+import { logger } from '@/lib/logger'
 
 export class UserService {
   static async createUser(data: {
@@ -161,6 +162,22 @@ export class UserService {
             type: 'reward',
             amount: pointsAmount,
             description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × ${pointsPerBox}）`,
+          })
+          // v54 D: 创建积分释放计划（按日释放）
+          const dailyUnlockRate = await getBusinessConfig<number>('upgrade.daily_unlock_rate', 0.01)
+          const totalDays = Math.ceil(1 / dailyUnlockRate)
+          const tomorrow = new Date()
+          tomorrow.setHours(0, 0, 0, 0)
+          tomorrow.setDate(tomorrow.getDate() + 1)
+          await PointsService.createPointsUnlockSchedule({
+            userId,
+            orderId: '',
+            totalPoints: pointsAmount,
+            dailyUnlockRate,
+            totalDays,
+            nextUnlockDate: tomorrow,
+          }).catch((err: unknown) => {
+            logger.error('[v54 D] 创建积分释放计划失败', { userId, pointsAmount, error: String(err) })
           })
         }
       }
