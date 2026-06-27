@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { logOperation } from '@/lib/utils/operation-log'
@@ -25,18 +26,24 @@ export class PointsService {
   }
 
   // 添加积分记录
-  static async createPointsRecord(data: {
-    userId: string
-    type: 'earn' | 'spend' | 'transfer_in' | 'transfer_out' | 'reward' | 'refund'
-    amount: number
-    description?: string
-    relatedUserId?: string
-    sourceId?: string
-  }) {
+  // v55.1: 支持 tx 参数，允许在事务中调用以保证原子性
+  static async createPointsRecord(
+    data: {
+      userId: string
+      type: 'earn' | 'spend' | 'transfer_in' | 'transfer_out' | 'reward' | 'refund'
+      amount: number
+      description?: string
+      relatedUserId?: string
+      sourceId?: string
+    },
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx ?? prisma
+    // getUserPoints 是只读查询，不需要事务上下文
     const user = await this.getUserPoints(data.userId)
 
     // 更新用户总积分
-    await prisma.user.update({
+    await client.user.update({
       where: { id: data.userId },
       data: {
         totalPoints: { increment: data.amount },
@@ -44,7 +51,7 @@ export class PointsService {
     })
 
     // 创建积分记录（包含必填字段）
-    return prisma.pointsRecord.create({
+    return client.pointsRecord.create({
       data: {
         userId: data.userId,
         type: data.type,
@@ -157,21 +164,26 @@ export class PointsService {
   }
 
   // v54 D: 创建积分释放计划（升级为经销商时调用）
-  static async createPointsUnlockSchedule(data: {
-    userId: string
-    orderId: string | null
-    totalPoints: number
-    dailyUnlockRate: number
-    totalDays: number
-    nextUnlockDate: Date
-  }): Promise<{ id: string }> {
+  // v55.1: 支持 tx 参数，允许在事务中调用以保证原子性
+  static async createPointsUnlockSchedule(
+    data: {
+      userId: string
+      orderId: string | null
+      totalPoints: number
+      dailyUnlockRate: number
+      totalDays: number
+      nextUnlockDate: Date
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ id: string }> {
+    const client = tx ?? prisma
     // 将积分锁定到 lockedPoints，dailyUnlock 会逐步释放到 unlockedPoints
-    await prisma.user.update({
+    await client.user.update({
       where: { id: data.userId },
       data: { lockedPoints: { increment: data.totalPoints } },
     })
 
-    return prisma.pointsUnlockSchedule.create({
+    return client.pointsUnlockSchedule.create({
       data: {
         userId: data.userId,
         orderId: data.orderId || '',

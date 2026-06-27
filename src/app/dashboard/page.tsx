@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation'
 import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
   TrendingUp, Award, Clock, MapPin, ShieldCheck,
-  CheckCircle2, Lock
+  CheckCircle2, Lock, Camera
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
+import AvatarUploadModal from '@/components/dashboard/AvatarUploadModal'
 
 // ---- 类型 ----
 
@@ -16,6 +17,7 @@ interface UserInfo {
   id: string
   phone: string
   nickname: string | null
+  avatarUrl: string | null
   level: number
   balance: number
   frozenBalance: number
@@ -56,6 +58,7 @@ export default function DashboardPage() {
   const [pendingOrders, setPendingOrders] = useState(0)
   const [referralRate, setReferralRate] = useState(0.20)
   const [brandBonusRate, setBrandBonusRate] = useState(0.20)
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -123,6 +126,26 @@ export default function DashboardPage() {
     }
   }
 
+  const handleSaveAvatar = async (avatarUrl: string) => {
+    const token = localStorage.getItem('token') || ''
+    const res = await fetch('/api/users/me', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ avatarUrl }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      setUser((prev) => (prev ? { ...prev, avatarUrl: data.data.avatarUrl ?? avatarUrl } : prev))
+    } else {
+      const msg = data.error || '头像保存失败'
+      alert(msg)
+      throw new Error(msg)
+    }
+  }
+
   const _handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
@@ -179,9 +202,28 @@ export default function DashboardPage() {
             {/* 用户信息卡片 */}
             <div className="card-base p-4 sm:p-6 text-center">
               {/* 头像 */}
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                <User className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
-              </div>
+              <button
+                type="button"
+                onClick={() => setAvatarModalOpen(true)}
+                className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center mx-auto mb-3 sm:mb-4 group border-2 border-transparent hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-label="更换头像"
+              >
+                {user.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt="头像"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <User className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+                )}
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+              </button>
               {/* 昵称 + 等级 */}
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1.5 sm:mb-2">
                 {user.nickname || user.phone}
@@ -458,6 +500,12 @@ export default function DashboardPage() {
         </div>
       </main>
 
+      <AvatarUploadModal
+        isOpen={avatarModalOpen}
+        onClose={() => setAvatarModalOpen(false)}
+        currentAvatarUrl={user?.avatarUrl}
+        onSave={handleSaveAvatar}
+      />
     </div>
   )
 }

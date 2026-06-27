@@ -40,7 +40,6 @@ vi.mock('@/lib/logger', () => ({
 import { prisma } from '@/lib/prisma'
 import { PointsService } from '@/lib/services/points.service'
 import { UserService } from '@/lib/services/user.service'
-import { logger } from '@/lib/logger'
 
 describe('UserService', () => {
   beforeEach(() => {
@@ -263,7 +262,7 @@ describe('UserService', () => {
       expect(call.totalDays).toBe(50)
     })
 
-    it('schedule 创建失败不影响主业务', async () => {
+    it('schedule 创建失败时整个升级事务回滚（v55.1 原子化）', async () => {
       prisma.user.findUnique.mockResolvedValueOnce({
         id: 'u-d3', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: null,
       })
@@ -280,10 +279,76 @@ describe('UserService', () => {
         return defaultValue
       })
 
-      // Should not throw
-      const result = await UserService.checkAndUpgradeLevel('u-d3')
-      expect(result).toBe(2) // Still upgraded to DISTRIBUTOR
-      expect(logger.error).toHaveBeenCalled()
+      // v55.1: schedule 失败 → 整个事务回滚 → checkAndUpgradeLevel 抛错
+      await expect(UserService.checkAndUpgradeLevel('u-d3')).rejects.toThrow('DB error')
+      // 确认 createPointsRecord 被调用过（但事务回滚后 DB 不会有残留）
+      expect(PointsService.createPointsRecord).toHaveBeenCalledTimes(1)
+      expect(PointsService.createPointsUnlockSchedule).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('v55.1: 升级事务原子化', () => {
+    it('升级成功时积分和 schedule 在同一事务中创建', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u-tx1', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: 'ref-tx1',
+      })
+      prisma.user.update.mockResolvedValue({})
+      vi.mocked(PointsService.createPointsRecord).mockResolvedValue({} as any)
+      vi.mocked(PointsService.createPointsUnlockSchedule).mockResolvedValue({ id: 'sched-tx1' })
+
+      const { getBusinessConfig } = await import('@/lib/config/business')
+      vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+        if (key === 'upgrade.points_per_box') return 500
+        if (key === 'upgrade.daily_unlock_rate') return 0.01
+        if (key === 'upgrade.distributor.box_count') return 10
+        if (key.startsWith('upgrade.') && key.endsWith('.sales_amount')) return 999999
+        return defaultValue
+      })
+
+      const result = await UserService.checkAndUpgradeLevel('u-tx1')
+
+      // 升级成功
+      expect(result).toBe(2) // DISTRIBUTOR
+      // $transaction 被调用
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      // createPointsRecord 被调用且传入了 tx（第二个参数）
+      expect(PointsService.createPointsRecord).toHaveBeenCalledTimes(1)
+      const recordCall = vi.mocked(PointsService.createPointsRecord).mock.calls[0]
+      expect(recordCall[0].amount).toBe(5000)
+      expect(recordCall[1]).toBeDefined() // tx 参数
+      // createPointsUnlockSchedule 被调用且传入了 tx
+      const scheduleCall = vi.mocked(PointsService.createPointsUnlockSchedule).mock.calls[0]
+      expect(scheduleCall[0].totalPoints).toBe(5000)
+      expect(scheduleCall[1]).toBeDefined() // tx 参数
+    })
+
+    it('schedule 创建失败时整个升级事务回滚（积分不凭空多出）', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u-tx2', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: null,
+      })
+      prisma.user.update.mockResolvedValue({})
+      vi.mocked(PointsService.createPointsRecord).mockResolvedValue({} as any)
+      vi.mocked(PointsService.createPointsUnlockSchedule).mockRejectedValueOnce(new Error('Schedule DB error'))
+
+      const { getBusinessConfig } = await import('@/lib/config/business')
+      vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+        if (key === 'upgrade.points_per_box') return 500
+        if (key === 'upgrade.daily_unlock_rate') return 0.01
+        if (key === 'upgrade.distributor.box_count') return 10
+        if (key.startsWith('upgrade.') && key.endsWith('.sales_amount')) return 999999
+        return defaultValue
+      })
+
+      // v55.1: schedule 失败 → 事务回滚 → checkAndUpgradeLevel 抛错
+      // 旧行为是升级仍成功（积分凭空多出），新行为是整体回滚
+      await expect(UserService.checkAndUpgradeLevel('u-tx2')).rejects.toThrow('Schedule DB error')
+
+      // 确认事务被调用
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      // createPointsRecord 被调用过（但在真实事务中会被回滚）
+      expect(PointsService.createPointsRecord).toHaveBeenCalledTimes(1)
+      // createPointsUnlockSchedule 被调用过（且失败）
+      expect(PointsService.createPointsUnlockSchedule).toHaveBeenCalledTimes(1)
     })
   })
 

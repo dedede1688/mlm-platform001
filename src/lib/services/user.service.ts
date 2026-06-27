@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { PointsService } from './points.service'
 import { getBusinessConfig } from '@/lib/config/business'
-import { logger } from '@/lib/logger'
 
 export class UserService {
   static async createUser(data: {
@@ -148,50 +147,56 @@ export class UserService {
     }
 
     if (newLevel > user.level) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { level: newLevel },
-      })
+      // v55.1: 常量在事务外预计算，事务内只做 DB 操作
+      const pointsPerBox = await getBusinessConfig<number>('upgrade.points_per_box', 500)
+      const pointsAmount = user.upgradeProductCount * pointsPerBox
+      const dailyUnlockRate = pointsAmount > 0
+        ? await getBusinessConfig<number>('upgrade.daily_unlock_rate', 0.01)
+        : 0
+      const totalDays = dailyUnlockRate > 0 ? Math.ceil(1 / dailyUnlockRate) : 0
+      const tomorrow = new Date()
+      tomorrow.setHours(0, 0, 0, 0)
+      tomorrow.setDate(tomorrow.getDate() + 1)
 
-      if (newLevel >= MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
-        const pointsPerBox = await getBusinessConfig<number>('upgrade.points_per_box', 500)
-        const pointsAmount = user.upgradeProductCount * pointsPerBox
-        if (pointsAmount > 0) {
-          await PointsService.createPointsRecord({
-            userId,
-            type: 'reward',
-            amount: pointsAmount,
-            description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × ${pointsPerBox}）`,
-          })
-          // v54 D: 创建积分释放计划（按日释放）
-          const dailyUnlockRate = await getBusinessConfig<number>('upgrade.daily_unlock_rate', 0.01)
-          const totalDays = Math.ceil(1 / dailyUnlockRate)
-          const tomorrow = new Date()
-          tomorrow.setHours(0, 0, 0, 0)
-          tomorrow.setDate(tomorrow.getDate() + 1)
-          await PointsService.createPointsUnlockSchedule({
-            userId,
-            orderId: '',
-            totalPoints: pointsAmount,
-            dailyUnlockRate,
-            totalDays,
-            nextUnlockDate: tomorrow,
-          }).catch((err: unknown) => {
-            logger.error('[v54 D] 创建积分释放计划失败', { userId, pointsAmount, error: String(err) })
+      // v55.1: 用事务包住 level 更新 + 积分发放 + 释放计划创建
+      // 任何一步失败整体回滚，避免积分凭空多出（v54 D 遗留 bug）
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: userId },
+          data: { level: newLevel },
+        })
+
+        if (newLevel >= MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
+          if (pointsAmount > 0) {
+            await PointsService.createPointsRecord({
+              userId,
+              type: 'reward',
+              amount: pointsAmount,
+              description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × ${pointsPerBox}）`,
+            }, tx)
+
+            await PointsService.createPointsUnlockSchedule({
+              userId,
+              orderId: '',
+              totalPoints: pointsAmount,
+              dailyUnlockRate,
+              totalDays,
+              nextUnlockDate: tomorrow,
+            }, tx)
+          }
+        }
+
+        if (user.referrerId && newLevel === MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
+          await tx.user.update({
+            where: { id: user.referrerId },
+            data: {
+              directDistributorCount: {
+                increment: 1,
+              },
+            },
           })
         }
-      }
-
-      if (user.referrerId && newLevel === MEMBER_LEVELS.DISTRIBUTOR && user.level < MEMBER_LEVELS.DISTRIBUTOR) {
-        await prisma.user.update({
-          where: { id: user.referrerId },
-          data: {
-            directDistributorCount: {
-              increment: 1,
-            },
-          },
-        })
-      }
+      })
     }
 
     return newLevel
