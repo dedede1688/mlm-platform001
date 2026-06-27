@@ -1,8 +1,31 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart3, Users, DollarSign, TrendingUp, Loader2, Filter } from 'lucide-react'
+import { BarChart3, Users, DollarSign, TrendingUp, Loader2, Filter, Download } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
+
+// v51.2: CSV 下载 helper（fetch + blob + 触发浏览器下载）
+async function downloadCsv(url: string, fallbackFilename: string) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) {
+    alert('下载失败：' + res.status)
+    return
+  }
+  // 从 Content-Disposition 取文件名
+  const dispo = res.headers.get('Content-Disposition') || ''
+  const m = dispo.match(/filename="?([^"]+)"?/)
+  const filename = m?.[1] || fallbackFilename
+  const blob = await res.blob()
+  const blobUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(blobUrl)
+}
 
 // ---- 类型 ----
 
@@ -128,6 +151,15 @@ export default function ReportsPage() {
 
       {!loading && activeTab === 'sales' && sales && (
         <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => downloadCsv(`/api/admin/reports/export/sales?days=${days}`, `销售报表_${days}天.csv`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              导出 CSV
+            </button>
+          </div>
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">TOP 10 商品（按销售额）</h2>
             <div className="space-y-2">
@@ -173,6 +205,15 @@ export default function ReportsPage() {
 
       {!loading && activeTab === 'members' && members && (
         <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => downloadCsv(`/api/admin/reports/export/members`, `会员报表.csv`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              导出 CSV
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard label="总会员" value={String(members.referrerRate.total)} color="bg-blue-50 text-blue-600" />
             <StatCard label="有推荐人" value={String(members.referrerRate.withReferrer)} color="bg-cyan-50 text-cyan-600" />
@@ -214,6 +255,15 @@ export default function ReportsPage() {
 
       {!loading && activeTab === 'finance' && finance && (
         <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => downloadCsv(`/api/admin/reports/export/finance?days=${days}`, `财务报表_${days}天.csv`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              导出 CSV
+            </button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard label="总收入" value={`¥${formatMoney(finance.income)}`} color="bg-green-50 text-green-600" />
             <StatCard label="总支出" value={`¥${formatMoney(finance.expense)}`} color="bg-red-50 text-red-600" />
