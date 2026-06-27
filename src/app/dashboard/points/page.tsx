@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   TrendingUp, Unlock, ShoppingCart, Send, Ban,
   ArrowLeft, ChevronLeft, ChevronRight, Coins,
-  Lock, ArrowDownToLine, LogIn
+  Lock, ArrowDownToLine, LogIn, X, Loader2
 } from 'lucide-react'
+import { toast } from '@/components/ToastProvider'
 
 // ---- 类型 ----
 
@@ -28,6 +29,13 @@ interface UserInfo {
   totalPoints: number
   unlockedPoints: number
   lockedPoints: number
+  phone?: string
+}
+
+interface RecipientInfo {
+  id: string
+  phone: string
+  nickname: string | null
 }
 
 // ---- 类型配置 ----
@@ -76,6 +84,24 @@ const TYPE_CONFIG: Record<string, {
   },
 }
 
+// 过滤 tab 配置
+const FILTER_TABS = [
+  { key: 'all', label: '全部' },
+  { key: 'earn', label: '获得' },
+  { key: 'unlock', label: '解锁' },
+  { key: 'use', label: '使用' },
+  { key: 'transfer_in', label: '转入' },
+  { key: 'transfer_out', label: '转出' },
+] as const
+
+// 手机号脱敏
+function maskPhone(phone: string): string {
+  return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+}
+
+// 手续费比例（与后端默认值保持一致）
+const FEE_PERCENT = 10
+
 // ---- 主组件 ----
 
 export default function PointsPage() {
@@ -84,7 +110,18 @@ export default function PointsPage() {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [token, setToken] = useState('')
   const pageSize = 10
+
+  // 转赠弹窗状态
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [toUserPhone, setToUserPhone] = useState('')
+  const [transferPoints, setTransferPoints] = useState('')
+  const [recipientInfo, setRecipientInfo] = useState<RecipientInfo | null>(null)
+  const [phoneChecking, setPhoneChecking] = useState(false)
+  const [phoneChecked, setPhoneChecked] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -92,10 +129,11 @@ export default function PointsPage() {
       router.push('/login')
       return
     }
+    setToken(storedToken)
     fetchAll(storedToken)
   }, [router])
 
-  const fetchAll = async (authToken: string) => {
+  const fetchAll = useCallback(async (authToken: string) => {
     try {
       const [userRes, pointsRes] = await Promise.allSettled([
         fetch('/api/users/me', { headers: { Authorization: `Bearer ${authToken}` } }),
@@ -109,6 +147,7 @@ export default function PointsPage() {
             totalPoints: data.data.totalPoints ?? 0,
             unlockedPoints: data.data.unlockedPoints ?? 0,
             lockedPoints: data.data.lockedPoints ?? 0,
+            phone: data.data.phone,
           })
         }
       }
@@ -122,6 +161,110 @@ export default function PointsPage() {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  // 接收方手机号实时校验（debounce 500ms）
+  useEffect(() => {
+    if (toUserPhone.length !== 11) {
+      setRecipientInfo(null)
+      setPhoneChecked(false)
+      setPhoneChecking(false)
+      return
+    }
+
+    // 防自转：手机号与当前用户一致
+    if (user?.phone && toUserPhone === user.phone) {
+      setRecipientInfo(null)
+      setPhoneChecked(true)
+      setPhoneChecking(false)
+      return
+    }
+
+    setPhoneChecking(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/users/lookup?phone=${toUserPhone}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setRecipientInfo(data.success ? data.data : null)
+          setPhoneChecked(true)
+        } else {
+          setRecipientInfo(null)
+          setPhoneChecked(true)
+        }
+      } catch (err) {
+        console.error('查询用户失败:', err)
+        setRecipientInfo(null)
+        setPhoneChecked(true)
+      } finally {
+        setPhoneChecking(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [toUserPhone, token, user?.phone])
+
+  // 手续费计算
+  const transferPointsNum = parseInt(transferPoints) || 0
+  const feeAmount = Math.floor((transferPointsNum * FEE_PERCENT) / 100)
+  const totalDeduction = transferPointsNum + feeAmount
+  const isSelfTransfer = user?.phone !== undefined && toUserPhone === user.phone
+  const canSubmit =
+    !!recipientInfo &&
+    !isSelfTransfer &&
+    transferPointsNum > 0 &&
+    totalDeduction <= (user?.unlockedPoints ?? 0)
+
+  // 提交转赠
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSubmit || !recipientInfo) return
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/points/transfer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          toUserPhone,
+          points: transferPointsNum,
+        }),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        const recipientName = recipientInfo.nickname || maskPhone(recipientInfo.phone)
+        toast.success(`成功转赠 ${transferPointsNum} 积分给 ${recipientName}（含手续费 ${feeAmount} 积分）`)
+        setShowTransferModal(false)
+        setToUserPhone('')
+        setTransferPoints('')
+        setRecipientInfo(null)
+        setPhoneChecked(false)
+        fetchAll(token) // 刷新积分列表
+      } else {
+        toast.error(data.error || '转赠失败')
+      }
+    } catch (err) {
+      console.error('转赠失败:', err)
+      toast.error('网络错误，请重试')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // 关闭弹窗时重置状态
+  const closeModal = () => {
+    setShowTransferModal(false)
+    setToUserPhone('')
+    setTransferPoints('')
+    setRecipientInfo(null)
+    setPhoneChecked(false)
+    setPhoneChecking(false)
   }
 
   // 每日解锁额度：从 unlock 类型记录推算（取最近一条 unlock 记录的 amount）
@@ -129,9 +272,19 @@ export default function PointsPage() {
     .filter((r) => r.type === 'unlock')
     .reduce((max, r) => Math.max(max, r.amount), 0)
 
+  // 按 tab 过滤记录
+  const filteredRecords = activeFilter === 'all'
+    ? records
+    : records.filter((r) => r.type === activeFilter)
+
   // 分页
-  const totalPages = Math.max(1, Math.ceil(records.length / pageSize))
-  const paged = records.slice((page - 1) * pageSize, page * pageSize)
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize))
+  const paged = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
+
+  // 切换 tab 时重置页码
+  useEffect(() => {
+    setPage(1)
+  }, [activeFilter])
 
   const formatRelativeTime = (s: string) => {
     const diff = Date.now() - new Date(s).getTime()
@@ -189,7 +342,7 @@ export default function PointsPage() {
             <Coins className="w-6 h-6 text-secondary" />
             积分管理
           </h1>
-          <span className="text-sm text-gray-400 ml-1">共 {records.length} 条</span>
+          <span className="text-sm text-gray-400 ml-1">共 {filteredRecords.length} 条</span>
         </div>
 
         {/* 顶部积分卡片 */}
@@ -224,9 +377,36 @@ export default function PointsPage() {
           </div>
         </div>
 
-        {/* 积分明细 */}
-        <div className="flex items-center gap-2 mb-4">
+        {/* 积分明细 + 过滤 tab */}
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="text-lg font-semibold text-gray-900">积分明细</h3>
+          {/* 转出积分 tab 时显示发起转赠按钮 */}
+          {activeFilter === 'transfer_out' && (
+            <button
+              onClick={() => setShowTransferModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors shadow-sm"
+            >
+              <Send className="w-4 h-4" />
+              发起转赠
+            </button>
+          )}
+        </div>
+
+        {/* 过滤 tabs */}
+        <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveFilter(tab.key)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                activeFilter === tab.key
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-white text-gray-500 hover:text-primary shadow-sm'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {paged.length === 0 ? (
@@ -272,6 +452,138 @@ export default function PointsPage() {
           </div>
         )}
       </main>
+
+      {/* ===== 积分转赠弹窗 ===== */}
+      {showTransferModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 头部 */}
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Send className="w-5 h-5 text-primary" />
+                积分转赠
+              </h3>
+              <button
+                onClick={closeModal}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleTransfer}>
+              {/* 接收方手机号 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  接收方手机号
+                </label>
+                <input
+                  type="text"
+                  value={toUserPhone}
+                  onChange={(e) => {
+                    setToUserPhone(e.target.value.replace(/\D/g, '').slice(0, 11))
+                  }}
+                  placeholder="请输入接收方手机号"
+                  maxLength={11}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+                {/* 校验状态 */}
+                {phoneChecking && (
+                  <div className="mt-2 text-sm text-gray-400 flex items-center gap-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    正在查询用户...
+                  </div>
+                )}
+                {phoneChecked && !phoneChecking && recipientInfo && (
+                  <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                    ✓ 接收方：{recipientInfo.nickname || '未设置昵称'} ({maskPhone(recipientInfo.phone)})
+                  </div>
+                )}
+                {phoneChecked && !phoneChecking && !recipientInfo && isSelfTransfer && (
+                  <div className="mt-2 text-sm text-red-500">
+                    ✗ 不能转给自己
+                  </div>
+                )}
+                {phoneChecked && !phoneChecking && !recipientInfo && !isSelfTransfer && (
+                  <div className="mt-2 text-sm text-red-500">
+                    ✗ 用户不存在
+                  </div>
+                )}
+              </div>
+
+              {/* 转赠积分 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  转赠积分
+                </label>
+                <input
+                  type="number"
+                  value={transferPoints}
+                  onChange={(e) => setTransferPoints(e.target.value)}
+                  placeholder={`最多可转赠 ${user?.unlockedPoints ?? 0} 积分`}
+                  min={1}
+                  max={user?.unlockedPoints ?? 0}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+              </div>
+
+              {/* 手续费预览 */}
+              {transferPointsNum > 0 && (
+                <div className="bg-gray-50 rounded-lg p-3 mb-4 text-sm space-y-1.5">
+                  <div className="flex justify-between text-gray-600">
+                    <span>转赠积分</span>
+                    <span>{transferPointsNum} 积分</span>
+                  </div>
+                  <div className="flex justify-between text-orange-600">
+                    <span>手续费（{FEE_PERCENT}%）</span>
+                    <span>{feeAmount} 积分</span>
+                  </div>
+                  <div className="flex justify-between font-semibold pt-1.5 border-t border-gray-200 text-gray-900">
+                    <span>实际扣除</span>
+                    <span>{totalDeduction} 积分</span>
+                  </div>
+                  {totalDeduction > (user?.unlockedPoints ?? 0) && (
+                    <div className="text-red-500 text-xs pt-1">
+                      可用积分不足，当前可用 {user?.unlockedPoints ?? 0} 积分
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 操作按钮 */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSubmit || submitting}
+                  className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      转赠中...
+                    </>
+                  ) : (
+                    '确认转赠'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   )
