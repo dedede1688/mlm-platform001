@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
-import { OrderService } from '@/lib/services/order.service'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // PATCH /api/admin/refunds/[id]/complete — 确认退款完成
 export async function PATCH(
@@ -30,7 +30,7 @@ export async function PATCH(
       )
     }
 
-    // v54a 修复：调 OrderService.requestRefund 执行实际退款
+    // v54a 修复：调 OrderLifecycleService.requestRefund 执行实际退款
     // 【函数说明】requestRefund 函数名虽叫"申请退款"，但实际是"执行退款"——完整流程：
     //   1) 退余额到用户余额 + 写 balanceRecord(type=refund)
     //   2) 退积分
@@ -63,7 +63,7 @@ export async function PATCH(
       select: { orderNo: true, userId: true, payAmount: true },
     })
     if (refundOrder) {
-      await OrderService.notifyRefundCompleted({
+      await OrderNotificationService.notifyRefundCompleted({
         userId: refundOrder.userId,
         orderId: refundRequest.orderId,
         orderNo: refundOrder.orderNo,

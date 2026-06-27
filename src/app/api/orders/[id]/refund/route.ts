@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { OrderService } from '@/lib/services/order.service'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // POST /api/orders/[id]/refund — 用户申请退款
 export async function POST(
@@ -97,7 +97,7 @@ export async function POST(
       where: { id: orderId },
       select: { orderNo: true },
     })
-    await OrderService.notifyRefundSubmitted({
+    await OrderNotificationService.notifyRefundSubmitted({
       userId: user.userId,
       refundId: refundRequest.id,
       orderId,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
-import { OrderService } from '@/lib/services/order.service'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // GET /api/admin/orders/[id] — 获取单个订单详情（管理员）
 export async function GET(
@@ -154,7 +154,7 @@ export async function PUT(
       })
 
       // v46.10.3: 触发订单发货通知（修复 admin/orders PUT 不调 shipOrder 导致的 IIFE 死代码）
-      await OrderService.notifyOrderShipped(id)
+      await OrderNotificationService.notifyOrderShipped(id)
 
       return NextResponse.json({
         success: true,

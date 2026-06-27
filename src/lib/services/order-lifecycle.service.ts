@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
-import { OrderService } from './order.service'
+import { OrderNotificationService } from './order-notification.service'
 import { ORDER_STATUS } from '@/lib/constants'
 import { sendEmail } from '@/lib/notification/sendEmail'
 import { sendSms } from '@/lib/notification/sendSms'
@@ -23,7 +23,7 @@ import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
  * - notifyOrderPaid / notifyOrderShipped / notifyBalanceChange
  *   notifyRefundReview / notifyRefundCompleted / notifyRefundSubmitted（通知）
  *
- * 反向依赖：verifyPayment 调用 OrderService.notifyOrderPaid（过渡，N 第二刀可优化）
+ * 依赖：OrderNotificationService（v50 N-2 消除反向依赖，lifecycle → notification 单向）
  */
 export class OrderLifecycleService {
   // 支付订单（v43-6 Batch 3：事务 + paymentVerified + 余额扣减 + balance_record）
@@ -134,8 +134,8 @@ export class OrderLifecycleService {
     // 触发奖励发放
     await RewardService.processOrderRewards(orderId)
 
-    // 触发订单支付通知（v50 N-1: lifecycle → order 反向依赖，N 第二刀可优化）
-    await OrderService.notifyOrderPaid(orderId)
+    // 触发订单支付通知（v50 N-2: lifecycle → notification 单向依赖）
+    await OrderNotificationService.notifyOrderPaid(orderId)
 
     return paidOrder
   }

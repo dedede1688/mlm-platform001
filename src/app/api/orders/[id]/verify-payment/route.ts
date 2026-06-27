@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPaymentPassword } from '@/lib/auth/payment-password'
 import { RewardService } from '@/lib/services/reward.service'
-import { OrderService } from '@/lib/services/order.service'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { ORDER_STATUS } from '@/lib/constants'
 
 // POST /api/orders/[id]/verify-payment — 验证支付密码 + 标记已支付
@@ -127,7 +127,7 @@ export async function POST(
     const rewardResult = await RewardService.processOrderRewards(orderId)
 
     // v46.10.3: 触发订单支付通知（修复 verify-payment 不调 payOrder 导致的 IIFE 死代码）
-    await OrderService.notifyOrderPaid(orderId)
+    await OrderNotificationService.notifyOrderPaid(orderId)
 
     return successResponse(
       {
