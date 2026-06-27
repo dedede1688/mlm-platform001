@@ -225,6 +225,94 @@ git log origin/main --oneline -1
 "v7 已部署，commit bed3802，Vercel Ready。强刷 /admin/products 验证。"
 ```
 
+
+### 铁律 11：派单前 grep 业务 service 方法的所有真实调用入口（v46.10.3 实战总结，2026-06-26 写入）
+
+**核心教训**：service 方法可能在文件里写得"很完美"，但**调用入口根本没调它**。这是 3 次实战连续踩的坑（v46.7 IIFE、v46.10.3 payOrder、v46.11 admin 调账、v46.12 refund review/complete）。
+
+**v46.10.3 真实事故**：
+- `OrderService.payOrder()` 里写了 `await (async()=>{...})()` 触发通知
+- 但 `/api/orders/[id]/verify-payment` 是真实支付入口，**完全没调 payOrder**，inline 自己的事务
+- 结果：订单支付成功 → 通知没生成 → 用户端铃铛不增加 → 100% 通知失效
+
+**强制规则**：
+
+1. **派单前 grep 所有 service 方法的真实调用入口**：
+```bash
+rg -n "OrderService\.payOrder|OrderService\.shipOrder|OrderService\.requestRefund" src/
+# 0 行调用 = 死代码
+# < 3 行 = 高风险（只有少数入口调）
+```
+
+2. **重构时检查所有"自己 inline 事务"的路由**：
+- v43-6 Batch 3 重构时把 payOrder 的事务搬到 verify-payment 路由
+- 重构后 payOrder 成了孤儿（没人调）
+- **重构必须同步更新所有调用方或抽出公共方法**
+
+3. **状态变更路由（admin PATCH/POST）必须发通知**：
+- approve / reject / complete / cancel / confirm / ship / adjust
+- 任一状态变更都该通知受影响用户
+
+4. **跨项目层**：这个教训不只是 mlm-platform，是所有"service + 多路由调用"项目通用
+
+**v46.10.3 真实事故时间线**（30 分钟排查）：
+- T+0：胡子哥下了一单 ¥500 后铃铛不增加
+- T+5：直接调 prisma.notificationBatch.create 成功 → schema 没问题
+- T+10：grep OrderService.payOrder 调用 → 只 1 行（pay 路由但已废弃）
+- T+15：发现 verify-payment 路由 inline 事务，没调 payOrder → payOrder 里的 IIFE 是死代码
+- T+20：抽 OrderService.notifyOrderPaid 公共方法 → verify-payment 调它
+- T+30：部署验证 → 通知生成 ✅
+
+**教训**：派单时改 service 不够，必须看 service 真实调用入口。否则就是 v46.7 → v46.10.3 这种"修了死代码"的尴尬。
+
+---
+
+### 铁律 12：所有 admin 状态变更路由必须自动通知用户（v46.11/v46.12 实战总结，2026-06-26 写入）
+
+**核心教训**：admin 给用户改任何状态（调账、退款审核、发货、完成订单），用户端**不会自动收到通知**。这是同类死代码问题的延续——状态变更只写数据库，没调 sendInApp。
+
+**v46.11 真实事故**：
+- 胡子哥给测试账号充值 ¥5000
+- 测试账号铃铛不增加，notification_batches 没新数据
+- `/api/admin/users/[id]/balance` 路由：写 balance_record 后直接 return，没调 sendInApp
+
+**v46.12 真实事故**：
+- 退款审核通过/拒绝：review 路由只改 status，写操作日志，没通知用户
+- 退款完成：complete 路由调 requestRefund → requestRefund 也不发通知
+- 双重死代码嵌套
+
+**强制规则**：
+
+| 状态变更类型 | 必须通知 | 通知模板 |
+|------|------|------|
+| admin 调账（6 种 type） | ✅ | balance_change |
+| 退款审核通过/拒绝 | ✅ | refund_review（用 result 变量） |
+| 退款完成 | ✅ | refund_completed |
+| 订单支付 | ✅ | order_paid（v46.7/v46.10.3） |
+| 订单发货 | ✅ | order_shipped（v46.10.3） |
+| 订单完成 | ✅ | order_completed |
+| 订单取消 | ✅ | order_cancelled |
+| 提现审核通过/拒绝 | ✅ | withdrawal_result（v46.3） |
+
+**派单前 grep 模板**：
+```bash
+# 1. 找所有 admin 状态变更路由
+rg -n "verifyPermission|requireAdmin|adminComment" src/app/api/admin/
+
+# 2. 每个 PATCH/POST/PUT 路由确认有 sendInApp 或 NotificationService.*Notification 调用
+# 没有 = 死代码
+```
+
+**模板设计原则**：
+- 通用模板优先（如 refund_review 用 result 变量同时支持通过/拒绝）
+- 不要为每个状态建独立模板（维护成本高）
+
+**v46.11/v46.12 实战教训**：
+- 调账 6 种 type 用 1 个 balance_change 模板 + typeLabelMap 翻译
+- 退款 2 种动作（approve/reject）用 1 个 refund_review 模板 + result 变量
+- **抽公共方法到 OrderService**（notifyBalanceChange / notifyRefundReview / notifyRefundCompleted）
+- 路由层不直接调 sendInApp，统一走 OrderService 公共方法
+
 ---
 
 ## 📝 协作角色（v3+ 实战确定）
