@@ -1,7 +1,8 @@
-import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Network, Sliders, FileText, Inbox } from 'lucide-react';
+import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Network, Sliders, FileText, Inbox, BarChart3 } from 'lucide-react';
 
 export const MENU_ITEMS = [
   { id: 'dashboard', name: '仪表盘', path: '/admin', icon: LayoutDashboard },
+  { id: 'reports', name: '运营报表', path: '/admin/reports', icon: BarChart3 },
   { id: 'banners', name: '轮播图管理', path: '/admin/banners', icon: Image },
   { id: 'categories', name: '分类管理', path: '/admin/categories', icon: FolderTree },
   { id: 'products', name: '商品管理', path: '/admin/products', icon: Package },
