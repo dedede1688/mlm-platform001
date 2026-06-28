@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     let feePercent = 10
     try {
       const feeConfig = await prisma.systemConfig.findUnique({
-        where: { key: 'transfer_fee_percent' },
+        where: { key: 'points.transfer_fee_percent' },
       })
       if (feeConfig) {
         feePercent = parseInt(feeConfig.value, 10) || 10
