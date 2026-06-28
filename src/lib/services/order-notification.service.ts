@@ -156,6 +156,56 @@ export class OrderNotificationService {
     })()
   }
 
+  // v57.2 B: 抽公共方法 - 积分变动通知（给 admin/users/[id]/points 路由调用）
+  static async notifyPointsAdjust(params: {
+    userId: string
+    fieldLabel: string  // 总积分 / 可用积分 / 锁定积分
+    amount: number
+    newTotalPoints: number
+    newUnlockedPoints: number
+    newLockedPoints: number
+    reason: string
+    operatorId?: string
+  }) {
+    const sign = params.amount > 0 ? '+' : ''
+    const variables = {
+      fieldLabel: params.fieldLabel,
+      changeAmount: `${sign}${params.amount}`,
+      newTotalPoints: String(params.newTotalPoints),
+      newUnlockedPoints: String(params.newUnlockedPoints),
+      newLockedPoints: String(params.newLockedPoints),
+      reason: params.reason,
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '账户积分变动通知',
+            content: `${params.fieldLabel} ${variables.changeAmount} 积分，当前总积分 ${params.newTotalPoints}`,
+            templateType: 'points_adjust',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'points_adjust',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v57.2 notifyPointsAdjust]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('积分变动通知失败', { error: String(err) })
+      }
+    })()
+  }
+
   // v46.12: 抽公共方法 - 退款审核通知（admin 通过/拒绝退款申请时触发）
   static async notifyRefundReview(params: {
     userId: string

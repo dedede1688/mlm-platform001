@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // POST /api/admin/users/[id]/points — 管理员调整会员积分（自动联动）
 export async function POST(
@@ -93,6 +94,20 @@ export async function POST(
         },
       })
 
+      // v57.2 B: 创建积分明细记录（用户能在积分明细看到调账历史）
+      await tx.pointsRecord.create({
+        data: {
+          userId: id,
+          type: 'admin_adjust',
+          amount,
+          totalPoints: updated.totalPoints,
+          unlockedPoints: updated.unlockedPoints,
+          lockedPoints: updated.lockedPoints,
+          sourceId: admin.id,
+          description: `管理员调账：${fieldLabel}${amount > 0 ? '增加' : '扣减'} ${Math.abs(amount)} 积分，原因：${reason.trim()}`,
+        },
+      })
+
       return {
         updated,
         oldValue: {
@@ -124,6 +139,18 @@ export async function POST(
     console.log(
       `[PointsAdjust] 用户 ${id} 的${result.fieldLabel}已${actionLabel} ${Math.abs(amount)}，原因：${reason}`
     )
+
+    // v57.2 B: 触发积分变动通知（事务外，参考 balance route 模式）
+    await OrderNotificationService.notifyPointsAdjust({
+      userId: id,
+      fieldLabel: result.fieldLabel,
+      amount,
+      newTotalPoints: result.updated.totalPoints,
+      newUnlockedPoints: result.updated.unlockedPoints,
+      newLockedPoints: result.updated.lockedPoints,
+      reason: reason.trim(),
+      operatorId: admin.id,
+    })
 
     return NextResponse.json({
       success: true,
