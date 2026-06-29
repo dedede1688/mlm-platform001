@@ -85,14 +85,21 @@ const TYPE_CONFIG: Record<string, {
 }
 
 // 过滤 tab 配置
+// v58：按"用户视角"分类——积分变多=收入、积分变少=支出
+// 不再按业务 type 分类（避免「获得 vs 解锁 vs 转入」等用户搞不清的细分）
 const FILTER_TABS = [
   { key: 'all', label: '全部' },
-  { key: 'earn', label: '获得' },
-  { key: 'unlock', label: '解锁' },
-  { key: 'use', label: '使用' },
-  { key: 'transfer_in', label: '转入' },
-  { key: 'transfer_out', label: '转出' },
+  { key: 'income', label: '收入' },
+  { key: 'expense', label: '支出' },
 ] as const
+
+// 收入/支出过滤函数：按 amount 符号判断
+function filterByDirection(records: PointsRecord[], filter: string): PointsRecord[] {
+  if (filter === 'all') return records
+  if (filter === 'income') return records.filter((r) => r.amount > 0)
+  if (filter === 'expense') return records.filter((r) => r.amount < 0)
+  return records
+}
 
 // 手机号脱敏
 function maskPhone(phone: string): string {
@@ -283,10 +290,8 @@ export default function PointsPage() {
     .filter((r) => r.type === 'unlock')
     .reduce((max, r) => Math.max(max, r.amount), 0)
 
-  // 按 tab 过滤记录
-  const filteredRecords = activeFilter === 'all'
-    ? records
-    : records.filter((r) => r.type === activeFilter)
+  // 按 tab 过滤记录（v58: 收入/支出按 amount 符号过滤，不再按 type 精确匹配）
+  const filteredRecords = filterByDirection(records, activeFilter)
 
   // 分页
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize))
@@ -391,16 +396,14 @@ export default function PointsPage() {
         {/* 积分明细 + 过滤 tab */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="text-lg font-semibold text-gray-900">积分明细</h3>
-          {/* 转出积分 tab 时显示发起转赠按钮 */}
-          {activeFilter === 'transfer_out' && (
-            <button
-              onClick={() => setShowTransferModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors shadow-sm"
-            >
-              <Send className="w-4 h-4" />
-              发起转赠
-            </button>
-          )}
+          {/* v58: 发起转赠按钮改为始终显示在标题右侧（不再藏在「转出」tab 里） */}
+          <button
+            onClick={() => setShowTransferModal(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors shadow-sm"
+          >
+            <Send className="w-4 h-4" />
+            发起转赠
+          </button>
         </div>
 
         {/* 过滤 tabs */}
