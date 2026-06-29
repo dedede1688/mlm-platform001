@@ -99,8 +99,8 @@ function maskPhone(phone: string): string {
   return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
 }
 
-// 手续费比例（与后端默认值保持一致）
-const FEE_PERCENT = 10
+// 手续费默认比例（兜底值；真实值由 /api/settings/public 返回的 pointsTransferFeePercent 覆盖）
+const DEFAULT_FEE_PERCENT = 10
 
 // ---- 主组件 ----
 
@@ -122,6 +122,8 @@ export default function PointsPage() {
   const [phoneChecking, setPhoneChecking] = useState(false)
   const [phoneChecked, setPhoneChecked] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // 手续费比例（从后端 systemConfig.points.transfer_fee_percent 读取，初始 10% 兜底）
+  const [feePercent, setFeePercent] = useState<number>(DEFAULT_FEE_PERCENT)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -135,9 +137,10 @@ export default function PointsPage() {
 
   const fetchAll = useCallback(async (authToken: string) => {
     try {
-      const [userRes, pointsRes] = await Promise.allSettled([
+      const [userRes, pointsRes, settingsRes] = await Promise.allSettled([
         fetch('/api/users/me', { headers: { Authorization: `Bearer ${authToken}` } }),
         fetch('/api/points', { headers: { Authorization: `Bearer ${authToken}` } }),
+        fetch('/api/settings/public'),
       ])
 
       if (userRes.status === 'fulfilled' && userRes.value.ok) {
@@ -155,6 +158,14 @@ export default function PointsPage() {
       if (pointsRes.status === 'fulfilled' && pointsRes.value.ok) {
         const data = await pointsRes.value.json()
         if (data.success) setRecords(data.data || [])
+      }
+
+      // 同步后台手续费配置（让弹窗显示的费率跟随后台变化）
+      if (settingsRes.status === 'fulfilled' && settingsRes.value.ok) {
+        const data = await settingsRes.value.json()
+        if (data.success && typeof data.data?.pointsTransferFeePercent === 'number') {
+          setFeePercent(data.data.pointsTransferFeePercent)
+        }
       }
     } catch (err) {
       console.error('获取积分数据失败:', err)
@@ -206,9 +217,9 @@ export default function PointsPage() {
     return () => clearTimeout(timer)
   }, [toUserPhone, token, user?.phone])
 
-  // 手续费计算
+  // 手续费计算（feePercent 由后端 /api/settings/public 同步，前端不再硬编码）
   const transferPointsNum = parseInt(transferPoints) || 0
-  const feeAmount = Math.floor((transferPointsNum * FEE_PERCENT) / 100)
+  const feeAmount = Math.floor((transferPointsNum * feePercent) / 100)
   const totalDeduction = transferPointsNum + feeAmount
   const isSelfTransfer = user?.phone !== undefined && toUserPhone === user.phone
   const canSubmit =
@@ -541,7 +552,7 @@ export default function PointsPage() {
                     <span>{transferPointsNum} 积分</span>
                   </div>
                   <div className="flex justify-between text-orange-600">
-                    <span>手续费（{FEE_PERCENT}%）</span>
+                    <span>手续费（{feePercent}%）</span>
                     <span>{feeAmount} 积分</span>
                   </div>
                   <div className="flex justify-between font-semibold pt-1.5 border-t border-gray-200 text-gray-900">

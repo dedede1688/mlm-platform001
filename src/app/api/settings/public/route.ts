@@ -13,6 +13,12 @@ export async function GET() {
       where: { key: 'site_settings' },
     })
 
+    // 读取积分转赠手续费配置（让前端弹窗跟随后台配置变化）
+    const feeConfig = await prisma.systemConfig.findUnique({
+      where: { key: 'points.transfer_fee_percent' },
+    })
+    const pointsTransferFeePercent = feeConfig ? parseInt(feeConfig.value, 10) || 10 : 10
+
     // 从独立 banners 表查询轮播图
     const bannerRecords = await prisma.banners.findMany({
       orderBy: { order: 'asc' },
@@ -49,6 +55,7 @@ export async function GET() {
           seoDescription: null,
           seoKeywords: null,
           paymentProvider: 'mock',
+          pointsTransferFeePercent,
         },
       })
     }
@@ -76,6 +83,7 @@ export async function GET() {
         seoDescription: config.seoDescription ?? null,
         seoKeywords: config.seoKeywords ?? null,
         paymentProvider: config.paymentProvider ?? 'mock',
+        pointsTransferFeePercent,
       },
     })
   } catch (error) {
