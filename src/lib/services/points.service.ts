@@ -242,7 +242,8 @@ export class PointsService {
         await tx.pointsRecord.create({
           data: {
             userId: schedule.userId,
-            type: 'earn',
+            // 修复：type 必须是 'unlock'，前端 FILTER_TABS 的「解锁」tab 才过滤得到
+            type: 'unlock',
             amount: dailyAmount,
             totalPoints: user.totalPoints + dailyAmount,
             unlockedPoints: user.unlockedPoints + dailyAmount,
