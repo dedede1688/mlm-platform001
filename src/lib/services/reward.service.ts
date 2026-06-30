@@ -48,6 +48,8 @@ function computeMaxLayers(referrer: { level: number; directDistributorCount: num
     if (referrer.directDistributorCount >= 1) return 4
     return 2
   }
+  // v60 step3 G: A 是会员时跳过 A，从安置链上第 1 个经销商开始（findBrandBonusRecipients 已实现跳过逻辑）
+  if (referrer.level >= MEMBER_LEVELS.MEMBER) return 10
   return 0
 }
 
@@ -114,10 +116,11 @@ export class RewardService {
       where: { id: referrerId },
       select: { level: true, directDistributorCount: true },
     })
-    if (!referrer || referrer.level < MEMBER_LEVELS.DISTRIBUTOR) return
+    // v60 step3 G: A 是会员时跳过 A，从安置链上第 1 个经销商开始（findBrandBonusRecipients 已实现跳过逻辑）
+    if (!referrer) return
 
     const maxLayers = computeMaxLayers(referrer)
-    if (maxLayers === 0) return
+    if (maxLayers === 0) return  // 只有 maxLayers=0 才不发
 
     const paidCount = await prisma.order.count({
       where: { userId: buyerId, status: { in: ['paid', 'shipped', 'completed'] } },

@@ -164,12 +164,58 @@ describe('RewardService', () => {
       })
     })
 
-    it('should return early when referrer level < DISTRIBUTOR', async () => {
+    it('v60 step3: A 是会员且安置链无经销商时沉淀到 OperationLog', async () => {
       prisma.user.findUnique.mockResolvedValueOnce({ level: 1, directDistributorCount: 0 })
+      prisma.order.count.mockResolvedValueOnce(1)
+      // findBrandBonusRecipients: buyer has no parent in placement chain
+      prisma.user.findUnique.mockResolvedValueOnce({ parentId: null })
+      prisma.operationLog.create.mockResolvedValueOnce({})
 
       await RewardService.createBrandBonusReward('o-1', 1000, 'buyer-1', 'referrer-low')
 
       expect(prisma.reward.create).not.toHaveBeenCalled()
+      expect(prisma.operationLog.create).toHaveBeenCalledTimes(1)
+    })
+
+    it('v60 step3: A 是会员时跳过 A，安置链上第 1 个经销商收到品牌管理奖', async () => {
+      const orderId = 'order-v60'
+      const orderAmount = 1000
+      const buyerId = 'buyer-v60'
+      const referrerId = 'referrer-member' // A 是会员
+      const distributorId = 'dist-X' // X 是经销商
+      const expectedAmount = 200
+
+      // 1. referrer (A) 是会员 level=1
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 1, directDistributorCount: 0 })
+      // 2. paidCount = 1 → targetLayer = 1
+      prisma.order.count.mockResolvedValueOnce(1)
+      // 3. findBrandBonusRecipients walks up from buyer:
+      //    buyer's parentId → distributorX
+      prisma.user.findUnique.mockResolvedValueOnce({ parentId: distributorId })
+      //    distributorX is level 2 (distributor)
+      prisma.user.findUnique.mockResolvedValueOnce({ id: distributorId, level: 2 })
+      //    distributorX's parentId → null (end of chain)
+      prisma.user.findUnique.mockResolvedValueOnce({ parentId: null })
+
+      // 4. reward.create for X
+      prisma.reward.create.mockResolvedValueOnce({
+        id: 'reward-v60', userId: distributorId, type: 'brand_bonus', orderId, amount: expectedAmount, fromUserId: buyerId, level: 1, status: 'paid',
+      })
+      // 5. before user (X) - need BALANCE_SELECT fields
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0 })
+      // 6. user.update (X)
+      prisma.user.update.mockResolvedValueOnce({})
+      // 7. balanceRecord.create
+      prisma.balanceRecord.create.mockResolvedValueOnce({})
+
+      await RewardService.createBrandBonusReward(orderId, orderAmount, buyerId, referrerId)
+
+      // X (distributor) should receive the brand bonus, not A (member)
+      expect(prisma.reward.create).toHaveBeenCalledTimes(1)
+      const rewardCall = prisma.reward.create.mock.calls[0][0]
+      expect(rewardCall.data.userId).toBe(distributorId)
+      expect(rewardCall.data.type).toBe('brand_bonus')
+      expect(rewardCall.data.amount).toBe(expectedAmount)
     })
 
     it('should sink to OperationLog when no matching distributor found', async () => {

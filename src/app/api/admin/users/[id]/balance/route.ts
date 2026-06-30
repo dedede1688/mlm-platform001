@@ -118,7 +118,7 @@ export async function POST(
       await tx.balanceRecord.create({
         data: {
           userId: id,
-          type: 'admin_adjust',
+          type: adjustType,
           amount,
           balance: newBalance,
           frozenBalance: newFrozenBalance,

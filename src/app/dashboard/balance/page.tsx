@@ -36,6 +36,7 @@ const TYPE_CONFIG: Record<string, { name: string; icon: React.ReactNode; isPosit
   refund_reward: { name: '奖励回收', icon: <Undo2 className="w-5 h-5" />, isPositive: false },
   refund_dividend: { name: '分红回收', icon: <Undo2 className="w-5 h-5" />, isPositive: false },
   daily_dividend: { name: '每日分红', icon: <Gift className="w-5 h-5" />, isPositive: true },
+  earnings_void: { name: '收益作废', icon: <Undo2 className="w-5 h-5" />, isPositive: false },
 }
 
 type TypeFilter = 'all' | 'payment' | 'reward' | 'void' | 'withdraw' | 'admin_adjust'
@@ -99,7 +100,7 @@ export default function BalancePage() {
         activeTab === 'reward' ? 'referral_reward,brand_bonus,dividend_reward,daily_dividend,manual_reward,reward' :
         activeTab === 'withdraw' ? 'withdraw_freeze,withdraw,unfreeze' :
         activeTab === 'payment' ? 'payment,refund' :
-        activeTab === 'void' ? 'refund_dividend' :
+        activeTab === 'void' ? 'refund_dividend,earnings_void,consume_void' :
         activeTab
       const params = new URLSearchParams({ page: String(page), limit: String(pageSize) })
       if (typeParam) params.set('type', typeParam)
@@ -228,9 +229,20 @@ export default function BalancePage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-medium text-gray-900">{conf.name}</p>
-                          {r.description && (
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">{r.description}</p>
-                          )}
+                          {r.description && (() => {
+                            // v60 step2: 拆分 description 双行显示
+                            // format4FieldDelta 返回「（消费余额 ±X，可提现 ±Y）」格式（全角括号）
+                            const match = r.description!.match(/^(.+?)（(.+)）$/)
+                            if (match) {
+                              return (
+                                <>
+                                  <p className="text-xs text-gray-500 mt-0.5 truncate">{match[1]}</p>
+                                  <p className="text-xs text-gray-400 mt-0.5 truncate">{match[2]}</p>
+                                </>
+                              )
+                            }
+                            return <p className="text-xs text-gray-500 mt-0.5 truncate">{r.description}</p>
+                          })()}
                           <p className="text-xs text-gray-400 mt-1">{formatRelativeTime(r.createdAt)}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
