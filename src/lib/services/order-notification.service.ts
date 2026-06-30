@@ -206,6 +206,48 @@ export class OrderNotificationService {
     })()
   }
 
+  // v57.4: 抽公共方法 - 每日积分解锁通知（给 points.service.ts dailyUnlock 调用）
+  static async notifyPointsUnlock(params: {
+    userId: string
+    unlockAmount: number
+    newUnlockedPoints: number
+    newLockedPoints: number
+    completedDays: number
+  }) {
+    const variables = {
+      unlockAmount: String(params.unlockAmount),
+      newUnlockedPoints: String(params.newUnlockedPoints),
+      newLockedPoints: String(params.newLockedPoints),
+      completedDays: String(params.completedDays),
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '每日积分解锁通知',
+            content: `积分自动解锁 ${params.unlockAmount}，当前可用 ${params.newUnlockedPoints}`,
+            templateType: 'points_unlock',
+            recipientCount: 1,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'points_unlock',
+          variables,
+          batchId: b.id,
+        })
+      } catch (err) {
+        console.error('[v57.4 notifyPointsUnlock]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('积分解锁通知失败', { error: String(err) })
+      }
+    })()
+  }
+
   // v46.12: 抽公共方法 - 退款审核通知（admin 通过/拒绝退款申请时触发）
   static async notifyRefundReview(params: {
     userId: string

@@ -253,6 +253,15 @@ export class PointsService {
         })
       })
       count++
+
+      // v57.4: 事务后发通知（事务内发通知会被 GC 回收，参考 v46.7/v46.10 教训）
+      await OrderNotificationService.notifyPointsUnlock({
+        userId: schedule.userId,
+        unlockAmount: dailyAmount,
+        newUnlockedPoints: user.unlockedPoints + dailyAmount,
+        newLockedPoints: Math.max(0, user.lockedPoints - dailyAmount),
+        completedDays: schedule.completedDays + 1,
+      })
     }
 
     logger.info(`积分解锁完成: ${count} 条记录已处理`)
