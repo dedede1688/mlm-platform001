@@ -3,6 +3,8 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { BALANCE_SELECT } from '@/lib/constants'
+import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
 // POST /api/admin/manual-reward — 手动发放奖励（管理员）
 // 请求体：{ userId, amount, type?, reason }
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       // 步骤 1：查旧值
       const before = await tx.user.findUnique({
         where: { id: userId },
-        select: { balance: true, frozenBalance: true },
+        select: BALANCE_SELECT,
       })
       if (!before) throw new Error('用户不存在')
 
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
       })
 
       // 步骤 4：写 BalanceRecord
+      const afterReward = before ? { consumeBalance: before.consumeBalance, earningsAvailable: before.earningsAvailable + amount, earningsPending: before.earningsPending, earningsVoided: before.earningsVoided } : { consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0 }
       await tx.balanceRecord.create({
         data: {
           userId,
@@ -84,7 +87,7 @@ export async function POST(request: NextRequest) {
           frozenBalance: before.frozenBalance,
           sourceType: 'manual_reward',
           sourceId: manualReward.id,
-          description: `手动奖励 ¥${amount.toFixed(2)}，原因：${rewardReason}`,
+          description: `手动奖励 ¥${amount.toFixed(2)}，原因：${rewardReason}${format4FieldDelta(before, afterReward)}`,
         },
       })
 

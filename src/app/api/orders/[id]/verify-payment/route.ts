@@ -7,7 +7,8 @@ import { RewardService } from '@/lib/services/reward.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
-import { ORDER_STATUS } from '@/lib/constants'
+import { ORDER_STATUS, BALANCE_SELECT } from '@/lib/constants'
+import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
 // POST /api/orders/[id]/verify-payment — 验证支付密码 + 标记已支付
 export async function POST(
@@ -96,7 +97,7 @@ export async function POST(
         // 事务内查用户当前余额（防并发透支）
         const freshUser = await tx.user.findUnique({
           where: { id: order.userId },
-          select: { balance: true, frozenBalance: true },
+          select: BALANCE_SELECT,
         })
         if (!freshUser) {
           throw new Error('用户不存在')
@@ -119,6 +120,7 @@ export async function POST(
 
         // 3. 写 balance_record（流水）
         const newBalance = freshUser.balance - order.payAmount
+        const afterPay = { consumeBalance: freshUser.consumeBalance + order.payAmount, earningsAvailable: freshUser.earningsAvailable, earningsPending: freshUser.earningsPending, earningsVoided: freshUser.earningsVoided }
         await tx.balanceRecord.create({
           data: {
             userId: order.userId,
@@ -128,7 +130,7 @@ export async function POST(
             frozenBalance: freshUser.frozenBalance,
             sourceType: 'order',
             sourceId: orderId,
-            description: `订单 ${order.orderNo} 支付`,
+            description: `订单 ${order.orderNo} 支付${format4FieldDelta(freshUser, afterPay)}`,
           },
         })
       }

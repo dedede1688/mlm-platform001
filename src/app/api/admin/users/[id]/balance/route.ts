@@ -5,6 +5,7 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
 type AdjustType = typeof VALID_TYPES[number]
@@ -115,6 +116,12 @@ export async function POST(
       const extraDesc = mapping.extra
         ? `，${getFieldLabel(mapping.extra)}${amount * extraSign > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}`
         : ''
+      const after4Field = {
+        consumeBalance: before.consumeBalance + (mapping.extra === 'consumeBalance' ? amount * extraSign : 0),
+        earningsAvailable: before.earningsAvailable + (mapping.extra === 'earningsAvailable' ? amount * extraSign : 0),
+        earningsPending: before.earningsPending,
+        earningsVoided: before.earningsVoided + (mapping.extra === 'earningsVoided' ? amount * extraSign : 0),
+      }
       await tx.balanceRecord.create({
         data: {
           userId: id,
@@ -124,7 +131,7 @@ export async function POST(
           frozenBalance: newFrozenBalance,
           sourceType: 'admin',
           sourceId: admin.id,
-          description: `管理员调账：${mapping.label}${amount > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}${extraDesc}，原因：${reason}`,
+          description: `管理员调账：${mapping.label}${amount > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}${extraDesc}，原因：${reason}${format4FieldDelta(before, after4Field)}`,
         },
       })
 
