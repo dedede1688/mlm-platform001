@@ -48,3 +48,11 @@ prisma/*.db-journal
 _update_*.sql
 *.bak
 ~*
+# AI agent IDE 配置目录(本地保留,不入版本控制)
+.arts/
+.codeartsdoer/
+.codeflicker/
+.dumate/
+.joycode/
+.lingma/
+.trae/

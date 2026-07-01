@@ -1,1 +1,0 @@
-- [dividend-feature](project_dividend_feature.md) — 分红奖功能实现和升级逻辑修复
