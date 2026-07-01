@@ -180,4 +180,68 @@ describe('WithdrawalService', () => {
       expect(result.failed).toBe(1)
     })
   })
+
+  // ============ getUserWithdrawals ============
+  describe('getUserWithdrawals', () => {
+    it('returns paginated withdrawals for user', async () => {
+      prisma.withdrawal.findMany.mockResolvedValueOnce([
+        { id: 'w1', amount: 100, status: 'pending' },
+      ] as any)
+      prisma.withdrawal.count.mockResolvedValueOnce(1)
+
+      const result = await WithdrawalService.getUserWithdrawals('user-1')
+      expect(result.withdrawals).toHaveLength(1)
+      expect(result.pagination.total).toBe(1)
+      expect(result.pagination.totalPages).toBe(1)
+    })
+
+    it('uses custom page and limit', async () => {
+      prisma.withdrawal.findMany.mockResolvedValueOnce([])
+      prisma.withdrawal.count.mockResolvedValueOnce(100)
+      const result = await WithdrawalService.getUserWithdrawals('user-1', 3, 10)
+      expect(result.pagination.page).toBe(3)
+      expect(result.pagination.totalPages).toBe(10)
+    })
+  })
+
+  // ============ getPendingWithdrawals ============
+  describe('getPendingWithdrawals', () => {
+    it('returns pending withdrawals with user info', async () => {
+      prisma.withdrawal.findMany.mockResolvedValueOnce([
+        { id: 'w1', amount: 100, status: 'pending', user: { phone: '138' } },
+      ] as any)
+      prisma.withdrawal.count.mockResolvedValueOnce(1)
+
+      const result = await WithdrawalService.getPendingWithdrawals()
+      expect(result.withdrawals).toHaveLength(1)
+      expect(prisma.withdrawal.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: 'pending' }, include: { user: true } })
+      )
+    })
+  })
+
+  // ============ getWithdrawalStats ============
+  describe('getWithdrawalStats', () => {
+    it('returns counts by status and total approved amount', async () => {
+      prisma.withdrawal.count
+        .mockResolvedValueOnce(5) // pending
+        .mockResolvedValueOnce(10) // approved
+        .mockResolvedValueOnce(2) // rejected
+      prisma.withdrawal.aggregate.mockResolvedValueOnce({ _sum: { amount: 5000 } } as any)
+
+      const stats = await WithdrawalService.getWithdrawalStats()
+      expect(stats.pending).toBe(5)
+      expect(stats.approved).toBe(10)
+      expect(stats.rejected).toBe(2)
+      expect(stats.totalAmount).toBe(5000)
+    })
+
+    it('returns 0 totalAmount when sum is null', async () => {
+      prisma.withdrawal.count.mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(0)
+      prisma.withdrawal.aggregate.mockResolvedValueOnce({ _sum: { amount: null } } as any)
+
+      const stats = await WithdrawalService.getWithdrawalStats()
+      expect(stats.totalAmount).toBe(0)
+    })
+  })
 })

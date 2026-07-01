@@ -242,4 +242,56 @@ describe('PointsService', () => {
         .rejects.toThrow('作废原因必填')
     })
   })
+
+  // ============ dailyUnlock ============
+  describe('dailyUnlock', () => {
+    it('unlocks points for active schedules and writes PointsRecord', async () => {
+      // 模拟 2 个 active schedules,各自 dailyUnlockRate=0.01
+      prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([
+        { id: 's1', userId: 'user-1', orderId: 'o1', remainingPoints: 1000, dailyUnlockRate: 0.01, totalDays: 100, completedDays: 0, status: 'active', nextUnlockDate: new Date(Date.now() - 86400000) },
+        { id: 's2', userId: 'user-2', orderId: 'o2', remainingPoints: 500, dailyUnlockRate: 0.02, totalDays: 50, completedDays: 10, status: 'active', nextUnlockDate: new Date(Date.now() - 86400000) },
+      ] as any)
+
+      prisma.user.findUnique
+        .mockResolvedValueOnce({ id: 'user-1', totalPoints: 1000, unlockedPoints: 0, lockedPoints: 1000 } as any)
+        .mockResolvedValueOnce({ id: 'user-2', totalPoints: 500, unlockedPoints: 100, lockedPoints: 400 } as any)
+
+      prisma.user.update.mockResolvedValue({} as any)
+      prisma.pointsUnlockSchedule.update.mockResolvedValue({} as any)
+      prisma.pointsRecord.create.mockResolvedValue({} as any)
+
+      const count = await PointsService.dailyUnlock()
+
+      expect(count).toBe(2)
+      expect(prisma.pointsRecord.create).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns 0 when no active schedules', async () => {
+      prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([])
+      const count = await PointsService.dailyUnlock()
+      expect(count).toBe(0)
+      expect(prisma.pointsRecord.create).not.toHaveBeenCalled()
+    })
+
+    it('marks schedule completed when remainingPoints reaches 0', async () => {
+      prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([
+        { id: 's1', userId: 'user-1', orderId: 'o1', remainingPoints: 5, dailyUnlockRate: 0.01, totalDays: 100, completedDays: 99, status: 'active', nextUnlockDate: new Date(Date.now() - 86400000) },
+      ] as any)
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'user-1', totalPoints: 5, unlockedPoints: 0, lockedPoints: 5 } as any)
+      prisma.user.update.mockResolvedValue({} as any)
+      prisma.pointsUnlockSchedule.update.mockResolvedValue({} as any)
+      prisma.pointsRecord.create.mockResolvedValue({} as any)
+
+      const count = await PointsService.dailyUnlock()
+
+      expect(count).toBe(1)
+      // 完成时 status 应改为 completed
+      expect(prisma.pointsUnlockSchedule.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 's1' },
+          data: expect.objectContaining({ status: 'completed' }),
+        })
+      )
+    })
+  })
 })

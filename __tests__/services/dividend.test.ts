@@ -183,4 +183,102 @@ describe('DividendService', () => {
       expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
     })
   })
+
+  // ============ 其他查询方法 ============
+  describe('getUserDividends', () => {
+    it('returns paginated dividends', async () => {
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'd1', amount: 100 },
+        { id: 'd2', amount: 200 },
+      ] as any)
+      prisma.dividend.count.mockResolvedValueOnce(2)
+
+      const result = await DividendService.getUserDividends('user-1', 1, 20)
+
+      expect(result.dividends).toHaveLength(2)
+      expect(result.pagination.total).toBe(2)
+      expect(result.pagination.totalPages).toBe(1)
+    })
+
+    it('uses custom page and limit', async () => {
+      prisma.dividend.findMany.mockResolvedValueOnce([])
+      prisma.dividend.count.mockResolvedValueOnce(100)
+      const result = await DividendService.getUserDividends('user-1', 3, 10)
+      expect(result.pagination.page).toBe(3)
+      expect(result.pagination.limit).toBe(10)
+      expect(result.pagination.totalPages).toBe(10)
+    })
+  })
+
+  describe('getDividendStats', () => {
+    it('throws when user not found', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(null)
+      await expect(DividendService.getDividendStats('user-x'))
+        .rejects.toThrow('用户不存在')
+    })
+
+    it('returns totalAmount, lastAmount, totalCount', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'user-1' } as any)
+      prisma.dividend.aggregate.mockResolvedValueOnce({ _sum: { amount: 500 } } as any)
+      prisma.dividend.findFirst.mockResolvedValueOnce({ dividendDate: new Date('2026-07-01'), amount: 200 } as any)
+      prisma.dividend.count.mockResolvedValueOnce(3)
+
+      const stats = await DividendService.getDividendStats('user-1')
+      expect(stats.totalAmount).toBe(500)
+      expect(stats.lastAmount).toBe(200)
+      expect(stats.totalCount).toBe(3)
+    })
+
+    it('handles zero sum and no last dividend', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'user-1' } as any)
+      prisma.dividend.aggregate.mockResolvedValueOnce({ _sum: { amount: null } } as any)
+      prisma.dividend.findFirst.mockResolvedValueOnce(null)
+      prisma.dividend.count.mockResolvedValueOnce(0)
+
+      const stats = await DividendService.getDividendStats('user-1')
+      expect(stats.totalAmount).toBe(0)
+      expect(stats.lastDividendDate).toBeNull()
+      expect(stats.lastAmount).toBe(0)
+    })
+  })
+
+  describe('checkTodaySettlement', () => {
+    it('returns true when today settlement exists', async () => {
+      prisma.dividend.findFirst.mockResolvedValueOnce({ id: 'd1' } as any)
+      const result = await DividendService.checkTodaySettlement()
+      expect(result).toBe(true)
+    })
+
+    it('returns false when no today settlement', async () => {
+      prisma.dividend.findFirst.mockResolvedValueOnce(null)
+      const result = await DividendService.checkTodaySettlement()
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('getTodayDividendSummary', () => {
+    it('returns summary with today dividends and eligible users count', async () => {
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { amount: 100, user: { phone: '138', nickname: 'A', level: 3 } },
+        { amount: 200, user: { phone: '139', nickname: 'B', level: 4 } },
+      ] as any)
+      prisma.user.count.mockResolvedValueOnce(5)
+
+      const summary = await DividendService.getTodayDividendSummary()
+      expect(summary.totalAmount).toBe(300)
+      expect(summary.distributedUsers).toBe(2)
+      expect(summary.eligibleUsers).toBe(5)
+      expect(summary.isSettled).toBe(true)
+    })
+
+    it('returns isSettled=false when no today dividends', async () => {
+      prisma.dividend.findMany.mockResolvedValueOnce([])
+      prisma.user.count.mockResolvedValueOnce(10)
+
+      const summary = await DividendService.getTodayDividendSummary()
+      expect(summary.totalAmount).toBe(0)
+      expect(summary.distributedUsers).toBe(0)
+      expect(summary.isSettled).toBe(false)
+    })
+  })
 })
