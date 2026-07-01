@@ -395,6 +395,24 @@ describe('RewardService', () => {
       expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
     })
 
+    // v60.3 batch 6: 补 line 417,455 - processRefund 中 user.findUnique 返回 null
+    it('throws "用户不存在" in processRefund when reward user not found', async () => {
+      const orderId = 'order-refund-user-missing'
+
+      prisma.reward.findMany.mockResolvedValueOnce([
+        { id: 'reward-r4', userId: 'user-orphan', type: 'brand_bonus', orderId, amount: 30, status: 'paid' },
+      ])
+      prisma.dividend.findMany.mockResolvedValueOnce([])
+
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+
+      // user.findUnique 返回 null (用户在 processRefund 期间被删除)
+      prisma.user.findUnique.mockResolvedValueOnce(null)
+
+      await expect(RewardService.processRefund(orderId))
+        .rejects.toThrow('不存在')
+    })
+
     it('should handle both rewards and dividends in single transaction', async () => {
       const orderId = 'order-refund-5'
 
@@ -535,6 +553,21 @@ describe('RewardService', () => {
       // orchestrator 应该正常返回,包含 referralUnlockRequired=true
       expect(result.referralUnlockRequired).toBe(true)
     })
+
+    // v60.3 batch 6: 补 line 324 - referralUnlockAmount falsy 分支
+    it('returns no unlock info when buyer has no referrer', async () => {
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 'order-no-ref',
+        status: 'paid',
+        payAmount: 100,
+        user: { id: 'buyer', referrerId: null },  // 无 referrer
+        items: [],
+      } as any)
+      const result = await RewardService.processOrderRewards('order-no-ref')
+      // referralResult 未定义 → referralUnlockRequired=undefined, referralUnlockAmount=undefined
+      expect(result.referralUnlockRequired).toBeUndefined()
+      expect(result.referralUnlockAmount).toBeUndefined()
+    })
   })
 
   // ============ getUserRewardStats ============
@@ -614,6 +647,17 @@ describe('RewardService', () => {
       prisma.user.findUnique.mockResolvedValue({ parentId: null })
       await RewardService.createBrandBonusReward('order-x', 100, 'buyer', 'referrer')
       // 不抛错
+    })
+
+    // v60.3 batch 6: 补 reward.service.ts line 53 - level=0 兜底 → maxLayers=0
+    it('referrer.level=0 → computeMaxLayers=0 → createBrandBonusReward 早返', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        level: 0,
+        directDistributorCount: 0,
+      } as any)
+      // 不应该再调 order.count (因为 maxLayers=0 直接 return)
+      await RewardService.createBrandBonusReward('order-x', 100, 'buyer', 'referrer-novice')
+      expect(prisma.order.count).not.toHaveBeenCalled()
     })
   })
 })

@@ -244,4 +244,170 @@ describe('WithdrawalService', () => {
       expect(stats.totalAmount).toBe(0)
     })
   })
+
+  // v60.3 batch 6: 补 withdrawal.service.ts 9 个 throw 路径 + 4 个 falsy branch
+  describe('createWithdrawal - error paths', () => {
+    it('throws "用户不存在" when user not found (line 34)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(null)
+      await expect(
+        WithdrawalService.createWithdrawal('u-nonexistent', {
+          amount: 100, paymentMethod: 'alipay', accountNumber: 'a', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('用户不存在')
+    })
+
+    it('throws "请先设置支付密码" when paymentPasswordHash not set (line 36)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: null,
+      })
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 100, paymentMethod: 'alipay', accountNumber: 'a', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('请先设置支付密码')
+    })
+
+    it('throws "最低提现金额" when amount < minAmount (line 43)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: 'h',
+      })
+      // getBusinessConfig 默认 minAmount=10
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 1, paymentMethod: 'alipay', accountNumber: 'a', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('最低提现金额')
+    })
+
+    it('throws "每日最多提现" when daily limit exceeded (line 55)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: 'h',
+      })
+      // withdrawal.count 返回已达上限
+      prisma.withdrawal.count.mockResolvedValueOnce(5)
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 100, paymentMethod: 'alipay', accountNumber: 'a', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('每日最多提现')
+    })
+
+    it('throws "余额不足" when balance check count=0 (line 69)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: 'h',
+      })
+      // updateMany 返回 count=0 (并发透支)
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 0 })
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 100, paymentMethod: 'alipay', accountNumber: 'a', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('余额不足')
+    })
+  })
+
+  describe('reviewWithdrawal approve - error paths', () => {
+    it('throws "用户不存在" when user not found (line 117)', async () => {
+      prisma.withdrawal.findUnique.mockResolvedValueOnce({
+        id: 'w1', userId: 'u1', amount: 100, status: 'pending',
+      })
+      prisma.user.findUnique.mockResolvedValueOnce(null)
+      await expect(
+        WithdrawalService.reviewWithdrawal('w1', { approved: true })
+      ).rejects.toThrow('用户不存在')
+    })
+
+    it('throws "冻结余额不足" when count=0 (line 123)', async () => {
+      prisma.withdrawal.findUnique.mockResolvedValueOnce({
+        id: 'w1', userId: 'u1', amount: 100, status: 'pending',
+      })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0 })
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 0 })
+      await expect(
+        WithdrawalService.reviewWithdrawal('w1', { approved: true, reviewedBy: 'admin1' })
+      ).rejects.toThrow('冻结余额不足')
+    })
+
+    it('reviewedBy undefined → null in update (line 129 branch 1)', async () => {
+      prisma.withdrawal.findUnique.mockResolvedValueOnce({
+        id: 'w1', userId: 'u1', amount: 100, status: 'pending',
+      })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 100 })
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.withdrawal.update.mockResolvedValueOnce({ id: 'w1', status: 'approved' })
+      prisma.balanceRecord.create.mockResolvedValueOnce({})
+
+      // 不传 reviewedBy
+      await WithdrawalService.reviewWithdrawal('w1', { approved: true })
+
+      expect(prisma.withdrawal.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            reviewedBy: null,
+          }),
+        })
+      )
+    })
+  })
+
+  describe('reviewWithdrawal reject - error paths', () => {
+    it('throws "用户不存在" when user not found (line 173)', async () => {
+      prisma.withdrawal.findUnique.mockResolvedValueOnce({
+        id: 'w1', userId: 'u1', amount: 100, status: 'pending',
+      })
+      prisma.user.findUnique.mockResolvedValueOnce(null)
+      await expect(
+        WithdrawalService.reviewWithdrawal('w1', { approved: false })
+      ).rejects.toThrow('用户不存在')
+    })
+
+    it('throws "冻结余额不足" when count=0 (line 182)', async () => {
+      prisma.withdrawal.findUnique.mockResolvedValueOnce({
+        id: 'w1', userId: 'u1', amount: 100, status: 'pending',
+      })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0 })
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 0 })
+      await expect(
+        WithdrawalService.reviewWithdrawal('w1', { approved: false, reviewedBy: 'admin1', rejectReason: 'info' })
+      ).rejects.toThrow('冻结余额不足')
+    })
+
+    it('reviewedBy undefined + rejectReason undefined → null defaults (lines 188, 205)', async () => {
+      prisma.withdrawal.findUnique.mockResolvedValueOnce({
+        id: 'w1', userId: 'u1', amount: 100, status: 'pending',
+      })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 100 })
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.withdrawal.update.mockResolvedValueOnce({ id: 'w1', status: 'rejected' })
+      prisma.balanceRecord.create.mockResolvedValueOnce({})
+
+      // 不传 reviewedBy 和 rejectReason
+      await WithdrawalService.reviewWithdrawal('w1', { approved: false })
+
+      expect(prisma.withdrawal.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            reviewedBy: null,
+            // 注意:rejectReason 没传时直接是 undefined(非 '') - service 189 行直接传递,不兜底
+            rejectTemplateId: null,
+            remark: null,
+          }),
+        })
+      )
+    })
+  })
+
+  describe('batchReview - error message fallback (line 241)', () => {
+    it('uses "未知错误" when error has no message', async () => {
+      // 第 1 个 withdrawal 抛错 - error 没有 message
+      prisma.withdrawal.findUnique.mockImplementationOnce(() => {
+        throw {}  // 没有 message 字段
+      })
+
+      const result = await WithdrawalService.batchReview(['w-bad'], { approved: true })
+
+      expect(result.failed).toBe(1)
+      expect(result.errors[0].error).toBe('未知错误')
+    })
+  })
 })

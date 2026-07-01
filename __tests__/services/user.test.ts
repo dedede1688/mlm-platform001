@@ -133,6 +133,24 @@ describe('UserService', () => {
 
       expect(result).toEqual({ parentId: referrerId, position: 2 })
     })
+
+    // v60.3 batch 6: 补 86-94 行 - BFS 全 3 位置占满后去子节点找
+    it('BFS recursively into children when referrer has 3 full positions', async () => {
+      const referrerId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+      // Referrer has 3 children at positions 1,2,3 (all full)
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: referrerId, parentId: null, position: null },
+        { id: 'child-1', parentId: referrerId, position: 1 },
+        { id: 'child-2', parentId: referrerId, position: 2 },
+        { id: 'child-3', parentId: referrerId, position: 3 },
+      ])
+
+      const result = await UserService.findPlacementPosition(referrerId)
+
+      // BFS: 排 referrer 后继续查 child-1 (sorted by position)
+      // child-1 无 children → first available is position 1
+      expect(result).toEqual({ parentId: 'child-1', position: 1 })
+    })
   })
 
   describe('getPlacementChain', () => {

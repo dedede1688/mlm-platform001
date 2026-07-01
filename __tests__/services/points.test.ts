@@ -294,4 +294,114 @@ describe('PointsService', () => {
       )
     })
   })
+
+  // v60.3 batch 6: 补 points.service.ts 53-54, 96, 179-186 lines
+  describe('createPointsRecord - description fallback (53-54)', () => {
+    it('uses empty string when description not provided', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', totalPoints: 500, unlockedPoints: 400, lockedPoints: 100,
+      })
+      // user.update (totalPoints increment)
+      prisma.user.update.mockResolvedValueOnce({})
+      // pointsRecord.create
+      prisma.pointsRecord.create.mockResolvedValueOnce({ id: 'pr-1' })
+
+      await PointsService.createPointsRecord({
+        userId: 'u1',
+        type: 'earn',
+        amount: 50,
+        // 不传 description
+      })
+
+      expect(prisma.pointsRecord.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            description: '',  // 兜底 '' 分支
+            amount: 50,
+          }),
+        })
+      )
+    })
+  })
+
+  describe('transferPoints - fee insufficient (line 96)', () => {
+    it('throws "可用积分不足(包括手续费)" when amount+fee > unlockedPoints', async () => {
+      // getUserPoints 返回 100 unlocked, transfer 95 + 10% fee = 104, totalDeduction=104 > 100
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1',
+        totalPoints: 100,
+        unlockedPoints: 100,
+        lockedPoints: 0,
+      })
+      // getBusinessConfig 默认 fee=10%
+      // 事务内：tx.user.updateMany(扣转出)  返回 count=0 因为 100 < 104
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 0 })
+
+      await expect(
+        PointsService.transferPoints('u1', 'u2', 95, '转赠')
+      ).rejects.toThrow('可用积分不足（包括手续费）')
+    })
+  })
+
+  describe('createPointsUnlockSchedule (179-186)', () => {
+    it('creates schedule with no tx (uses prisma direct) and empty orderId', async () => {
+      // user.update (lock points)
+      prisma.user.update.mockResolvedValueOnce({})
+      // pointsUnlockSchedule.create
+      prisma.pointsUnlockSchedule.create.mockResolvedValueOnce({ id: 'sch-1' })
+
+      const nextUnlock = new Date()
+      const result = await PointsService.createPointsUnlockSchedule({
+        userId: 'u1',
+        orderId: null,
+        totalPoints: 1000,
+        dailyUnlockRate: 0.01,
+        totalDays: 100,
+        nextUnlockDate: nextUnlock,
+      })
+
+      expect(result).toEqual({ id: 'sch-1' })
+      // lockedPoints increment
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: { lockedPoints: { increment: 1000 } },
+        })
+      )
+      // schedule created with orderId default to ''
+      expect(prisma.pointsUnlockSchedule.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'u1',
+            orderId: '',  // null → '' 兜底
+            totalPoints: 1000,
+            remainingPoints: 1000,
+            completedDays: 0,
+          }),
+        })
+      )
+    })
+
+    it('uses provided orderId when not null', async () => {
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.pointsUnlockSchedule.create.mockResolvedValueOnce({ id: 'sch-2' })
+
+      await PointsService.createPointsUnlockSchedule({
+        userId: 'u2',
+        orderId: 'order-123',
+        totalPoints: 500,
+        dailyUnlockRate: 0.02,
+        totalDays: 50,
+        nextUnlockDate: new Date(),
+      })
+
+      expect(prisma.pointsUnlockSchedule.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            orderId: 'order-123',
+          }),
+        })
+      )
+    })
+  })
 })
