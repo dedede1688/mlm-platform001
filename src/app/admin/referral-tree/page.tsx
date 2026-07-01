@@ -95,14 +95,7 @@ function toEChartsTree(node: TreeNode): Record<string, unknown> {
       createdAt: node.createdAt,
       childCount: node.children.length,
     },
-    itemStyle: {
-      borderColor: color,
-      color: color,
-      borderWidth: 3,
-      opacity: 0.55,
-      shadowBlur: 6,
-      shadowColor: color,
-    },
+    itemStyle: { borderColor: color, color: '#fff', borderWidth: 2 },
     label: {
       color,
       fontSize: 12,
@@ -406,7 +399,7 @@ export default function ReferralTreeVisualizationPage() {
           left: '12%',
           bottom: '5%',
           right: '20%',
-          symbolSize: 18,
+          symbolSize: 10,
           orient: 'LR',
           label: {
             position: 'left',
