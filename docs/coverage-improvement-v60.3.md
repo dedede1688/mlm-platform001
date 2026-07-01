@@ -12,8 +12,36 @@
 | 阶段 | Statements | Branches | Functions | 备注 |
 |------|------------|----------|-----------|------|
 | v60.2 基线 | 66.32% | **56.55%** | 77.24% | 188 commits |
-| **v60.3 batch 1** | **70.72%** | **61.21%** | 82.63% | **+4.66 个百分点** |
-| 目标 | 75% | **70%** | 85% | - |
+| v60.3 batch 1 | 70.72% | 61.21% | 82.63% | +4.66 |
+| v60.3 batch 2 | 78.00% | 68.12% | 83.83% | +6.91 |
+| **v60.3 batch 3** | **79.96%** | **70.38%** ✅ | **85.36%** | **+2.26** |
+| **目标达成** | - | **70%** ✅ | - | **Branches 70% 达成!** |
+| 最终目标 | 80%+ | 75%+ | 90%+ | - |
+
+---
+
+## ✅ v60.3 batch 2 完成 (order-lifecycle.service.ts)
+
+### `__tests__/services/order-lifecycle.test.ts` (新建)
+- **31 个测试** 覆盖订单状态机 7 个方法:
+  - verifyPayment:6 个分支(订单不存在/状态变更/密码未设/密码错/余额不足/正常路径 payAmount=0 + >0)
+  - shipOrder:5 个分支(状态错/订单不存在/email+sms/只 email/只 sms/nickname fallback)
+  - completeOrder:3 个分支
+  - autoCompleteOrders:2 个分支(Vercel Cron)
+  - requestRefund:7 个分支
+  - cancelOrder:4 个分支
+- **覆盖前**:9.24% / 1.47% (几乎没测)
+- **覆盖后**:100% / 100%
+
+## ✅ v60.3 batch 3 完成 (order.service.ts)
+
+### `__tests__/services/order.test.ts` (新建)
+- **19 个测试** 覆盖订单 CRUD 3 个方法:
+  - createOrder:9 个分支(items 校验/用户不存在/商品不存在/库存不足/memberPrice 定价/收货信息/积分抵扣 cap/并发透支)
+  - getUserOrders:3 个分支(无 status/有 status/自定义 page+limit)
+  - getOrderDetail:1 个分支(完整 include)
+- **覆盖前**:67.16% / 57.77%
+- **覆盖后**:94.02% / 86.66%
 
 ---
 
