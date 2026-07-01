@@ -737,3 +737,59 @@ useEffect(() => {
 - 这个铁律不只适用 mlm-platform —— 所有「分析+建议」类输出都应自带「可执行清单」
 - Mavis 的核心价值 = 判断 + 温度 + **直接动手**
 - 「报告完 等指示」是次优模式,「报告完 + 已自动执行 P0」是首选模式
+
+---
+
+### 铁律 14：中国大陆开发者 GitHub push 必须用 SSH 443（v60.3 实战总结，2026-07-01 写入）
+
+**核心教训**：在中国大陆网络环境下，GitHub 的 HTTPS 端口 443 经常被 GFW 精准阻断（能 ping 通但 TCP 443 连接被 reset）。所有 git push 必须用 SSH over 端口 443。
+
+**症状识别**（`Test-NetConnection github.com -Port 443`）：
+```
+PingSucceeded: True        ✅  网络通
+TcpTestSucceeded: False     ❌  TCP 443 被阻
+```
+
+或 push 时直接 `Recv failure: Connection was reset`。
+
+**强制流程**（首次配置）：
+
+```powershell
+# 1. 生成 SSH key（交互式按 2 次回车）
+ssh-keygen -t ed25519 -C "your_email@example.com"
+
+# 2. 创建 SSH config（关键：443 端口）
+$dir = "$env:USERPROFILE\.ssh"
+"Host github.com`n  Hostname ssh.github.com`n  Port 443`n  User git" | Out-File "$dir\config" -Encoding ascii
+
+# 3. 复制 pub key
+Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub | Set-Clipboard
+
+# 4. 去 https://github.com/settings/keys 加 SSH key
+
+# 5. 改 remote 为 SSH
+git remote set-url origin git@github.com:username/repo.git
+
+# 6. 测试 + push
+ssh -T git@github.com
+git push origin main
+```
+
+**一次性配置后永久生效**。后续所有 push 都用 SSH。
+
+**v60.3 真实事故时间线**：
+- T+0：commit `0152581` 在本地，push 反复 timeout / 401
+- T+30：尝试 Git Credential Manager 清缓存 → PowerShell 重定向限制，无法操作
+- T+60：尝试 `git -c "http.extraHeader=..."` 用 PAT token → 仍 401
+- T+90：发现 TCP 443 不通 → 锁定 GFW
+- T+95：生成 SSH key + config 走 443 端口
+- T+100：第一次 ssh -T 失败（Permission denied）→ 公 key 未加 GitHub
+- T+105：浏览器加 SSH key → 立即 push 成功
+- T+108：铁律 1 验证通过
+
+**横向教训**：
+- 这个铁律**只适用中国大陆开发者**
+- 海外开发者用 HTTPS push 完全没问题
+- SSH over 443 端口是 GitHub 官方支持的方案，专门为 GFW 设计
+- 一旦配好，后续所有 push/clone/fetch 都自动走 SSH 443
+- PAT token 方式（`http.extraHeader=Authorization: bearer`）在 GFW 环境下也会卡 HTTPS，必须用 SSH
