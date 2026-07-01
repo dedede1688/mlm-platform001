@@ -76,6 +76,43 @@ describe('NotificationService', () => {
     })
   })
 
+  // v60.3 batch 7: 补 line 31 - user fallback chain (nickname → phone → '用户')
+  it('falls back to phone when user nickname is null (line 31 branch 2)', async () => {
+    prisma.notificationTemplate.findUnique.mockResolvedValueOnce({
+      id: 't1', enabled: true, subject: '审核', content: '{{userName}}',
+    })
+    prisma.user.findUnique.mockResolvedValueOnce({ nickname: null, phone: '13800138000' })
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b7' })
+    prisma.notification.create.mockResolvedValueOnce({ id: 'n7' })
+
+    await NotificationService.sendWithdrawalNotification({
+      userId: 'u-x', type: 'withdrawal_approved', withdrawalId: 'w', amount: 100,
+    })
+
+    expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          // variables 里面有 userName=phone
+        }),
+      })
+    )
+  })
+
+  it('falls back to "用户" when user null (line 31 branch 1)', async () => {
+    prisma.notificationTemplate.findUnique.mockResolvedValueOnce({
+      id: 't1', enabled: true, subject: '审核', content: '{{userName}}',
+    })
+    prisma.user.findUnique.mockResolvedValueOnce(null)
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b8' })
+    prisma.notification.create.mockResolvedValueOnce({ id: 'n8' })
+
+    await NotificationService.sendWithdrawalNotification({
+      userId: 'u-y', type: 'withdrawal_approved', withdrawalId: 'w', amount: 100,
+    })
+
+    expect(prisma.notification.create).toHaveBeenCalled()
+  })
+
   // v60.3 batch 7: 补 line 37 - template.subject undefined → '' fallback
   it('handles template.subject being undefined (line 37)', async () => {
     prisma.notificationTemplate.findUnique.mockResolvedValueOnce({
