@@ -793,3 +793,99 @@ git push origin main
 - SSH over 443 端口是 GitHub 官方支持的方案，专门为 GFW 设计
 - 一旦配好，后续所有 push/clone/fetch 都自动走 SSH 443
 - PAT token 方式（`http.extraHeader=Authorization: bearer`）在 GFW 环境下也会卡 HTTPS，必须用 SSH
+
+---
+
+### 铁律 15：mockImplementation 永久覆盖必须配 try/finally 还原（v60.3 batch 6 实战总结，2026-07-01 写入）
+
+**核心教训**：`vi.fn().mockImplementation(async (...))` 是**永久覆盖**（直到 mock 被重置），区别于 `mockImplementationOnce`（仅第一次调用生效）。一旦在测试内 `mockImplementation` 永久覆盖了某个 module-level mock，**不还原会污染后续所有测试**。
+
+**症状**（5 个测试同时 fail）：
+```
+× should throw error with insufficient balance
+× throws when user not found
+× handles zero sum and no last dividend
+× returns true when today settlement exists
+× returns false when no today settlement
+```
+Assert 报错看似无关，实则是 `getBusinessConfig` 的 mock 被覆盖后，所有 `getBusinessConfig` 调用都走新实现，污染了业务行为。
+
+**错误写法**（mockImplementation 永久 + 无还原）：
+```typescript
+// ❌ 这个 mockImplementation 永久覆盖,后续测试都受影响
+it('some test', async () => {
+  vi.mocked(getBusinessConfig).mockImplementation(async (key, defaultValue) => {
+    if (key === 'dividend.director.include_upstream') return true
+    return defaultValue
+  })
+
+  // test code - 即使这个 test pass,后续测试也被污染
+})
+```
+
+**正确写法**（try/finally + 还原）：
+```typescript
+// ✅ 用 try/finally 还原 mockImplementation
+it('some test', async () => {
+  const { getBusinessConfig } = await import('@/lib/config/business')
+  const originalImpl = vi.mocked(getBusinessConfig).getMockImplementation()
+  vi.mocked(getBusinessConfig).mockImplementation(async (key, defaultValue) => {
+    if (key === 'dividend.director.include_upstream') return true
+    return defaultValue
+  })
+
+  try {
+    // test code
+  } finally {
+    if (originalImpl) {
+      vi.mocked(getBusinessConfig).mockImplementation(originalImpl as any)
+    } else {
+      vi.mocked(getBusinessConfig).mockReset()
+    }
+  }
+})
+```
+
+**替代方案**（如果 module 级 mock 是基于 dictionary）：
+```typescript
+// ✅ 直接 set/restore dictionary key (vitest's vi.fn mock 内部用 dictionary 查)
+const saved = businessConfigValues['dividend.director.rate']
+businessConfigValues['dividend.director.rate'] = 0
+try {
+  // test code
+} finally {
+  businessConfigValues['dividend.director.rate'] = saved
+}
+```
+
+**为什么 mockImplementationOnce 不够**：
+- `mockImplementationOnce` 只对**下一次**调用生效
+- 一个测试内 service 可能调同一个 mock 多次（e.g. 5 个 rate + 5 个 include_upstream = 10 次），mockImplementationOnce 只 cover 第一次
+- 后续 9 次仍走 module-level mock 默认实现 → 测试行为不可预测
+
+**强制规则**：
+
+1. **禁止裸 `vi.mocked(fn).mockImplementation`** —— 必须配 try/finally
+2. **保存原实现** —— 用 `getMockImplementation()` 取 reference,finally 里 `mockImplementation(original)` 还原
+3. **如果原始实现是 vi.fn() (无 impl)** —— 用 `mockReset()` 清回 vi.fn() 状态
+4. **优先用 dictionary 模式** —— 如果项目用 `businessConfigValues[key]` 这种字典配置,set/restore 更简洁
+
+**v60.3 真实事故时间线**（30 分钟排查）：
+- T+0：dividend.test.ts 加 includeUpstream=true 测试,用 `mockImplementationOnce`
+- T+5：测试 pass,但 5 个其他 dividend 测试 fail（看似无关）
+- T+10：每次改回去就又有不同 fail → 怀疑 mock state 污染
+- T+15：识别 mockImplementationOnce 第一次成功,但 service 内调用 5 次(5 个 rate key + 5 个 include_upstream),只第一次生效,其他 defaultValue=false
+- T+20：改用 `mockImplementation` 永久覆盖 + try/finally 还原
+- T+25：所有测试通过 ✅
+- 教训：**派单时改 service mock 时,先 grep 该 mock 的所有调用**
+
+**v60.3 batch 8 应用场景**：
+- reward.test.ts line 619 (`businessConfigValues['dividend.director.rate'] = 0` + try/finally restore)
+- dividend.test.ts line 187 (`getBusinessConfig().mockImplementation` + try/finally)
+- auth.test.ts line 145 (`sendSms.mockRejectedValueOnce` — 不污染,因为是 Once)
+
+**派单前自检清单**（mock 涉及 service 修改）：
+- 用 `mockImplementationOnce` 而不是 `mockImplementation`（如果只触发一次）
+- 如果必须用 `mockImplementation`，包 `try/finally` 还原 `originalImpl`
+- 跑 `npx vitest run --coverage` 后看是否能保持原有覆盖率（不应该下降）
+- 多文件测试，跑 **2-3 次** 整个 suite 确认没有"最近才加的测试污染旧测试"
