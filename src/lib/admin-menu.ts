@@ -1,4 +1,4 @@
-import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Sliders, FileText, Inbox, BarChart3, ScrollText } from 'lucide-react';
+import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Sliders, FileText, Inbox, BarChart3, ScrollText, Shield } from 'lucide-react';
 
 // v65: 后台架构升级 - 6 大类 + 改名"数据中台" + 删"推荐关系图"独立菜单
 // 6 大类:数据中台(首页) / 商品 / 财务 / 订单 / 会员 / 系统后台
@@ -32,6 +32,9 @@ export const MENU_ITEMS = [
 
   // 7. 运营报表(归数据中台的高级分析,留独立入口便于深链)
   { id: 'reports', name: '运营报表', path: '/admin/reports', icon: BarChart3 },
+
+  // 8. 角色与权限(v66 新增:super_admin 可视化配置每个角色能看哪些菜单)
+  { id: 'roles', name: '角色与权限', path: '/admin/system/roles', icon: Shield },
 ];
 
 export const ROLE_MENUS: Record<string, string[]> = {
@@ -59,3 +62,7 @@ export const ROLE_MENUS: Record<string, string[]> = {
     'dashboard', 'logs'
   ],
 };
+
+// v66:默认角色菜单配置(layout 启动时会从 API 拉 DB 覆盖)
+// 这个常量是兜底值,真正生效的是 DB 里 role_menus 这一行
+export const DEFAULT_ROLE_MENUS = ROLE_MENUS;

@@ -47,6 +47,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authed, setAuthed] = useState(false)
   const [noPermission, setNoPermission] = useState(false)
+  // v66:从 API 拉的自定义角色菜单(DB 覆盖 ROLE_MENUS 默认)
+  const [customRoleMenus, setCustomRoleMenus] = useState<Record<string, string[]> | null>(null)
 
   // 从 JWT token 解析角色（降级方案：localStorage 中无 user 时使用）
   const parseRoleFromToken = (token: string): string | null => {
@@ -144,8 +146,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 根据角色过滤菜单（使用 ROLE_MENUS 映射）
-  const allowedMenuIds = ROLE_MENUS[userRole] || []
+  // v66:从 API 拉自定义角色菜单(可选覆盖,失败时用默认)
+  useEffect(() => {
+    if (!authed) return
+    let cancelled = false
+    fetch('/api/admin/roles', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return
+        if (data?.success && data?.data?.config) {
+          setCustomRoleMenus(data.data.config)
+        }
+      })
+      .catch(() => { /* 静默失败,使用默认 ROLE_MENUS */ })
+    return () => { cancelled = true }
+  }, [authed])
+
+  // 根据角色过滤菜单（v66: 优先用 customRoleMenus, fallback 到 ROLE_MENUS 默认）
+  const allowedMenuIds = (customRoleMenus?.[userRole] || ROLE_MENUS[userRole] || [])
   const visibleNavItems = NAV_ITEMS.filter(item => allowedMenuIds.includes(item.id))
 
   // 退出登录
