@@ -6,12 +6,42 @@ import { useRouter } from 'next/navigation'
 import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
   TrendingUp, Award, Clock, MapPin, ShieldCheck,
-  CheckCircle2, Lock, Camera
+  CheckCircle2, Lock, Camera, BarChart3, PieChart as PieIcon
 } from 'lucide-react'
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Legend,
+} from 'recharts'
 import { formatMoney } from '@/lib/utils/format'
 import AvatarUploadModal from '@/components/dashboard/AvatarUploadModal'
 
 // ---- 类型 ----
+
+// v62 P2-B: 大盘聚合数据
+interface DashboardData {
+  kpi: {
+    monthEarnings: number
+    monthOrders: number
+    pendingLockedAmount: number
+    availableAmount: number
+    pendingAmount: number
+  }
+  categoryBreakdown: Array<{
+    type: string
+    label: string
+    amount: number
+    color: string
+  }>
+  trend: Array<{ month: string; amount: number }>
+  timeline: Array<{
+    id: string
+    date: string
+    amount: number
+    type: string
+    label: string
+    orderNo: string | null
+  }>
+}
 
 interface UserInfo {
   id: string
@@ -59,6 +89,8 @@ export default function DashboardPage() {
   const [referralRate, setReferralRate] = useState(0.20)
   const [brandBonusRate, setBrandBonusRate] = useState(0.20)
   const [avatarModalOpen, setAvatarModalOpen] = useState(false)
+  // v62 P2-B: 大盘聚合数据
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -123,6 +155,19 @@ export default function DashboardPage() {
       console.error('Fetch data error:', error)
     } finally {
       setLoading(false)
+    }
+
+    // v62 P2-B: 并行拉取大盘聚合数据(用户不阻塞主流程)
+    try {
+      const dashRes = await fetch('/api/user/dashboard', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (dashRes.ok) {
+        const json = await dashRes.json()
+        if (json.success) setDashboard(json.data)
+      }
+    } catch {
+      // 大盘数据加载失败不致命
     }
   }
 
@@ -195,6 +240,10 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-b from-primary-50 via-white to-gray-50">
       {/* ====== Main ====== */}
       <main className="max-w-7xl mx-auto px-3 sm:px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+
+        {/* ====== v62 P2-B: 用户可视化大盘 ====== */}
+        {dashboard && <DashboardSection data={dashboard} />}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
 
           {/* ====== 侧边栏 ====== */}
@@ -560,4 +609,183 @@ function QuickLink({
       <p className="text-[10px] sm:text-xs text-gray-400">{desc}</p>
     </Link>
   )
+}
+
+// ---- v62 P2-B: 用户可视化大盘 ----
+
+function DashboardSection({ data }: { data: DashboardData }) {
+  const { kpi, categoryBreakdown, trend, timeline } = data
+  const trendHasData = trend.some(t => t.amount > 0)
+  const pieHasData = categoryBreakdown.length > 0
+  const totalMonthAmount = categoryBreakdown.reduce((s, c) => s + c.amount, 0)
+
+  return (
+    <div className="mb-6 sm:mb-8">
+      <div className="flex items-center gap-2 mb-3 sm:mb-4">
+        <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900">本月收益大盘</h2>
+        <span className="text-xs sm:text-sm text-gray-400 ml-auto">本月 ¥{formatMoney(kpi.monthEarnings)}</span>
+      </div>
+
+      {/* KPI 4 卡 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <KpiTile
+          label="本月收益"
+          value={`¥${formatMoney(kpi.monthEarnings)}`}
+          hint={`${kpi.monthOrders} 单`}
+          color="from-emerald-500 to-emerald-600"
+        />
+        <KpiTile
+          label="已到账"
+          value={`¥${formatMoney(kpi.availableAmount)}`}
+          hint="可提现"
+          color="from-blue-500 to-blue-600"
+        />
+        <KpiTile
+          label="缓冲期"
+          value={`¥${formatMoney(kpi.pendingAmount)}`}
+          hint="待锁定"
+          color="from-amber-500 to-amber-600"
+        />
+        <KpiTile
+          label="待解锁"
+          value={`¥${formatMoney(kpi.pendingLockedAmount)}`}
+          hint="积分估算"
+          color="from-purple-500 to-purple-600"
+        />
+      </div>
+
+      {/* 分类饼图 + 趋势线 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+        <div className="card-base p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <PieIcon className="w-4 h-4 text-primary" />
+            <h3 className="text-sm sm:text-base font-semibold text-gray-900">收益来源</h3>
+          </div>
+          {pieHasData ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 items-center">
+              <div className="h-44 sm:h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryBreakdown}
+                      dataKey="amount"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius="80%"
+                      innerRadius="45%"
+                      paddingAngle={2}
+                    >
+                      {categoryBreakdown.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => `¥${formatMoney(v)}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-2 sm:space-y-1.5 text-xs sm:text-sm">
+                {categoryBreakdown.map(c => (
+                  <div key={c.type} className="flex items-center gap-2">
+                    <span className="inline-block w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: c.color }} />
+                    <span className="flex-1 text-gray-700 truncate">{c.label}</span>
+                    <span className="font-medium text-gray-900">¥{formatMoney(c.amount)}</span>
+                    <span className="text-gray-400 w-12 text-right">
+                      {totalMonthAmount > 0 ? Math.round((c.amount / totalMonthAmount) * 100) : 0}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-8">本月暂无收益明细</p>
+          )}
+        </div>
+
+        <div className="card-base p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            <h3 className="text-sm sm:text-base font-semibold text-gray-900">最近 6 个月收益</h3>
+          </div>
+          {trendHasData ? (
+            <div className="h-44 sm:h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trend} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                  <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                  <Tooltip formatter={(v: number) => `¥${formatMoney(v)}`} />
+                  <Line
+                    type="monotone"
+                    dataKey="amount"
+                    stroke="#f97316"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: '#f97316' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-8">近 6 个月暂无收益</p>
+          )}
+        </div>
+      </div>
+
+      {/* 时间线 */}
+      <div className="card-base p-4 sm:p-5">
+        <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">本月收益明细</h3>
+        {timeline.length > 0 ? (
+          <ol className="relative border-l-2 border-orange-200 ml-2 space-y-3">
+            {timeline.map(item => (
+              <li key={item.id} className="ml-4 pb-1">
+                <span
+                  className="absolute -left-1.5 w-3 h-3 rounded-full"
+                  style={{ backgroundColor: getCategoryColor(item.type) }}
+                />
+                <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-900 font-medium truncate">{item.label}</p>
+                    <p className="text-gray-400 text-[10px] sm:text-xs">
+                      {new Date(item.date).toLocaleString('zh-CN', { hour12: false })}
+                      {item.orderNo && ` · ${item.orderNo}`}
+                    </p>
+                  </div>
+                  <span className="font-bold text-emerald-600 flex-shrink-0">
+                    +¥{formatMoney(item.amount)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-6">本月暂无明细</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function KpiTile({ label, value, hint, color }: { label: string; value: string; hint: string; color: string }) {
+  return (
+    <div className="card-base p-3 sm:p-4">
+      <p className="text-[10px] sm:text-xs text-gray-400 font-medium">{label}</p>
+      <p className={`text-lg sm:text-2xl font-bold bg-gradient-to-r ${color} bg-clip-text text-transparent mt-1`}>
+        {value}
+      </p>
+      <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">{hint}</p>
+    </div>
+  )
+}
+
+function getCategoryColor(type: string): string {
+  const map: Record<string, string> = {
+    referral: '#3b82f6',
+    brand_bonus: '#10b981',
+    upgrade_reward: '#a855f7',
+    manual_reward: '#f59e0b',
+    dividend: '#ef4444',
+  }
+  return map[type] || '#6b7280'
 }
