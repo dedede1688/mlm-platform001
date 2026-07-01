@@ -55,6 +55,8 @@ export default function RolesPage() {
   // config: { role -> menuIds[] }
   const [config, setConfig] = useState<Record<string, string[]>>({})
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  // v66.1:标签切换当前显示的角色
+  const [activeRole, setActiveRole] = useState<string>('super_admin')
 
   useEffect(() => {
     const t = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
@@ -181,83 +183,109 @@ export default function RolesPage() {
         </div>
       )}
 
-      {/* 角色卡片 */}
-      <div className="space-y-4">
-        {Object.keys(ROLE_LABELS).map(role => {
-          const selectedIds = new Set(config[role] || [])
-          return (
-            <div key={role} className="bg-white rounded-xl shadow-lg p-5 border border-gray-100">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-blue-500" />
-                    {ROLE_LABELS[role]}
-                    <code className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">
-                      {role}
-                    </code>
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">{ROLE_DESCRIPTIONS[role]}</p>
-                </div>
-                <span className="text-xs text-gray-400">
-                  已勾选 {selectedIds.size} / {CATEGORY_GROUPS.reduce((s, g) => s + g.menuIds.length, 0)} 项
+      {/* v66.1:角色标签切换 */}
+      <div className="mb-4 border-b border-gray-200">
+        <nav className="flex flex-wrap gap-1 -mb-px" aria-label="角色切换">
+          {Object.keys(ROLE_LABELS).map(role => {
+            const selectedIds = new Set(config[role] || [])
+            const totalCount = CATEGORY_GROUPS.reduce((s, g) => s + g.menuIds.length, 0)
+            const isActive = activeRole === role
+            return (
+              <button
+                key={role}
+                type="button"
+                onClick={() => setActiveRole(role)}
+                className={`group inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  isActive
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Shield className={`w-4 h-4 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                {ROLE_LABELS[role]}
+                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                  isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {selectedIds.size}/{totalCount}
                 </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {CATEGORY_GROUPS.map(group => {
-                  const groupIds = group.menuIds
-                  const groupSelected = groupIds.filter(id => selectedIds.has(id))
-                  const allOn = groupSelected.length === groupIds.length
-                  const someOn = groupSelected.length > 0 && !allOn
-                  return (
-                    <div key={group.name} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">{group.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleGroup(role, groupIds, allOn)}
-                          className={`text-xs px-2 py-0.5 rounded transition-colors ${
-                            allOn
-                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                          }`}
-                        >
-                          {allOn ? '取消全选' : '全选'}
-                        </button>
-                      </div>
-                      <div className="space-y-1.5">
-                        {groupIds.map(menuId => {
-                          const menu = menuItems.find(m => m.id === menuId)
-                          const checked = selectedIds.has(menuId)
-                          return (
-                            <label
-                              key={menuId}
-                              className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleMenu(role, menuId)}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                              />
-                              <span className={`text-sm ${checked ? 'text-gray-900' : 'text-gray-500'}`}>
-                                {menu?.name || menuId}
-                              </span>
-                              {someOn && !checked && groupIds.includes(menuId) && groupSelected.includes(menuId) === false && (
-                                <span className="text-xs text-gray-400">({groupSelected.length}/{groupIds.length})</span>
-                              )}
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
+              </button>
+            )
+          })}
+        </nav>
       </div>
+
+      {/* 当前激活角色的卡片 */}
+      {activeRole && (() => {
+        const role = activeRole
+        const selectedIds = new Set(config[role] || [])
+        return (
+          <div className="bg-white rounded-xl shadow-lg p-5 border border-gray-100">
+            <div className="flex items-start justify-between mb-4 pb-3 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-500" />
+                  {ROLE_LABELS[role]}
+                  <code className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">
+                    {role}
+                  </code>
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">{ROLE_DESCRIPTIONS[role]}</p>
+              </div>
+              <span className="text-xs text-gray-400">
+                已勾选 {selectedIds.size} / {CATEGORY_GROUPS.reduce((s, g) => s + g.menuIds.length, 0)} 项
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {CATEGORY_GROUPS.map(group => {
+                const groupIds = group.menuIds
+                const groupSelected = groupIds.filter(id => selectedIds.has(id))
+                const allOn = groupSelected.length === groupIds.length
+                return (
+                  <div key={group.name} className="border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">{group.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(role, groupIds, allOn)}
+                        className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                          allOn
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        {allOn ? '取消全选' : '全选'}
+                      </button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {groupIds.map(menuId => {
+                        const menu = menuItems.find(m => m.id === menuId)
+                        const checked = selectedIds.has(menuId)
+                        return (
+                          <label
+                            key={menuId}
+                            className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleMenu(role, menuId)}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className={`text-sm ${checked ? 'text-gray-900' : 'text-gray-500'}`}>
+                              {menu?.name || menuId}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 底部操作栏 */}
       <div className="mt-6 flex items-center justify-end gap-3 sticky bottom-0 bg-white/80 backdrop-blur p-4 border-t border-gray-200 rounded-b-xl">
