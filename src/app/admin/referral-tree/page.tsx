@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Network, Search, Loader2, ChevronLeft, Users, RefreshCw,
   ZoomIn, ZoomOut, Maximize, ChevronRight,
-  TrendingUp, ShoppingCart, Calendar, X
+  TrendingUp, ShoppingCart, Calendar, X, Download, GitBranch
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 
@@ -46,6 +46,9 @@ interface ApiResponse {
   truncated?: boolean
   nodeCount?: number
   summary?: TreeSummary
+  // v63 P2-C: 祖先链 + focus 信息
+  ancestors?: Array<{ id: string; nickname: string | null; phone: string }>
+  focusUserId?: string
 }
 
 // ---- 常量 ----
@@ -251,6 +254,9 @@ export default function ReferralTreeVisualizationPage() {
   const [maxLevel, setMaxLevel] = useState(3)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // v63 P2-C: 祖先链(从顶级到当前用户的父) + 当前显示用户 ID
+  const [ancestors, setAncestors] = useState<Array<{ id: string; nickname: string | null; phone: string }>>([])
+  const [focusUserId, setFocusUserId] = useState<string | null>(null)
 
   // 详情弹窗状态
   const [detailNode, setDetailNode] = useState<TreeNode | null>(null)
@@ -306,6 +312,9 @@ export default function ReferralTreeVisualizationPage() {
         setTruncated(data.truncated || false)
         setNodeCount(data.nodeCount || countNodes(data.data))
         if (data.summary) setSummary(data.summary)
+        // v63 P2-C: 祖先链 + focus 用户
+        setAncestors(data.ancestors || [])
+        setFocusUserId(data.focusUserId || userId)
       } else {
         setError(data.error || '获取推荐树失败')
       }
@@ -338,6 +347,24 @@ export default function ReferralTreeVisualizationPage() {
     const chart = chartRef.current?.getEchartsInstance()
     if (!chart) return
     chart.setOption({ series: [{ zoom: 1, center: undefined }] })
+  }
+
+  // v63 P2-C: 导出 PNG (用 echarts 的 getDataURL() 直接截屏)
+  const handleExportPNG = () => {
+    const chart = chartRef.current?.getEchartsInstance()
+    if (!chart) return
+    const url = chart.getDataURL({
+      type: 'png',
+      pixelRatio: 2,  // 高清
+      backgroundColor: '#ffffff',
+    })
+    const a = document.createElement('a')
+    a.href = url
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    a.download = `推荐关系图_${selectedUserLabel.replace(/[\\/:*?"<>|]/g, '_') || 'user'}_${ts}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   // ---- ECharts 配置 ----
@@ -483,6 +510,18 @@ export default function ReferralTreeVisualizationPage() {
           >
             {searching ? '搜索中...' : '搜索'}
           </button>
+
+          {/* v63 P2-C: 导出 PNG */}
+          <button
+            onClick={handleExportPNG}
+            disabled={!tree || loading}
+            title="导出推荐图为 PNG"
+            className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700
+              transition-colors font-medium whitespace-nowrap disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <Download className="w-4 h-4" />
+            导出 PNG
+          </button>
         </div>
 
         {/* 搜索结果 */}
@@ -514,6 +553,41 @@ export default function ReferralTreeVisualizationPage() {
           </div>
         )}
       </div>
+
+      {/* ===== v63 P2-C: 祖先链面包屑 ===== */}
+      {ancestors.length > 0 && (
+        <div className="bg-white rounded-xl shadow-lg p-4 mb-4 border border-gray-100">
+          <div className="flex items-start gap-2">
+            <GitBranch className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-500 font-medium mb-1.5">祖先链（从顶级到「{selectedUserLabel || '当前用户'}」）</p>
+              <div className="flex items-center flex-wrap gap-y-1 text-xs">
+                {ancestors.map((a, idx) => (
+                  <span key={a.id} className="inline-flex items-center">
+                    <button
+                      onClick={() => loadTree(a.id, a.nickname || a.phone)}
+                      className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded transition-colors"
+                    >
+                      {a.nickname || a.phone}
+                    </button>
+                    {idx < ancestors.length - 1 && (
+                      <ChevronRight className="w-3 h-3 mx-1 text-gray-400" />
+                    )}
+                  </span>
+                ))}
+                {focusUserId && (
+                  <>
+                    <ChevronRight className="w-3 h-3 mx-1 text-gray-400" />
+                    <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded font-medium">
+                      {selectedUserLabel || '当前用户'}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== 顶部摘要条（新增） ===== */}
       {summary && (

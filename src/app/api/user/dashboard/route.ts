@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     // ---- 1. KPI ----
     // 本月收益(reward + dividend)
-    const [monthRewards, monthDividends, userInfo, monthOrders, lockedPointsData] = await Promise.all([
+    const [monthRewards, monthDividends, userInfo, monthOrders] = await Promise.all([
       prisma.reward.findMany({
         where: {
           userId,
@@ -49,7 +49,6 @@ export async function GET(request: NextRequest) {
           frozenBalance: true,
           unlockedPoints: true,
           lockedPoints: true,
-          pointsPerBox: true,
         },
       }),
       prisma.order.count({
@@ -57,14 +56,6 @@ export async function GET(request: NextRequest) {
           userId,
           createdAt: { gte: monthStart, lt: monthEnd },
         },
-      }),
-      // 每日解锁积分对应的金额(估算,用 pointsPerBox / 500 * 1 元 / 箱 的近似比例)
-      // 简单做法:lockedPoints 转 ¥ 估算 = lockedPoints / pointsPerBox * 100
-      // 例如 500 积分解锁 100 元(类似 1 箱约 500 积分解锁 100 元奖金)
-      // 实际业务规则需根据 system-parameters + 商品定价,这里给个保守估算
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { lockedPoints: true },
       }),
     ])
 
