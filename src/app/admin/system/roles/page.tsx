@@ -422,6 +422,17 @@ export default function RolesPage() {
       {/* ===== 操作权限 tab ===== */}
       {topTab === 'action' && (
         <>
+          {/* v68.10:super_admin 永远 ALL 的说明 banner */}
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+            <Shield className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm text-amber-800">
+              <p className="font-medium mb-1">关于超级管理员 (super_admin) 的操作权限</p>
+              <p className="text-amber-700">
+                为了<strong>防止超管误把自己锁出后台</strong>,代码层强制 super_admin 拥有所有 5 项操作权限(不管 DB 如何配置)。
+                因此这里的复选框只是<b>展示当前 DB 配置</b>,不影响实际行为。如需测试按钮变灰,请用其他子角色(如 support_admin)验证。
+              </p>
+            </div>
+          </div>
           <div className="space-y-4">
             {Object.keys(ROLE_LABELS).map(role => {
               const selectedActions = new Set(actionConfig[role] || [])

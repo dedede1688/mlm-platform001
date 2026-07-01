@@ -37,6 +37,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Action[]> = {
 /** 检查角色是否有某个操作权限 */
 export function hasPermission(role: string | null | undefined, action: Action): boolean {
   if (!role) return false
+  // v68.10:super_admin 永远 ALL(防自锁 — DB 配 [] / ['view'] 等任意值都不会影响超管)
+  if (role === 'super_admin') return true
   // v68:支持从 DB 覆盖(由 layout 注入)
   const perms = (window as any).__ROLE_PERMISSIONS__?.[role] || DEFAULT_ROLE_PERMISSIONS[role] || []
   return perms.includes(action)
@@ -51,5 +53,7 @@ export function hasAnyPermission(role: string | null | undefined, actions: Actio
 /** 获取角色的所有操作权限 */
 export function getAllowedActions(role: string | null | undefined): Action[] {
   if (!role) return []
+  // v68.10:super_admin 永远返回完整 5 档
+  if (role === 'super_admin') return ['view', 'create', 'update', 'delete', 'approve']
   return (window as any).__ROLE_PERMISSIONS__?.[role] || DEFAULT_ROLE_PERMISSIONS[role] || []
 }
