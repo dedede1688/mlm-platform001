@@ -46,6 +46,25 @@ describe('PointsService', () => {
     prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
   })
 
+  // v60.3 batch 7: 补 line 22 - getUserPoints throws when user not found
+  describe('getUserPoints (line 22)', () => {
+    it('throws "用户不存在" when user not found', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce(null)
+      await expect(PointsService.getUserPoints('user-orphan'))
+        .rejects.toThrow('用户不存在')
+    })
+
+    it('returns user points when found', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', totalPoints: 1000, unlockedPoints: 800, lockedPoints: 200,
+      })
+      const result = await PointsService.getUserPoints('u1')
+      expect(result).toEqual({
+        id: 'u1', totalPoints: 1000, unlockedPoints: 800, lockedPoints: 200,
+      })
+    })
+  })
+
   describe('transferPoints', () => {
     it('should transfer points successfully', async () => {
       // 事务外：getUserPoints(fromUser) → prisma.user.findUnique

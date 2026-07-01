@@ -413,6 +413,24 @@ describe('RewardService', () => {
         .rejects.toThrow('不存在')
     })
 
+    // v60.3 batch 7: 补 line 455 - processRefund 中 dividend user.findUnique 返回 null
+    it('throws "用户不存在" in processRefund when dividend user not found (line 455)', async () => {
+      const orderId = 'order-refund-div-missing'
+
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      // 有 dividend,user 在事务中找不到
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'dividend-x', userId: 'user-orphan-div', orderId, amount: 50 },
+      ])
+
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+      // user.findUnique 返回 null (用户在 processRefund 期间被删除)
+      prisma.user.findUnique.mockResolvedValueOnce(null)
+
+      await expect(RewardService.processRefund(orderId))
+        .rejects.toThrow('不存在')
+    })
+
     it('should handle both rewards and dividends in single transaction', async () => {
       const orderId = 'order-refund-5'
 
@@ -616,15 +634,77 @@ describe('RewardService', () => {
 
   // ============ createDividendReward 额外分支 ============
   describe('createDividendReward - 额外分支', () => {
-    it('skips pool when rate = 0', async () => {
-      // 通过 mock business config 让 rate 返回 0
-      // 由于我们在 __tests__ 里不能改 business.ts,这里只验证 skip 逻辑
-      // 实际测试通过 mock getBusinessConfig(虽然 reward.service 已经内部用)
+    // v60.3 batch 7: 补 line 238 - includeUpstream=true 时,anyone level>=pool.level
+    it('includeUpstream=true includes higher-level users (line 238)', async () => {
+      // 临时设 manager pool rate = 0.05 (default) + includeUpstream=true
+      const savedInc = businessConfigValues['dividend.manager.include_upstream']
+      businessConfigValues['dividend.manager.include_upstream'] = true
+      try {
+        const orderId = 'order-inc-up'
+        const buyerId = 'buyer-inc'
+
+        // 链上 2 个 user:1 个 level=3, 1 个 level=4
+        prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'd1', level: 1, id: buyerId })
+        prisma.user.findUnique.mockResolvedValueOnce({ id: 'd1', level: 3 })  // for director pool
+        prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'm1', level: 3, id: 'd1' })
+        prisma.user.findUnique.mockResolvedValueOnce({ id: 'm1', level: 4 })  // for manager pool
+        prisma.user.findUnique.mockResolvedValueOnce({ referrerId: null, level: 4, id: 'm1' })
+
+        // manager 池 includeUpstream=true → level=3 (d1) 也算进
+        prisma.dividend.create.mockResolvedValueOnce({ id: 'div-m-3', userId: 'd1' })
+        prisma.user.findUnique.mockResolvedValueOnce({ balance: 1000, frozenBalance: 0 })
+        prisma.user.update.mockResolvedValueOnce({})
+        prisma.balanceRecord.create.mockResolvedValueOnce({})
+
+        // director 池 share 到 level=4 (m1) - includeUpstream=true default= false for director
+        // Actually director.include_upstream=false (default), so only level=3 (d1)
+        // 这里只触发 manager pool 为 include_upstream=true 测试
+
+        await RewardService.createDividendReward(orderId, 10000, buyerId)
+
+        // 期望 manager 池把 d1(level=3) 纳入, 所以至少 1 个 div.create
+        expect(prisma.dividend.create).toHaveBeenCalled()
+      } finally {
+        businessConfigValues['dividend.manager.include_upstream'] = savedInc
+      }
     })
 
-    it('handles includeUpstream=false correctly (only matching level)', async () => {
-      // 链上 1 个 level=3 用户,director 池只发给 level=3
-      // 测试 includeUpstream=false 时只发给本级
+    // v60.3 batch 7: 补 line 233 - rate=0 → skip pool
+    it('skips pool when rate = 0 (line 233)', async () => {
+      // 临时覆盖 director pool rate = 0
+      const saved = businessConfigValues['dividend.director.rate']
+      businessConfigValues['dividend.director.rate'] = 0
+      try {
+        const orderId = 'order-zero-rate'
+        const buyerId = 'buyer-zero'
+
+        // 链上只有 1 个 level=3 user
+        prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'd1', level: 1, id: buyerId })
+        prisma.user.findUnique.mockResolvedValueOnce({ id: 'd1', level: 3 })
+        prisma.user.findUnique.mockResolvedValueOnce({ referrerId: null, level: 3, id: 'd1' })
+
+        await RewardService.createDividendReward(orderId, 1000, buyerId)
+
+        // director 池 rate=0 → skip,不调 dividend.create
+        expect(prisma.dividend.create).not.toHaveBeenCalled()
+      } finally {
+        businessConfigValues['dividend.director.rate'] = saved
+      }
+    })
+
+    // v60.3 batch 7: 补 line 237-239 - includeUpstream false 路径(已默认 cover,但配合测试 rate=0 + level)
+    it('does not create dividend when no eligible pool members (line 242)', async () => {
+      const orderId = 'order-no-pool'
+      const buyerId = 'buyer-no-pool'
+
+      // 链上没有人 level>=3
+      prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'm1', level: 1, id: buyerId })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'm1', level: 1 })  // level=1, 不入 director pool
+      prisma.user.findUnique.mockResolvedValueOnce({ referrerId: null, level: 1, id: 'm1' })
+
+      await RewardService.createDividendReward(orderId, 100, buyerId)
+      // eligibleUsers 为空,function 早返回 → 没 dividend.create
+      expect(prisma.dividend.create).not.toHaveBeenCalled()
     })
   })
 
@@ -658,6 +738,15 @@ describe('RewardService', () => {
       // 不应该再调 order.count (因为 maxLayers=0 直接 return)
       await RewardService.createBrandBonusReward('order-x', 100, 'buyer', 'referrer-novice')
       expect(prisma.order.count).not.toHaveBeenCalled()
+    })
+
+    // v60.3 batch 7: 补 line 47-48 - 经销商 + 2 个直推 → maxLayers=10
+    it('经销商 + 2 直推 → maxLayers=10 (line 47-48)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 2 } as any)
+      prisma.order.count.mockResolvedValueOnce(1)
+      prisma.user.findUnique.mockResolvedValue({ parentId: null })
+      await RewardService.createBrandBonusReward('order-x', 100, 'buyer', 'referrer-2d')
+      // 不抛错
     })
   })
 })

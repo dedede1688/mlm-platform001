@@ -295,6 +295,17 @@ describe('OrderNotificationService', () => {
       expect(notifications.batches[0].senderId).toBeNull()
       expect(notifications.sendCalls[0].senderId).toBeUndefined()
     })
+
+    // v60.3 batch 7: 补 line 149-154 - catch handler
+    it('catches error when batch.create rejects (line 149-154)', async () => {
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyBalanceChange(baseParams)
+      ).resolves.toBeUndefined()
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('余额变动通知失败', { error: expect.any(String) })
+    })
   })
 
   // ============================================================
@@ -342,6 +353,16 @@ describe('OrderNotificationService', () => {
       })
 
       expect(notifications.sendCalls[0].variables.changeAmount).toBe('-20')
+    })
+
+    // v60.3 batch 7: 补 line 199-204 - catch handler
+    it('catches error when batch.create rejects (line 199-204)', async () => {
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyPointsAdjust(baseParams)
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('积分变动通知失败', { error: expect.any(String) })
     })
   })
 
@@ -423,6 +444,18 @@ describe('OrderNotificationService', () => {
 
       expect(notifications.sendCalls[0].variables.refundReason).toBe('')
     })
+
+    // v60.3 batch 7: 补 line 287-292 - refund review catch handler
+    it('catches error when batch.create rejects (line 287-292)', async () => {
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyRefundReview({
+          userId: 'user-r', refundId: 'refund-err', action: 'approve',
+        })
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('退款审核通知失败', { error: expect.any(String) })
+    })
   })
 
   // ============================================================
@@ -448,6 +481,18 @@ describe('OrderNotificationService', () => {
         orderNo: 'ORD-RC',
         amount: '99.90',
       })
+    })
+
+    // v60.3 batch 7: 补 line 329-334 - refund completed catch
+    it('catches error when batch.create rejects (line 329-334)', async () => {
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyRefundCompleted({
+          userId: 'user-rc', orderId: 'order-rc', orderNo: 'ORD-RC', amount: 100,
+        })
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('退款完成通知失败', { error: expect.any(String) })
     })
   })
 
@@ -589,6 +634,19 @@ describe('OrderNotificationService', () => {
       await OrderNotificationService.notifyOrderCompleted('nonexistent')
       expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
     })
+
+    // v60.3 batch 7: 补 line 415-420 - order completed catch
+    it('catches error when batch.create rejects (line 415-420)', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        orderNo: 'ORD-OC-ERR', userId: 'u-err', user: { nickname: 'X' },
+      })
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyOrderCompleted('order-err')
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('订单完成通知失败', { error: expect.any(String) })
+    })
   })
 
   // ============================================================
@@ -628,6 +686,19 @@ describe('OrderNotificationService', () => {
       mockPrisma.order.findUnique.mockResolvedValueOnce(null)
       await OrderNotificationService.notifyOrderCancelled({ orderId: 'nonexistent' })
       expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
+    })
+
+    // v60.3 batch 7: 补 line 457-462 - order cancelled catch
+    it('catches error when batch.create rejects (line 457-462)', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        orderNo: 'ORD-CX-ERR', userId: 'u-err', user: { nickname: 'X' },
+      })
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyOrderCancelled({ orderId: 'order-cx-err' })
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('订单取消通知失败', { error: expect.any(String) })
     })
   })
 
@@ -693,6 +764,19 @@ describe('OrderNotificationService', () => {
 
       expect(notifications.sendCalls[0].variables.userName).toBe('')
     })
+
+    // v60.3 batch 7: 补 line 505-510 - user status change catch
+    it('catches error when batch.create rejects (line 505-510)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ nickname: 'X', phone: null })
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyUserStatusChange({
+          userId: 'user-s', status: 'active', reason: 'test',
+        })
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('账户状态变更通知失败', { error: expect.any(String) })
+    })
   })
 
   // ============================================================
@@ -739,6 +823,19 @@ describe('OrderNotificationService', () => {
         remainingPoints: 0,
       })
       expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
+    })
+
+    // v60.3 batch 7: 补 line 554-559 - points void catch
+    it('catches error when batch.create rejects (line 554-559)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ nickname: 'X', phone: null })
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyPointsVoid({
+          userId: 'user-v', amount: 100, reason: 'test', remainingPoints: 0,
+        })
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('积分作废通知失败', { error: expect.any(String) })
     })
   })
 
@@ -794,6 +891,19 @@ describe('OrderNotificationService', () => {
       })
 
       expect(notifications.sendCalls[0].variables.userName).toBe('13900000009')
+    })
+
+    // v60.3 batch 7: 补 line 601-606 - manual reward catch
+    it('catches error when batch.create rejects (line 601-606)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ nickname: 'X', phone: null })
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('DB down'))
+
+      await expect(
+        OrderNotificationService.notifyManualReward({
+          userId: 'user-rw', amount: 100, reason: 'test',
+        })
+      ).resolves.toBeUndefined()
+      expect(loggerMock.error).toHaveBeenCalledWith('手动奖励通知失败', { error: expect.any(String) })
     })
   })
 })

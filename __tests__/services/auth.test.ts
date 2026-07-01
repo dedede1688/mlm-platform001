@@ -38,6 +38,8 @@ vi.mock('@/lib/logger', () => ({
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { AuthService } from '@/lib/services/auth.service'
+import { sendSms } from '@/lib/notification/sendSms'
+import { logger } from '@/lib/logger'
 
 describe('AuthService', () => {
   beforeEach(() => {
@@ -134,6 +136,23 @@ describe('AuthService', () => {
       // 验证码是 6 位数字
       const createCall = prisma.passwordResetCode.create.mock.calls[0][0]
       expect(createCall.data.code).toMatch(/^\d{6}$/)
+    })
+
+    // v60.3 batch 7: 补 line 94 - sendSms 抛错时 logger.error 被调
+    it('logs error when sendSms throws (line 94)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
+      prisma.passwordResetCode.updateMany.mockResolvedValueOnce({ count: 0 })
+      prisma.passwordResetCode.create.mockResolvedValueOnce({ id: 'code-1' })
+      // 让 sendSms 抛错,触发 .catch
+      vi.mocked(sendSms).mockRejectedValueOnce(new Error('SMS 服务故障'))
+
+      await AuthService.sendResetCode('13800138000')
+
+      // catch 被触发 → logger.error
+      expect(logger.error).toHaveBeenCalledWith(
+        '[v56.1 AuthService] 发送验证码短信失败',
+        expect.objectContaining({ phone: '13800138000' })
+      )
     })
   })
 

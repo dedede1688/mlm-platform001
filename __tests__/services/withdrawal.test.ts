@@ -304,6 +304,53 @@ describe('WithdrawalService', () => {
         })
       ).rejects.toThrow('余额不足')
     })
+
+    // v60.3 batch 7: 补 line 44 - amount > maxAmount
+    it('throws "单笔最高提现金额" when amount > maxAmount (line 44)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 100000, frozenBalance: 0, paymentPasswordHash: 'h',
+      })
+      // withdrawal.count 不应被调
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 60000, paymentMethod: 'alipay', accountNumber: 'a', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('单笔最高提现金额')
+    })
+
+    // v60.3 batch 7: 补 line 57-59 - 缺字段
+    it('throws "请选择收款方式" when paymentMethod missing (line 57)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: 'h',
+      })
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 100, paymentMethod: '', accountNumber: 'a', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('请选择收款方式')
+    })
+
+    it('throws "请输入收款账号" when accountNumber missing (line 58)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: 'h',
+      })
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 100, paymentMethod: 'alipay', accountNumber: '', accountName: 'n', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('请输入收款账号')
+    })
+
+    it('throws "请输入收款人姓名" when accountName missing (line 59)', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u1', balance: 1000, frozenBalance: 0, paymentPasswordHash: 'h',
+      })
+      await expect(
+        WithdrawalService.createWithdrawal('u1', {
+          amount: 100, paymentMethod: 'alipay', accountNumber: 'a', accountName: '', paymentPassword: '123456',
+        })
+      ).rejects.toThrow('请输入收款人姓名')
+    })
   })
 
   describe('reviewWithdrawal approve - error paths', () => {

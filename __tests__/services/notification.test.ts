@@ -76,6 +76,51 @@ describe('NotificationService', () => {
     })
   })
 
+  // v60.3 batch 7: 补 line 37 - template.subject undefined → '' fallback
+  it('handles template.subject being undefined (line 37)', async () => {
+    prisma.notificationTemplate.findUnique.mockResolvedValueOnce({
+      id: 't1', enabled: true,
+      // subject: undefined
+      content: '审核{{status}}',
+    })
+    prisma.user.findUnique.mockResolvedValueOnce({ nickname: 'X', phone: null })
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b5' })
+    prisma.notification.create.mockResolvedValueOnce({ id: 'n5' })
+
+    await NotificationService.sendWithdrawalNotification({
+      userId: 'u1', type: 'withdrawal_approved', withdrawalId: 'w1', amount: 100,
+    })
+
+    expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          title: '',  // subject undefined → '' → replaceVariables 返回 ''
+        }),
+      })
+    )
+  })
+
+  // v60.3 batch 7: 补 line 44 - rejectReason undefined → '无' fallback (in else branch)
+  it('uses "无" when rejectReason undefined and no template (line 44)', async () => {
+    prisma.notificationTemplate.findUnique.mockResolvedValueOnce(null)
+    prisma.notificationBatch.create.mockResolvedValueOnce({ id: 'b6' })
+    prisma.notification.create.mockResolvedValueOnce({ id: 'n6' })
+
+    await NotificationService.sendWithdrawalNotification({
+      userId: 'u1', type: 'withdrawal_rejected',
+      withdrawalId: 'w1', amount: 100,
+      // 故意不传 rejectReason
+    })
+
+    expect(prisma.notification.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: expect.stringContaining('原因：无'),
+        }),
+      })
+    )
+  })
+
   it('should list my notifications with unread count', async () => {
     prisma.notification.findMany.mockResolvedValueOnce([{ id: 'n1' }])
     prisma.notification.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0)

@@ -92,6 +92,7 @@ import { verifyPaymentPassword } from '@/lib/auth/payment-password'
 import { getSystemParameter } from '@/lib/config/system-parameters'
 import { sendEmail } from '@/lib/notification/sendEmail'
 import { sendSms } from '@/lib/notification/sendSms'
+import { logger } from '@/lib/logger'
 
 describe('OrderLifecycleService', () => {
   beforeEach(() => {
@@ -274,6 +275,43 @@ describe('OrderLifecycleService', () => {
       expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({
         variables: expect.objectContaining({ userName: '13800138000' }),
       }))
+    })
+
+    // v60.3 batch 7: 补 line 141 - sendEmail 失败 → logger.error
+    it('logs error when sendEmail fails (line 141)', async () => {
+      mocks.order.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-1', orderNo: 'ORD001',
+        user: { email: 'user@test.com', phone: null, nickname: 'X' },
+      } as any)
+      vi.mocked(sendEmail).mockRejectedValueOnce(new Error('SMTP 故障'))
+      vi.mocked(OrderNotificationService.notifyOrderShipped).mockResolvedValueOnce({} as any)
+
+      await OrderLifecycleService.shipOrder('order-1')
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '发送订单发货邮件失败',
+        expect.objectContaining({ error: expect.stringContaining('SMTP 故障') })
+      )
+    })
+
+    // v60.3 batch 7: 补 line 146 - sendSms 失败 → logger.error (String(err) 分支)
+    it('logs error when sendSms fails with non-Error object (line 146)', async () => {
+      mocks.order.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-1', orderNo: 'ORD001',
+        user: { email: null, phone: '13800138000', nickname: 'X' },
+      } as any)
+      // 抛非 Error 对象 → 走 String(err) 分支
+      vi.mocked(sendSms).mockRejectedValueOnce('字符串错误')
+      vi.mocked(OrderNotificationService.notifyOrderShipped).mockResolvedValueOnce({} as any)
+
+      await OrderLifecycleService.shipOrder('order-1')
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '发送订单发货短信失败',
+        expect.objectContaining({ error: '字符串错误' })
+      )
     })
   })
 
