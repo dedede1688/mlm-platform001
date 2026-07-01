@@ -834,8 +834,11 @@ const handleDuplicate = async (product: Product) => {
               {/* 新增按钮 */}
               <button
                 onClick={handleAdd}
+                disabled={!canCreate}
+                title={!canCreate ? '无创建权限' : '新增商品'}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white
-                  rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm whitespace-nowrap"
+                  rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm whitespace-nowrap
+                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
               >
                 <Plus className="w-4 h-4" />
                 新增商品
@@ -869,16 +872,24 @@ const handleDuplicate = async (product: Product) => {
             </div>
             <div className="flex-1" />
             <button
-              onClick={() => handleBulkUpdate('active')}
-              disabled={bulkLoading}
+              onClick={() => {
+                if (!canUpdate) { showMessage('error', '你没有修改权限,请联系超级管理员'); return }
+                handleBulkUpdate('active')
+              }}
+              disabled={bulkLoading || !canUpdate}
+              title={!canUpdate ? '无修改权限' : '批量上架'}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {bulkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ToggleRight className="w-3.5 h-3.5" />}
               批量上架
             </button>
             <button
-              onClick={() => handleBulkUpdate('inactive')}
-              disabled={bulkLoading}
+              onClick={() => {
+                if (!canUpdate) { showMessage('error', '你没有修改权限,请联系超级管理员'); return }
+                handleBulkUpdate('inactive')
+              }}
+              disabled={bulkLoading || !canUpdate}
+              title={!canUpdate ? '无修改权限' : '批量下架'}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {bulkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ToggleLeft className="w-3.5 h-3.5" />}
@@ -1078,13 +1089,17 @@ const handleDuplicate = async (product: Product) => {
                       <td className="px-4 py-3 text-right min-w-[300px]">
                         <div className="flex flex-wrap items-center justify-end gap-1.5 pl-3 whitespace-nowrap">
                           <button
-                            onClick={() => toggleStatus(product)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors font-medium min-h-[28px] ${
+                            onClick={() => {
+                              if (!canUpdate) { showMessage('error', '你没有修改权限,请联系超级管理员'); return }
+                              toggleStatus(product)
+                            }}
+                            disabled={!canUpdate}
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-colors font-medium min-h-[28px] disabled:opacity-50 disabled:cursor-not-allowed ${
                               product.status === 'active'
-                                ? 'text-green-600 hover:bg-green-50'
-                                : 'text-gray-500 hover:bg-gray-50'
+                                ? 'text-green-600 hover:bg-green-50 disabled:hover:bg-transparent'
+                                : 'text-gray-500 hover:bg-gray-50 disabled:hover:bg-transparent'
                             }`}
-                            title={product.status === 'active' ? '点击下架' : '点击上架'}
+                            title={!canUpdate ? '无修改权限' : (product.status === 'active' ? '点击下架' : '点击上架')}
                           >
                             {product.status === 'active' ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
                             {product.status === 'active' ? '下架' : '上架'}

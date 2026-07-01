@@ -831,8 +831,12 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                         ))}
                       </select>
                     </div>
-                    <button onClick={handleUpdateLevel} disabled={savingLevel || newLevel === detailUser.level}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingLevel || newLevel === detailUser.level ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+                    <button onClick={() => {
+                      if (!canUpdate) { showMessage('error', '你没有修改权限,请联系超级管理员'); return }
+                      handleUpdateLevel()
+                    }} disabled={savingLevel || newLevel === detailUser.level || !canUpdate}
+                      title={!canUpdate ? '无修改权限' : '调整用户等级'}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingLevel || newLevel === detailUser.level || !canUpdate ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
                       {savingLevel ? '保存中...' : '确认调整'}
                     </button>
                   </div>
