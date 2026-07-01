@@ -995,8 +995,12 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                       placeholder="请输入修改原因..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
                   </div>
-                  <button onClick={handleUpdateProfile} disabled={savingProfile}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingProfile ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+                  <button onClick={() => {
+                    if (!canUpdate) { showMessage('error', '你没有修改权限,请联系超级管理员'); return }
+                    handleUpdateProfile()
+                  }} disabled={savingProfile || !canUpdate}
+                    title={!canUpdate ? '无修改权限' : '保存资料修改'}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingProfile || !canUpdate ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
                     {savingProfile ? '保存中...' : '确认修改'}
                   </button>
                 </div>
