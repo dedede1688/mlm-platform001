@@ -21,19 +21,18 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>
 }
 
+// v65:从 MENU_ITEMS 动态构建(不再硬编码 'logs',已在 menu 中)
 const NAV_ITEMS: NavItem[] = MENU_ITEMS.map(item => ({
   id: item.id,
   href: item.path,
   label: item.name,
   icon: item.icon,
-})).concat([
-  { id: 'logs', href: '/admin/logs', label: '操作日志', icon: FileText },
-])
+}))
 
 // ---- 面包屑映射（从 MENU_ITEMS 动态构建） ----
 
 const BREADCRUMB_MAP: Record<string, string> = Object.fromEntries(
-  MENU_ITEMS.map(item => [item.path, item.name]).concat([['/admin/logs', '操作日志']])
+  MENU_ITEMS.map(item => [item.path, item.name])
 )
 
 // ---- 布局组件 ----
