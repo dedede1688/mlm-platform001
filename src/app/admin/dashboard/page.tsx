@@ -164,12 +164,12 @@ export default function AdminDashboardPage() {
     }
   }, [days])
 
-  // v67:30 秒自动刷新(静默,不重置 loading)
+  // v67.1:2 分钟自动刷新(胡子哥反馈 30 秒太频繁)
   useEffect(() => {
     if (!stats) return  // 等首次加载完再开自动刷新
     const timer = setInterval(() => {
       fetchData(false)
-    }, 30000)
+    }, 120000)  // 120 秒 = 2 分钟
     return () => clearInterval(timer)
   }, [fetchData, stats])
 
@@ -204,7 +204,7 @@ export default function AdminDashboardPage() {
               <Clock className="w-3 h-3" />
               最近更新: {lastUpdated.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               <span className="text-gray-300">·</span>
-              <span>30 秒自动刷新</span>
+              <span>2 分钟自动刷新</span>
             </span>
           )}
         </div>
