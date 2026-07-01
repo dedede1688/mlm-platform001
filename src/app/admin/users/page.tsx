@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { formatMoney } from '@/lib/utils/format'
 
@@ -170,8 +170,11 @@ const [treeUserName, setTreeUserName] = useState<string>('')
 
   // v68.7:操作权限 + 大额二次确认
   const [userRole, setUserRole] = useState<string>('')
-  const canUpdate = hasPermission(userRole, 'update')   // 状态变更/等级调整
-  const canApprove = hasPermission(userRole, 'approve') // 余额/积分/密码重置
+  // v68.8:Page 自带权限 fetch 兜底(避免 layout 不重 mount 导致 window 过期)
+  const [permsLoaded, setPermsLoaded] = useState(false)
+  // v68.8:用 useMemo 让 canX 在 userRole/permsLoaded 变化时重新计算
+  const canUpdate = useMemo(() => hasPermission(userRole, 'update'), [userRole, permsLoaded])   // 状态变更
+  const canApprove = useMemo(() => hasPermission(userRole, 'approve'), [userRole, permsLoaded]) // 余额/积分/密码重置
   // 大额二次确认:弹 3 个独立 confirm state(代码更简洁)
   const [balanceConfirm, setBalanceConfirm] = useState<number | null>(null)  // 待确认的余额金额
   const [pointsConfirm, setPointsConfirm] = useState<number | null>(null)    // 待确认的积分数值
@@ -199,6 +202,20 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       const u = JSON.parse(localStorage.getItem('user') || '{}')
       setUserRole(u.role || '')
     } catch {}
+    // v68.8:Page 自己也 fetch role-permissions(避免 layout 不重 mount 导致 window 过期)
+    if (storedToken) {
+      fetch('/api/admin/role-permissions', {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data?.success && data?.data?.config) {
+            ;(window as any).__ROLE_PERMISSIONS__ = data.data.config
+            setPermsLoaded(true)  // 触发 useMemo 重算 canUpdate/canApprove
+          }
+        })
+        .catch(() => {})
+    }
   }, [])
 
   const showMessage = (type: 'success' | 'error', text: string) => {

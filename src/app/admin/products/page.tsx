@@ -128,9 +128,12 @@ const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
 
 // v68.7:操作权限
 const [userRole, setUserRole] = useState<string>('')
-const canCreate = hasPermission(userRole, 'create')  // 复制商品 / 新增商品
-const canUpdate = hasPermission(userRole, 'update')  // 编辑商品
-const canDelete = hasPermission(userRole, 'delete')  // 删除商品
+// v68.8:Page 自带权限 fetch 兜底(避免 layout 不重 mount 导致 window.__ROLE_PERMISSIONS__ 过期)
+const [permsLoaded, setPermsLoaded] = useState(false)
+// v68.8:用 useMemo 让 canX 在 userRole/permsLoaded 变化时重新计算
+const canCreate = useMemo(() => hasPermission(userRole, 'create'), [userRole, permsLoaded])
+const canUpdate = useMemo(() => hasPermission(userRole, 'update'), [userRole, permsLoaded])
+const canDelete = useMemo(() => hasPermission(userRole, 'delete'), [userRole, permsLoaded])
 
 // 分类数据
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -151,6 +154,20 @@ const canDelete = hasPermission(userRole, 'delete')  // 删除商品
       const u = JSON.parse(localStorage.getItem('user') || '{}')
       setUserRole(u.role || '')
     } catch {}
+    // v68.8:Page 自己也 fetch role-permissions(避免 layout 不重 mount 导致 window 过期)
+    if (storedToken) {
+      fetch('/api/admin/role-permissions', {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data?.success && data?.data?.config) {
+            ;(window as any).__ROLE_PERMISSIONS__ = data.data.config
+            setPermsLoaded(true)  // 触发重新计算 canCreate/canUpdate/canDelete
+          }
+        })
+        .catch(() => {})
+    }
   }, [])
 
   const fetchCategories = useCallback(async (authToken: string) => {
