@@ -150,17 +150,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!authed) return
     let cancelled = false
-    fetch('/api/admin/roles', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
-    })
-      .then(r => r.json())
-      .then(data => {
+    Promise.all([
+      fetch('/api/admin/roles', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+      }).then(r => r.json()),
+      // v68:同时拉操作权限
+      fetch('/api/admin/role-permissions', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+      }).then(r => r.json()),
+    ])
+      .then(([menusData, permsData]) => {
         if (cancelled) return
-        if (data?.success && data?.data?.config) {
-          setCustomRoleMenus(data.data.config)
+        if (menusData?.success && menusData?.data?.config) {
+          setCustomRoleMenus(menusData.data.config)
+        }
+        // v68:注入操作权限到 window,供 hasPermission() 使用
+        if (permsData?.success && permsData?.data?.config) {
+          ;(window as any).__ROLE_PERMISSIONS__ = permsData.data.config
         }
       })
-      .catch(() => { /* 静默失败,使用默认 ROLE_MENUS */ })
+      .catch(() => { /* 静默失败,使用默认 */ })
     return () => { cancelled = true }
   }, [authed])
 
