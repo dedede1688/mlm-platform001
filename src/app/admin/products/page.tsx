@@ -13,6 +13,8 @@ import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/clien
 import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'
 import VideoUpload from '@/components/VideoUpload'
+import { hasPermission } from '@/lib/admin-permissions'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 interface Product {
   id: string
@@ -119,9 +121,16 @@ export default function AdminProductsPage() {
 // 删除确认
 const [deleteId, setDeleteId] = useState<string | null>(null)
 const [deleting, setDeleting] = useState(false)
+const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)  // v68.7:删除时的目标商品(弹 ConfirmDialog 用)
 
 // 复制商品
 const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
+
+// v68.7:操作权限
+const [userRole, setUserRole] = useState<string>('')
+const canCreate = hasPermission(userRole, 'create')  // 复制商品 / 新增商品
+const canUpdate = hasPermission(userRole, 'update')  // 编辑商品
+const canDelete = hasPermission(userRole, 'delete')  // 删除商品
 
 // 分类数据
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -137,6 +146,11 @@ const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
       fetchProducts(storedToken, 1)
       fetchCategories(storedToken)
     }
+    // v68.7:解析当前用户角色
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}')
+      setUserRole(u.role || '')
+    } catch {}
   }, [])
 
   const fetchCategories = useCallback(async (authToken: string) => {
@@ -1059,24 +1073,38 @@ const handleDuplicate = async (product: Product) => {
                             {product.status === 'active' ? '下架' : '上架'}
                           </button>
                           <button
-                            onClick={() => handleDuplicate(product)}
-                            disabled={duplicatingId === product.id}
+                            onClick={() => {
+                              if (!canCreate) { showMessage('error', '你没有创建权限,请联系超级管理员'); return }
+                              handleDuplicate(product)
+                            }}
+                            disabled={duplicatingId === product.id || !canCreate}
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[28px]"
-                            title="复制商品"
+                            title={!canCreate ? '无创建权限' : '复制商品'}
                           >
                             <ClipboardCopy className={`w-3.5 h-3.5 ${duplicatingId === product.id ? 'animate-spin' : ''}`} />
                             {duplicatingId === product.id ? '复制中...' : '复制'}
                           </button>
                           <button
-                            onClick={() => handleEdit(product)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium min-h-[28px]"
+                            onClick={() => {
+                              if (!canUpdate) { showMessage('error', '你没有修改权限,请联系超级管理员'); return }
+                              handleEdit(product)
+                            }}
+                            disabled={!canUpdate}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[28px]"
+                            title={!canUpdate ? '无修改权限' : '编辑商品'}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                             编辑
                           </button>
                           <button
-                            onClick={() => setDeleteId(product.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium min-h-[28px]"
+                            onClick={() => {
+                              if (!canDelete) { showMessage('error', '你没有删除权限,请联系超级管理员'); return }
+                              setDeleteTarget(product)
+                              setDeleteId(product.id)
+                            }}
+                            disabled={!canDelete}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[28px]"
+                            title={!canDelete ? '无删除权限' : '删除商品'}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             删除
@@ -1628,38 +1656,37 @@ const handleDuplicate = async (product: Product) => {
         </div>
       )}
 
-      {/* 删除确认弹窗 */}
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setDeleteId(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">确认删除</h3>
-            <p className="text-gray-600 mb-6">确定要删除此商品吗？此操作不可撤销。</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg
-                  hover:bg-gray-50 transition-colors font-medium"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
-                  text-white font-medium transition-all ${
-                    deleting
-                      ? 'bg-red-400 cursor-not-allowed'
-                      : 'bg-red-600 hover:bg-red-700'
-                  }`}
-              >
-                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {deleting ? '删除中...' : '确认删除'}
-              </button>
+      {/* v68.7:删除确认弹窗(用通用 ConfirmDialog) */}
+      <ConfirmDialog
+        open={!!deleteId && !!deleteTarget}
+        title="确认删除商品"
+        mode="emphasize"
+        message={
+          <div className="space-y-3">
+            <p className="leading-relaxed">
+              你正在删除商品 <span className="font-semibold text-red-600">「{deleteTarget?.name}」</span>,
+              <br />
+              <span className="text-red-600 font-medium">此操作不可撤销,商品关联的所有数据将被彻底删除。</span>
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
+              <p className="font-medium mb-1">删除前请确认:</p>
+              <ul className="space-y-0.5 list-disc list-inside">
+                <li>商品已下架,无在途订单关联</li>
+                <li>商品不再在前台展示</li>
+                <li>运营报表数据保留但商品项消失</li>
+              </ul>
             </div>
           </div>
-        </div>
-      )}
+        }
+        confirmText="我已确认,删除此商品"
+        cancelText="取消"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setDeleteId(null)
+          setDeleteTarget(null)
+        }}
+      />
     </>
   )
 }

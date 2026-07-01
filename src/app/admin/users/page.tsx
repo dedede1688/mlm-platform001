@@ -11,6 +11,8 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import ReferralTreePanel from '@/components/ReferralTreePanel'
+import { hasPermission } from '@/lib/admin-permissions'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 // ---- 类型定义 ----
 
@@ -166,6 +168,17 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   const [passwordReason, setPasswordReason] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
 
+  // v68.7:操作权限 + 大额二次确认
+  const [userRole, setUserRole] = useState<string>('')
+  const canUpdate = hasPermission(userRole, 'update')   // 状态变更/等级调整
+  const canApprove = hasPermission(userRole, 'approve') // 余额/积分/密码重置
+  // 大额二次确认:弹 3 个独立 confirm state(代码更简洁)
+  const [balanceConfirm, setBalanceConfirm] = useState<number | null>(null)  // 待确认的余额金额
+  const [pointsConfirm, setPointsConfirm] = useState<number | null>(null)    // 待确认的积分数值
+  const [passwordConfirm, setPasswordConfirm] = useState(false)              // 密码重置二次确认
+  const LARGE_BALANCE_THRESHOLD = 1000  // 余额 ≥1000 元弹二次确认
+  const LARGE_POINTS_THRESHOLD = 5000   // 积分 ≥5000 弹二次确认
+
   // 展开区块
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     stats: true, relation: true, referrals: true, children: false, level: false, balance: false, points: true, profile: false, password: true, status: false,
@@ -181,6 +194,11 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       setToken(storedToken)
       fetchUsers(storedToken, 1)
     }
+    // v68.7:解析当前用户角色
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}')
+      setUserRole(u.role || '')
+    } catch {}
   }, [])
 
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -258,9 +276,21 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   // 资金调整
   const handleAdjustBalance = async () => {
     if (!token || !detailUser) return
+    if (!canApprove) { showMessage('error', '你没有审批权限,请联系超级管理员'); return }
     const amount = Number(balanceAmount)
     if (!amount || isNaN(amount)) { showMessage('error', '请输入有效的金额'); return }
     if (balanceReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    // v68.7:大额(≥1000)弹二次确认
+    if (Math.abs(amount) >= LARGE_BALANCE_THRESHOLD) {
+      setBalanceConfirm(amount)
+      return
+    }
+    await doAdjustBalance(amount)
+  }
+
+  // 实际的余额调整执行
+  const doAdjustBalance = async (amount: number) => {
+    if (!token || !detailUser) return
     setSavingBalance(true)
     try {
       const res = await fetch(`/api/admin/users/${detailUser.id}/balance`, {
@@ -271,7 +301,6 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       const data = await res.json()
       if (data.success) {
         showMessage('success', data.message || '资金调整成功')
-        // 刷新详情以更新余额显示
         handleViewDetail(detailUser.id)
         setBalanceAmount('')
         setBalanceReason('')
@@ -284,6 +313,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   // 状态管理
   const handleChangeStatus = async () => {
     if (!token || !detailUser) return
+    if (!canUpdate) { showMessage('error', '你没有修改权限,请联系超级管理员'); return }
     if (!newStatus) { showMessage('error', '请选择目标状态'); return }
     if (statusReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
     setSavingStatus(true)
@@ -307,9 +337,21 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   // 积分调整（自动联动：调一个字段，其他同步）
   const handleAdjustPoints = async () => {
     if (!token || !detailUser) return
+    if (!canApprove) { showMessage('error', '你没有审批权限,请联系超级管理员'); return }
     const amount = Number(pointsAmount)
     if (!amount || isNaN(amount)) { showMessage('error', '请输入有效的调整数值'); return }
     if (pointsReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    // v68.7:大额(≥5000)积分弹二次确认
+    if (Math.abs(amount) >= LARGE_POINTS_THRESHOLD) {
+      setPointsConfirm(amount)
+      return
+    }
+    await doAdjustPoints(amount)
+  }
+
+  // 实际的积分调整执行
+  const doAdjustPoints = async (amount: number) => {
+    if (!token || !detailUser) return
     setSavingPoints(true)
     try {
       const res = await fetch(`/api/admin/users/${detailUser.id}/points`, {
@@ -368,12 +410,20 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   // 密码重置
   const handleResetPassword = async () => {
     if (!token || !detailUser) return
+    if (!canApprove) { showMessage('error', '你没有审批权限,请联系超级管理员'); return }
     if (!resetPassword || resetPassword.length < 8 || resetPassword.length > 20) {
       showMessage('error', '密码长度必须在 8-20 位之间'); return
     }
     if (!/[a-zA-Z]/.test(resetPassword)) { showMessage('error', '密码必须包含字母'); return }
     if (!/[0-9]/.test(resetPassword)) { showMessage('error', '密码必须包含数字'); return }
     if (passwordReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    // v68.7:密码重置是大动作,任意金额都弹二次确认
+    setPasswordConfirm(true)
+  }
+
+  // 实际执行密码重置(二次确认后调用)
+  const doResetPassword = async () => {
+    if (!token || !detailUser) return
     setSavingPassword(true)
     try {
       const res = await fetch(`/api/admin/users/${detailUser.id}/password`, {
@@ -806,8 +856,9 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                       placeholder="请输入调整原因..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
                   </div>
-                  <button onClick={handleAdjustPoints} disabled={savingPoints || !pointsAmount || pointsReason.trim().length < 5}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPoints || !pointsAmount || pointsReason.trim().length < 5 ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-sm'}`}>
+                  <button onClick={handleAdjustPoints} disabled={savingPoints || !pointsAmount || pointsReason.trim().length < 5 || !canApprove}
+                    title={!canApprove ? '无审批权限' : '积分调整'}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPoints || !pointsAmount || pointsReason.trim().length < 5 || !canApprove ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-sm'}`}>
                     {savingPoints ? '处理中...' : '确认调整'}
                   </button>
                 </div>
@@ -831,7 +882,8 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                       placeholder="请输入重置原因..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
                   </div>
-                  <button onClick={handleResetPassword} disabled={savingPassword || !resetPassword || passwordReason.trim().length < 5}
+                  <button onClick={handleResetPassword} disabled={savingPassword || !resetPassword || passwordReason.trim().length < 5 || !canApprove}
+                    title={!canApprove ? '无审批权限' : '重置用户密码'}
                     className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPassword || !resetPassword || passwordReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
                     {savingPassword ? '处理中...' : '确认重置密码'}
                   </button>
@@ -867,8 +919,9 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                       placeholder="请输入调整原因..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
                   </div>
-                  <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+                  <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5 || !canApprove}
+                    title={!canApprove ? '无审批权限' : '余额调整'}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 || !canApprove ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
                     {savingBalance ? '处理中...' : '确认调整'}
                   </button>
                 </div>
@@ -955,8 +1008,9 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                       placeholder="请输入变更原因..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
                   </div>
-                  <button onClick={handleChangeStatus} disabled={savingStatus || !newStatus || statusReason.trim().length < 5}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingStatus || !newStatus || statusReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
+                  <button onClick={handleChangeStatus} disabled={savingStatus || !newStatus || statusReason.trim().length < 5 || !canUpdate}
+                    title={!canUpdate ? '无修改权限' : '变更用户状态'}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingStatus || !newStatus || statusReason.trim().length < 5 || !canUpdate ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
                     {savingStatus ? '处理中...' : '确认变更'}
                   </button>
                 </div>
@@ -978,6 +1032,94 @@ const [treeUserName, setTreeUserName] = useState<string>('')
           </div>
         </div>
       )}
+
+      {/* v68.7:大额余额调整二次确认 */}
+      <ConfirmDialog
+        open={balanceConfirm !== null}
+        title="大额余额调整确认"
+        mode="emphasize"
+        message={
+          <div className="space-y-3">
+            <p className="leading-relaxed">
+              你正在调整用户 <span className="font-semibold text-blue-600">{detailUser?.nickname || detailUser?.phone}</span> 的余额:
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-1">
+              <p>调整字段: <span className="font-semibold text-gray-900">{balanceType === 'balance' ? '余额' : '冻结余额'}</span></p>
+              <p>调整金额: <span className="font-bold text-red-600 text-lg">¥{Math.abs(balanceConfirm || 0).toFixed(2)} {(balanceConfirm || 0) > 0 ? '增加' : '扣减'}</span></p>
+              <p>调整前: <span className="text-gray-700">¥{(balanceType === 'balance' ? (detailUser?.balance ?? 0) : (detailUser?.frozenBalance ?? 0)).toFixed(2)}</span></p>
+              <p>调整后: <span className="font-semibold text-orange-600">¥{((balanceType === 'balance' ? (detailUser?.balance ?? 0) : (detailUser?.frozenBalance ?? 0)) + (balanceConfirm || 0)).toFixed(2)}</span></p>
+              <p>原因: <span className="text-gray-700">{balanceReason}</span></p>
+            </div>
+            <p className="text-red-600 text-xs">⚠️ 余额调整会在用户账上直接生效,请确认无误后再提交。</p>
+          </div>
+        }
+        confirmText="我已确认,执行调整"
+        loading={savingBalance}
+        onConfirm={async () => {
+          const amt = balanceConfirm!
+          setBalanceConfirm(null)
+          await doAdjustBalance(amt)
+        }}
+        onCancel={() => setBalanceConfirm(null)}
+      />
+
+      {/* v68.7:大额积分调整二次确认 */}
+      <ConfirmDialog
+        open={pointsConfirm !== null}
+        title="大额积分调整确认"
+        mode="emphasize"
+        message={
+          <div className="space-y-3">
+            <p className="leading-relaxed">
+              你正在调整用户 <span className="font-semibold text-purple-600">{detailUser?.nickname || detailUser?.phone}</span> 的积分:
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-1">
+              <p>调整字段: <span className="font-semibold text-gray-900">{pointsType === 'totalPoints' ? '总积分' : pointsType === 'unlockedPoints' ? '可用积分' : '锁定积分'}</span></p>
+              <p>调整数量: <span className="font-bold text-red-600 text-lg">{Math.abs(pointsConfirm || 0).toLocaleString()} 积分 {(pointsConfirm || 0) > 0 ? '增加' : '扣减'}</span></p>
+              <p>原因: <span className="text-gray-700">{pointsReason}</span></p>
+            </div>
+            <p className="text-red-600 text-xs">⚠️ 积分调整会同步联动总积分/可用积分/锁定积分三个字段。</p>
+          </div>
+        }
+        confirmText="我已确认,执行调整"
+        loading={savingPoints}
+        onConfirm={async () => {
+          const amt = pointsConfirm!
+          setPointsConfirm(null)
+          await doAdjustPoints(amt)
+        }}
+        onCancel={() => setPointsConfirm(null)}
+      />
+
+      {/* v68.7:密码重置二次确认(任何金额都弹) */}
+      <ConfirmDialog
+        open={passwordConfirm}
+        title="重置用户密码确认"
+        mode="emphasize"
+        message={
+          <div className="space-y-3">
+            <p className="leading-relaxed">
+              你正在重置用户 <span className="font-semibold text-orange-600">{detailUser?.nickname || detailUser?.phone}</span> 的登录密码。
+            </p>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm space-y-1">
+              <p>用户: <span className="font-mono">{detailUser?.phone}</span></p>
+              <p>新密码: <span className="font-mono text-gray-900">{'*'.repeat(resetPassword.length)}</span> ({resetPassword.length} 位)</p>
+              <p>原因: <span className="text-gray-700">{passwordReason}</span></p>
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
+              <p>⚠️ 重置后原密码立即失效,该用户需使用新密码重新登录。</p>
+              <p className="mt-1">请务必通过短信/站内信等渠道告知用户新密码。</p>
+            </div>
+          </div>
+        }
+        confirmText="我已确认,执行重置"
+        loading={savingPassword}
+        onConfirm={async () => {
+          setPasswordConfirm(false)
+          await doResetPassword()
+        }}
+        onCancel={() => setPasswordConfirm(false)}
+      />
 
       {/* 加载中遮罩 */}
       {detailLoading && (
