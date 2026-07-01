@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   BarChart3, Users, ShoppingCart, DollarSign,
   TrendingUp, Package, Clock, RefreshCw,
-  AlertTriangle, Receipt
+  AlertTriangle, Receipt, Calendar, FileText, Wallet, Truck, Box
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { formatMoney } from '@/lib/utils/format'
@@ -70,14 +70,49 @@ interface TrendItem {
   orderCount: number
 }
 
+// v67:数据中台 summary 类型
+interface YesterdayReport {
+  date: string
+  orders: { count: number; lastWeekCount: number; vsLastWeek: number }
+  sales: { amount: number; lastWeekAmount: number; vsLastWeek: number }
+  newUsers: { count: number; lastWeekCount: number; vsLastWeek: number }
+  refunds: { count: number; amount: number; lastWeekCount: number; lastWeekAmount: number; vsLastWeek: number }
+  withdrawals: { count: number; amount: number; lastWeekCount: number; lastWeekAmount: number; vsLastWeek: number }
+}
+
+interface PendingCounts {
+  refund: number
+  withdrawal: number
+  shipment: number
+  lowStock: number
+  total: number
+}
+
+interface LowStockItem {
+  id: string
+  name: string
+  stock: number
+  sortOrder: number
+}
+
+interface SummaryData {
+  yesterdayReport: YesterdayReport
+  pending: PendingCounts
+  lowStockProducts: LowStockItem[]
+  timestamp: string
+}
+
 // ---- 主组件 ----
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<StatsData | null>(null)
   const [trend, setTrend] = useState<TrendItem[]>([])
+  const [summary, setSummary] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [days, setDays] = useState(7)
+  // v67:30 秒自动刷新 + 末次刷新时间
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true)
@@ -87,18 +122,21 @@ export default function AdminDashboardPage() {
       const token = localStorage.getItem('token')
       if (!token) return
 
-      const [statsRes, trendRes] = await Promise.all([
+      const [statsRes, trendRes, summaryRes] = await Promise.all([
         fetch('/api/admin/stats', {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`/api/admin/stats/trend?days=${days}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        // v67:数据中台 summary(昨日日报 + 今日异常)
+        fetch('/api/admin/dashboard/summary', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ])
 
       if (statsRes.status === 403 || statsRes.status === 401) {
         console.error('[AdminDashboard] stats API 认证失败:', statsRes.status)
-        // 只在两个 API 都返回 401 时才跳转登录
         if (trendRes.status === 403 || trendRes.status === 401) {
           const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/admin/dashboard'
           window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`
@@ -106,11 +144,18 @@ export default function AdminDashboardPage() {
         return
       }
 
-      const statsData = await statsRes.json()
-      const trendData = await trendRes.json()
+      const [statsData, trendData, summaryData] = await Promise.all([
+        statsRes.json(),
+        trendRes.json(),
+        summaryRes.json(),
+      ])
 
       if (statsData.success) setStats(statsData.data)
       if (trendData.success) setTrend(trendData.data || [])
+      if (summaryData.success) {
+        setSummary(summaryData.data)
+        setLastUpdated(new Date())
+      }
     } catch (error) {
       console.error('获取统计数据失败:', error)
     } finally {
@@ -118,6 +163,15 @@ export default function AdminDashboardPage() {
       setRefreshing(false)
     }
   }, [days])
+
+  // v67:30 秒自动刷新(静默,不重置 loading)
+  useEffect(() => {
+    if (!stats) return  // 等首次加载完再开自动刷新
+    const timer = setInterval(() => {
+      fetchData(false)
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [fetchData, stats])
 
   useEffect(() => {
     fetchData()
@@ -144,7 +198,15 @@ export default function AdminDashboardPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <BarChart3 className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-bold text-gray-900">数据仪表盘</h1>
+          <h1 className="text-2xl font-bold text-gray-900">数据中台</h1>
+          {lastUpdated && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              最近更新: {lastUpdated.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              <span className="text-gray-300">·</span>
+              <span>30 秒自动刷新</span>
+            </span>
+          )}
         </div>
         <button
           onClick={handleRefresh}
@@ -284,6 +346,120 @@ export default function AdminDashboardPage() {
                   highlight={stats.refundPending > 0}
                 />
               </Link>
+            </div>
+          )}
+
+          {/* v67:昨日日报 + 今日异常 */}
+          {summary && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* 昨日日报卡 */}
+              <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-blue-100">
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-lg font-semibold text-gray-900">昨日日报</h2>
+                  <span className="ml-auto text-xs text-gray-500">
+                    {summary.yesterdayReport.date}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <ReportItem
+                    icon={<ShoppingCart className="w-4 h-4" />}
+                    label="订单数"
+                    value={`${summary.yesterdayReport.orders.count} 笔`}
+                    delta={summary.yesterdayReport.orders.vsLastWeek}
+                    deltaLabel="vs 上周同日"
+                  />
+                  <ReportItem
+                    icon={<DollarSign className="w-4 h-4" />}
+                    label="销售额"
+                    value={`¥${formatMoney(summary.yesterdayReport.sales.amount)}`}
+                    delta={summary.yesterdayReport.sales.vsLastWeek}
+                    deltaLabel="vs 上周同日"
+                  />
+                  <ReportItem
+                    icon={<Users className="w-4 h-4" />}
+                    label="新增用户"
+                    value={`${summary.yesterdayReport.newUsers.count} 人`}
+                    delta={summary.yesterdayReport.newUsers.vsLastWeek}
+                    deltaLabel="vs 上周同日"
+                  />
+                  <ReportItem
+                    icon={<Wallet className="w-4 h-4" />}
+                    label="提现申请"
+                    value={`${summary.yesterdayReport.withdrawals.count} 笔 / ¥${formatMoney(summary.yesterdayReport.withdrawals.amount)}`}
+                    delta={summary.yesterdayReport.withdrawals.vsLastWeek}
+                    deltaLabel="vs 上周同日"
+                  />
+                </div>
+                {summary.yesterdayReport.refunds.count > 0 && (
+                  <div className="mt-3 pt-3 border-t border-blue-200 text-xs text-gray-600 flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                    昨日退款: <b>{summary.yesterdayReport.refunds.count}</b> 笔,合计 <b>¥{formatMoney(summary.yesterdayReport.refunds.amount)}</b>
+                  </div>
+                )}
+              </div>
+
+              {/* 今日异常卡 */}
+              <div className="bg-gradient-to-r from-orange-50 via-red-50 to-pink-50 rounded-xl shadow-lg p-6 border border-orange-100">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                  <h2 className="text-lg font-semibold text-gray-900">今日异常</h2>
+                  {summary.pending.total > 0 && (
+                    <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-red-500 text-white font-bold">
+                      待处理 {summary.pending.total}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <PendingItem
+                    icon={<Receipt className="w-4 h-4" />}
+                    label="退款待审"
+                    count={summary.pending.refund}
+                    href="/admin/refunds"
+                    color="text-red-600 bg-red-50"
+                  />
+                  <PendingItem
+                    icon={<Wallet className="w-4 h-4" />}
+                    label="提现待审"
+                    count={summary.pending.withdrawal}
+                    href="/admin/finance"
+                    color="text-amber-600 bg-amber-50"
+                  />
+                  <PendingItem
+                    icon={<Truck className="w-4 h-4" />}
+                    label="发货超时(已支付 24h 未发货)"
+                    count={summary.pending.shipment}
+                    href="/admin/orders"
+                    color="text-blue-600 bg-blue-50"
+                  />
+                  <PendingItem
+                    icon={<Box className="w-4 h-4" />}
+                    label="库存预警(≤10)"
+                    count={summary.pending.lowStock}
+                    href="/admin/products"
+                    color="text-purple-600 bg-purple-50"
+                  />
+                </div>
+
+                {/* 库存预警商品列表 */}
+                {summary.lowStockProducts.length > 0 && (
+                  <details className="mt-3 pt-3 border-t border-orange-200">
+                    <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800">
+                      📦 展开查看 {summary.lowStockProducts.length} 个低库存商品
+                    </summary>
+                    <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                      {summary.lowStockProducts.map(p => (
+                        <div key={p.id} className="flex items-center justify-between text-xs px-2 py-1 rounded hover:bg-white/50">
+                          <span className="truncate flex-1 text-gray-700">{p.name}</span>
+                          <span className={`font-bold ml-2 ${p.stock === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                            库存: {p.stock}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
             </div>
           )}
 
@@ -430,5 +606,76 @@ function MetricCard({ icon, label, value, color, highlight, delta, deltaLabel }:
         </div>
       </div>
     </div>
+  )
+}
+
+// v67:日报单项(昨日日报卡用)
+function ReportItem({ icon, label, value, delta, deltaLabel }: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  delta?: number
+  deltaLabel?: string
+}) {
+  const deltaColor = delta === undefined || delta === 0
+    ? 'text-gray-400'
+    : delta > 0
+    ? 'text-green-600'
+    : 'text-red-600'
+  const deltaArrow = delta === undefined || delta === 0
+    ? ''
+    : delta > 0
+    ? '↑'
+    : '↓'
+  return (
+    <div className="bg-white/70 backdrop-blur rounded-lg p-3 border border-white/50">
+      <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="flex items-baseline gap-2">
+        <p className="text-base font-bold text-gray-900">{value}</p>
+        {delta !== undefined && (
+          <span className={`text-xs font-semibold ${deltaColor}`} title={deltaLabel}>
+            {deltaArrow} {Math.abs(delta)}%
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// v67:今日异常项(带穿透链接)
+function PendingItem({ icon, label, count, href, color }: {
+  icon: React.ReactNode
+  label: string
+  count: number
+  href: string
+  color: string
+}) {
+  const [textColor, bgColor] = color.split(' ')
+  const hasCount = count > 0
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+        hasCount
+          ? 'bg-white/80 border-orange-200 hover:bg-white hover:border-orange-300'
+          : 'bg-white/40 border-gray-100 hover:bg-white/60'
+      }`}
+    >
+      <div className={`w-8 h-8 rounded flex items-center justify-center ${bgColor} ${textColor}`}>
+        {icon}
+      </div>
+      <span className={`flex-1 text-sm ${hasCount ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
+        {label}
+      </span>
+      {hasCount ? (
+        <span className="text-lg font-bold text-red-600">{count}</span>
+      ) : (
+        <span className="text-sm text-gray-400">0</span>
+      )}
+      <span className="text-xs text-gray-400">→</span>
+    </Link>
   )
 }
