@@ -1,43 +1,60 @@
-import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Network, Sliders, FileText, Inbox, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Sliders, FileText, Inbox, BarChart3, ScrollText } from 'lucide-react';
 
+// v65: 后台架构升级 - 6 大类 + 改名"数据中台" + 删"推荐关系图"独立菜单
+// 6 大类:数据中台(首页) / 商品 / 财务 / 订单 / 会员 / 系统后台
+// 后续阶段会把"轮播图/通知/日志"合到"系统后台"下作为子菜单
 export const MENU_ITEMS = [
-  { id: 'dashboard', name: '仪表盘', path: '/admin', icon: LayoutDashboard },
-  { id: 'reports', name: '运营报表', path: '/admin/reports', icon: BarChart3 },
-  { id: 'banners', name: '轮播图管理', path: '/admin/banners', icon: Image },
-  { id: 'categories', name: '分类管理', path: '/admin/categories', icon: FolderTree },
+  // 1. 数据中台(首页)
+  { id: 'dashboard', name: '数据中台', path: '/admin/dashboard', icon: LayoutDashboard },
+
+  // 2. 商品
   { id: 'products', name: '商品管理', path: '/admin/products', icon: Package },
-  { id: 'orders', name: '订单管理', path: '/admin/orders', icon: ShoppingCart },
-  { id: 'users', name: '会员管理', path: '/admin/users', icon: Users },
-  { id: 'referral-tree', name: '推荐关系图', path: '/admin/referral-tree', icon: Network },
-  { id: 'refunds', name: '退款管理', path: '/admin/refunds', icon: Receipt },
+  { id: 'categories', name: '分类管理', path: '/admin/categories', icon: FolderTree },
+  { id: 'banners', name: '轮播图管理', path: '/admin/banners', icon: Image },
+
+  // 3. 财务
   { id: 'finance', name: '财务管理', path: '/admin/finance', icon: DollarSign },
+  { id: 'refunds', name: '退款管理', path: '/admin/refunds', icon: Receipt },
   { id: 'withdrawal-templates', name: '拒绝理由模板', path: '/admin/withdrawal-templates', icon: FileText },
-  { id: 'notifications', name: '通知模板', path: '/admin/notifications', icon: Bell },
-  { id: 'notification-history', name: '通知发件箱', path: '/admin/notification-history', icon: Inbox },
+
+  // 4. 订单
+  { id: 'orders', name: '订单管理', path: '/admin/orders', icon: ShoppingCart },
+
+  // 5. 会员
+  { id: 'users', name: '会员管理', path: '/admin/users', icon: Users },
+
+  // 6. 系统后台
   { id: 'settings', name: '系统设置', path: '/admin/settings', icon: Settings },
   { id: 'system-parameters', name: '系统参数', path: '/admin/settings/system-parameters', icon: Sliders },
+  { id: 'notifications', name: '通知模板', path: '/admin/notifications', icon: Bell },
+  { id: 'notification-history', name: '通知发件箱', path: '/admin/notification-history', icon: Inbox },
+  { id: 'logs', name: '操作日志', path: '/admin/logs', icon: ScrollText },
+
+  // 7. 运营报表(归数据中台的高级分析,留独立入口便于深链)
+  { id: 'reports', name: '运营报表', path: '/admin/reports', icon: BarChart3 },
 ];
 
 export const ROLE_MENUS: Record<string, string[]> = {
-  // 超级管理员：全部菜单
+  // 超级管理员:全部菜单
   super_admin: MENU_ITEMS.map(item => item.id),
 
-  // 商品管理员：商品/订单/分类/轮播图
+  // 商品管理员:商品/订单/分类/轮播图 + 数据中台
   goods_admin: [
-    'dashboard', 'banners', 'categories', 'products', 'orders'
+    'dashboard', 'banners', 'categories', 'products', 'orders', 'reports'
   ],
 
-  // 财务管理员：财务/提现/退款
+  // 财务管理员:财务/退款/拒绝模板 + 数据中台
   finance_admin: [
-    'dashboard', 'finance', 'withdrawal-templates', 'refunds'
+    'dashboard', 'finance', 'withdrawal-templates', 'refunds', 'reports'
   ],
 
-  // 客服管理员：用户/推荐树/通知发件箱
+  // 客服管理员:会员/通知发件箱 + 数据中台
+  // v65:删 'referral-tree'(独立菜单已砍,功能改用 ReferralTreePanel 弹窗)
   support_admin: [
-    'dashboard', 'users', 'referral-tree', 'notification-history'
+    'dashboard', 'users', 'notification-history'
   ],
 
-  // 审计员：只看仪表盘和日志（只读）
+  // 审计员:数据中台 + 日志(只读)
   auditor: [
     'dashboard', 'logs'
   ],
