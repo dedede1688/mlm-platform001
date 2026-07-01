@@ -7,6 +7,11 @@ import {
   X, CheckCircle, XCircle, Eye, CreditCard
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
+import { hasPermission } from '@/lib/admin-permissions'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
+
+// v68:大额退款阈值,超过需要二次确认
+const LARGE_REFUND_THRESHOLD = 1000
 
 // ---- 类型定义 ----
 
@@ -66,6 +71,7 @@ const STATUS_OPTIONS = [
 
 export default function AdminRefundsPage() {
   const [token, setToken] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string>('')  // v68:当前用户角色
   const [refunds, setRefunds] = useState<RefundItem[]>([])
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
   const [loading, setLoading] = useState(true)
@@ -79,6 +85,11 @@ export default function AdminRefundsPage() {
   } | null>(null)
   const [adminComment, setAdminComment] = useState('')
   const [reviewing, setReviewing] = useState(false)
+  // v68:大额退款二次确认
+  const [largeRefundConfirm, setLargeRefundConfirm] = useState<{ item: RefundItem; action: 'approve' | 'reject' } | null>(null)
+
+  // v68:操作权限
+  const canApprove = hasPermission(userRole, 'approve')
 
   // 确认退款弹窗
   const [completeModal, setCompleteModal] = useState<RefundItem | null>(null)
@@ -96,6 +107,11 @@ export default function AdminRefundsPage() {
       setToken(storedToken)
       fetchRefunds(storedToken, 1)
     }
+    // v68:解析当前用户角色
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}')
+      setUserRole(u.role || '')
+    } catch {}
   }, [])
 
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -363,14 +379,28 @@ export default function AdminRefundsPage() {
                           {r.status === 'pending' && (
                             <>
                               <button
-                                onClick={() => { setReviewModal({ item: r, action: 'approve' }); setAdminComment('') }}
-                                className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium"
+                                onClick={() => {
+                                  if (!canApprove) { showMessage('error', '您没有审批权限,请联系超级管理员'); return }
+                                  if (r.amount >= LARGE_REFUND_THRESHOLD) {
+                                    setLargeRefundConfirm({ item: r, action: 'approve' })
+                                  } else {
+                                    setReviewModal({ item: r, action: 'approve' }); setAdminComment('')
+                                  }
+                                }}
+                                disabled={!canApprove}
+                                className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={!canApprove ? '无审批权限' : '通过退款'}
                               >
                                 通过
                               </button>
                               <button
-                                onClick={() => { setReviewModal({ item: r, action: 'reject' }); setAdminComment('') }}
-                                className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium"
+                                onClick={() => {
+                                  if (!canApprove) { showMessage('error', '您没有审批权限,请联系超级管理员'); return }
+                                  setReviewModal({ item: r, action: 'reject' }); setAdminComment('')
+                                }}
+                                disabled={!canApprove}
+                                className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={!canApprove ? '无审批权限' : '拒绝退款'}
                               >
                                 拒绝
                               </button>
@@ -633,6 +663,45 @@ export default function AdminRefundsPage() {
           </div>
         </div>
       )}
+
+      {/* v68:大额退款二次确认 */}
+      <ConfirmDialog
+        open={!!largeRefundConfirm}
+        title="大额退款确认"
+        mode="emphasize"
+        confirmText="我已确认,执行"
+        cancelText="取消"
+        loading={reviewing}
+        onConfirm={async () => {
+          if (!largeRefundConfirm) return
+          setReviewing(true)
+          try {
+            const item = largeRefundConfirm.item
+            setReviewModal({ item, action: largeRefundConfirm.action })
+            setAdminComment('')
+            setLargeRefundConfirm(null)
+            // 注意:ConfirmDialog 关闭后,reviewModal 接管审核流程
+            // 实际提交由 reviewModal 的"确认通过"按钮触发
+          } finally {
+            setReviewing(false)
+          }
+        }}
+        onCancel={() => setLargeRefundConfirm(null)}
+        message={
+          largeRefundConfirm && (
+            <div className="space-y-2">
+              <p>这是一笔 <b className="text-red-600">¥{formatMoney(largeRefundConfirm.item.amount)}</b> 的大额退款,超过 ¥{LARGE_REFUND_THRESHOLD} 阈值。</p>
+              <p>请确认:</p>
+              <ul className="list-disc list-inside text-xs text-gray-600 space-y-1">
+                <li>退款原因: <b>{largeRefundConfirm.item.reason}</b></li>
+                <li>用户: {largeRefundConfirm.item.user.phone}</li>
+                <li>订单: {largeRefundConfirm.item.order.orderNo}</li>
+              </ul>
+              <p className="text-red-600 font-medium pt-2">⚠️ 此操作不可撤销,确认无误后再点确认。</p>
+            </div>
+          )
+        }
+      />
     </>
   )
 }

@@ -6,6 +6,11 @@ import {
   X, CheckCircle, XCircle, DollarSign, Gift,
   ListChecks, FileText, History, Bell, SquareCheck, Square
 } from 'lucide-react'
+import { hasPermission } from '@/lib/admin-permissions'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
+
+// v68:大额提现阈值
+const LARGE_WITHDRAWAL_THRESHOLD = 5000
 
 // ---- 类型定义 ----
 
@@ -107,7 +112,13 @@ const WITHDRAWAL_STATUS_OPTIONS = [
 
 export default function AdminFinancePage() {
   const [token, setToken] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'rewards' | 'withdrawals'>('rewards')
+  // v68:当前用户角色 + 权限检查
+  const [userRole, setUserRole] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<'rewards' | 'withdrawals'>('withdrawals')
+  // v68:大额提现二次确认
+  const [largeWithdrawalConfirm, setLargeWithdrawalConfirm] = useState<{ item: WithdrawalItem; type: 'approve' | 'reject' } | null>(null)
+  // v68:操作权限
+  const canApprove = hasPermission(userRole, 'approve')
 
   // 奖励流水状态
   const [rewards, setRewards] = useState<RewardItem[]>([])
@@ -862,17 +873,29 @@ const [stats, setStats] = useState<{
                                 {w.status === 'pending' ? (
                                   <>
                                     <button
-                                      onClick={() => setReviewModal({ type: 'approve', item: w })}
+                                      onClick={() => {
+                                        if (!canApprove) { showMessage('error', '您没有审批权限,请联系超级管理员'); return }
+                                        if (w.amount >= LARGE_WITHDRAWAL_THRESHOLD) {
+                                          setLargeWithdrawalConfirm({ item: w, type: 'approve' })
+                                        } else {
+                                          setReviewModal({ type: 'approve', item: w })
+                                        }
+                                      }}
+                                      disabled={!canApprove}
                                       className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600
-                                        hover:bg-green-50 rounded-lg transition-colors font-medium"
+                                        hover:bg-green-50 rounded-lg transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                       <CheckCircle className="w-3.5 h-3.5" />
                                       通过
                                     </button>
                                     <button
-                                      onClick={() => setReviewModal({ type: 'reject', item: w })}
+                                      onClick={() => {
+                                        if (!canApprove) { showMessage('error', '您没有审批权限,请联系超级管理员'); return }
+                                        setReviewModal({ type: 'reject', item: w })
+                                      }}
+                                      disabled={!canApprove}
                                       className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600
-                                        hover:bg-red-50 rounded-lg transition-colors font-medium"
+                                        hover:bg-red-50 rounded-lg transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                       <XCircle className="w-3.5 h-3.5" />
                                       拒绝
@@ -1212,6 +1235,34 @@ const [stats, setStats] = useState<{
           </div>
         </div>
       )}
+
+      {/* v68:大额提现二次确认 */}
+      <ConfirmDialog
+        open={!!largeWithdrawalConfirm}
+        title="大额提现确认"
+        mode="emphasize"
+        confirmText="我已确认,执行"
+        cancelText="取消"
+        onConfirm={() => {
+          if (!largeWithdrawalConfirm) return
+          setReviewModal({ type: largeWithdrawalConfirm.type, item: largeWithdrawalConfirm.item })
+          setLargeWithdrawalConfirm(null)
+        }}
+        onCancel={() => setLargeWithdrawalConfirm(null)}
+        message={
+          largeWithdrawalConfirm && (
+            <div className="space-y-2">
+              <p>这是一笔 <b className="text-red-600">¥{largeWithdrawalConfirm.item.amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</b> 的大额提现,超过 ¥{LARGE_WITHDRAWAL_THRESHOLD.toLocaleString('zh-CN')} 阈值。</p>
+              <p>请确认:</p>
+              <ul className="list-disc list-inside text-xs text-gray-600 space-y-1">
+                <li>用户: <b>{largeWithdrawalConfirm.item.user.phone}</b> ({largeWithdrawalConfirm.item.user.nickname || '无昵称'})</li>
+                <li>账号: {largeWithdrawalConfirm.item.accountName || '-'} / {largeWithdrawalConfirm.item.bankName || largeWithdrawalConfirm.item.accountNumber || '-'}</li>
+              </ul>
+              <p className="text-red-600 font-medium pt-2">⚠️ 此操作涉及真实资金,确认无误后再点确认。</p>
+            </div>
+          )
+        }
+      />
     </>
   )
 }

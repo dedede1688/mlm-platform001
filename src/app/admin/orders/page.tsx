@@ -6,6 +6,7 @@ import {
   ClipboardList, Search, Loader2, ChevronLeft, ChevronRight,
   X, Eye, Truck, Package, CheckCircle, XCircle, CreditCard
 } from 'lucide-react'
+import { hasPermission } from '@/lib/admin-permissions'
 
 // ---- 类型定义 ----
 
@@ -98,6 +99,10 @@ export default function AdminOrdersPage() {
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
   const [loading, setLoading] = useState(true)
   const [token, setToken] = useState<string | null>(null)
+  // v68:当前用户角色 + 权限检查
+  const [userRole, setUserRole] = useState<string>('')
+  // v68:操作权限
+  const canApprove = hasPermission(userRole, 'approve')
 
   // 搜索与筛选
   const [search, setSearch] = useState('')
@@ -118,6 +123,11 @@ export default function AdminOrdersPage() {
   // 获取 token
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
+    // v68:解析当前用户角色
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}')
+      setUserRole(u.role || '')
+    } catch {}
     if (storedToken) {
       setToken(storedToken)
       fetchOrders(storedToken, 1)
@@ -233,8 +243,10 @@ export default function AdminOrdersPage() {
 
   // 点击操作按钮
   const handleStatusAction = async (orderId: string, action: { status: string; label: string }) => {
+    // v68:发货属于审批类操作,需要 approve 权限
     if (action.status === 'shipped') {
-      // 发货需要输入物流单号，弹出对话框
+      if (!canApprove) { showMessage('error', '您没有发货权限,请联系超级管理员'); return }
+      // 发货需要输入物流单号,弹出对话框
       setShipOrderId(orderId)
       return
     }
