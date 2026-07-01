@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { invalidateBusinessConfigCache } from '@/lib/config/business'
 
 // v50 C: 参数类型扩展：支持 number + boolean
 export type ParameterType = 'number' | 'boolean'
@@ -287,6 +288,8 @@ export async function setSystemParameter(
   }
 
   delete cache[key]
+  // v61: 同步清 getBusinessConfig 自己的缓存,免得 service 还读旧值
+  invalidateBusinessConfigCache()
   logger.info(`系统配置更新: ${key} = ${value}`)
 }
 

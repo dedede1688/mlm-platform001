@@ -51,6 +51,15 @@ vi.mock('@/lib/logger', () => ({
   },
 }))
 
+// v61: mock business.ts (其 invalidateBusinessConfigCache 必须被 setSystemParameter 调)
+const { invalidateBusinessConfigMock } = vi.hoisted(() => ({
+  invalidateBusinessConfigMock: vi.fn(),
+}))
+vi.mock('@/lib/config/business', () => ({
+  invalidateBusinessConfigCache: invalidateBusinessConfigMock,
+  getBusinessConfig: vi.fn(),
+}))
+
 describe('system-parameters', () => {
   let mod: typeof import('@/lib/config/system-parameters')
 
@@ -177,6 +186,17 @@ describe('system-parameters', () => {
 
       const result = await mod.getSystemParameter('auto_confirm_days')
       expect(result).toBe(10)
+    })
+
+    // v61: 修复 setSystemParameter 也必须同步 invalidateBusinessConfigCache()
+    //     保证 service (走 getBusinessConfig) 也能立即读到新值
+    it('calls invalidateBusinessConfigCache after update (cross-cache sync)', async () => {
+      const before = invalidateBusinessConfigMock.mock.calls.length
+      await mod.setSystemParameter('auto_confirm_days', 10, 'admin-1')
+
+      // setSystemParameter 后应至少 +1 次调用
+      expect(invalidateBusinessConfigMock.mock.calls.length).toBeGreaterThan(before)
+      expect(invalidateBusinessConfigMock).toHaveBeenLastCalledWith()
     })
   })
 
