@@ -185,6 +185,11 @@ const [stats, setStats] = useState<{
   // 获取 token
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
+    // v68.13:解析当前用户角色(canApprove 需要)
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}')
+      setUserRole(u.role || '')
+    } catch {}
     if (storedToken) {
       setToken(storedToken)
       fetchRewards(storedToken, 1)
