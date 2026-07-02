@@ -76,17 +76,10 @@ const nextConfig = {
         ],
       },
       // /api/ 路由额外的 X-Permitted-Cross-Domain-Policies
-      // v68.12 (铁律 18): API 路由强制 no-store —— Vercel CDN 之前缓存了某个
-      // 老 deployment 的 404 响应(/api/products 等自定义 API 路由命中 x-vercel-cache: HIT),
-      // 导致后续 deployment 全部返回缓存的 404。加 no-store 根除此类缓存 bug。
-      // API 路由本就是 dynamic,不应该被 CDN 缓存。
       {
         source: '/api/:path*',
         headers: [
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
-          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, max-age=0' },
-          { key: 'Pragma', value: 'no-cache' },
-          { key: 'Expires', value: '0' },
         ],
       },
     ]
