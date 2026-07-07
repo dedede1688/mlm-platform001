@@ -63,6 +63,9 @@ interface WithdrawalItem {
   reviewer: WithdrawalReviewer | null
   reviewedAt: string | null
   paidAt: string | null
+  completedBy: string | null
+  completedAt: string | null
+  paymentProofUrl: string | null
   createdAt: string
 }
 
@@ -104,7 +107,8 @@ const WITHDRAWAL_STATUS_MAP: Record<string, { label: string; color: string }> = 
 const WITHDRAWAL_STATUS_OPTIONS = [
   { value: '', label: '全部状态' },
   { value: 'pending', label: '待审核' },
-  { value: 'completed', label: '已通过' },
+  { value: 'approved', label: '已审核通过' },
+  { value: 'completed', label: '已打款完成' },
   { value: 'rejected', label: '已拒绝' },
 ]
 
@@ -143,6 +147,12 @@ export default function AdminFinancePage() {
   } | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [reviewing, setReviewing] = useState(false)
+
+  // 完成打款弹窗
+  const [completeModal, setCompleteModal] = useState<WithdrawalItem | null>(null)
+  const [paymentProofUrl, setPaymentProofUrl] = useState('')
+  const [completeRemark, setCompleteRemark] = useState('')
+  const [completing, setCompleting] = useState(false)
 
   // 手动发放弹窗
   const [manualModal, setManualModal] = useState(false)
@@ -433,6 +443,46 @@ const [stats, setStats] = useState<{
       showMessage('error', '网络错误，请重试')
     } finally {
       setManualSubmitting(false)
+    }
+  }
+
+  // ---- 完成打款操作 ----
+
+  const handleComplete = async () => {
+    if (!token || !completeModal) return
+    if (!paymentProofUrl.trim()) {
+      showMessage('error', '请输入打款凭证 URL')
+      return
+    }
+    setCompleting(true)
+    try {
+      const body: Record<string, unknown> = {
+        paymentProofUrl: paymentProofUrl.trim(),
+      }
+      if (completeRemark.trim()) body.remark = completeRemark.trim()
+
+      const res = await fetch(`/api/admin/withdrawals/${completeModal.id}/complete`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', '提现打款已完成')
+        setCompleteModal(null)
+        setPaymentProofUrl('')
+        setCompleteRemark('')
+        fetchWithdrawals(token, withdrawalPagination.page)
+      } else {
+        showMessage('error', data.message || '操作失败')
+      }
+    } catch {
+      showMessage('error', '网络错误，请重试')
+    } finally {
+      setCompleting(false)
     }
   }
 
@@ -869,6 +919,14 @@ const [stats, setStats] = useState<{
                               {w.status === 'rejected' && w.rejectReason && (
                                 <div className="text-xs text-red-400 mt-1">原因：{w.rejectReason}</div>
                               )}
+                              {w.status === 'completed' && w.paidAt && (
+                                <div className="text-xs text-gray-400 mt-1">打款时间：{formatTime(w.paidAt)}</div>
+                              )}
+                              {w.status === 'completed' && w.paymentProofUrl && (
+                                <div className="text-xs text-blue-400 mt-0.5">
+                                  <a href={w.paymentProofUrl} target="_blank" rel="noopener noreferrer" className="underline">查看凭证</a>
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-500">
                               {w.reviewer ? (w.reviewer.nickname || w.reviewer.phone) : '-'}
@@ -906,6 +964,19 @@ const [stats, setStats] = useState<{
                                       拒绝
                                     </button>
                                   </>
+                                ) : w.status === 'approved' ? (
+                                  <button
+                                    onClick={() => {
+                                      if (!canApprove) { showMessage('error', '您没有操作权限,请联系超级管理员'); return }
+                                      setCompleteModal(w)
+                                    }}
+                                    disabled={!canApprove}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600
+                                      hover:bg-blue-50 rounded-lg transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    <DollarSign className="w-3.5 h-3.5" />
+                                    完成打款
+                                  </button>
                                 ) : null}
                                 <button
                                   onClick={() => handleViewAuditLogs(w.id)}
@@ -1032,7 +1103,7 @@ const [stats, setStats] = useState<{
 
             {reviewModal.type === 'approve' ? (
               <p className="text-sm text-gray-500 mb-5">
-                确认通过后，将从用户余额中扣除 ¥{reviewModal.item.amount.toFixed(2)}，此操作不可撤销。
+                审核通过后状态变为「已审核通过」，等待财务线下打款。审核通过不会直接扣款，需后续在「完成打款」操作中上传凭证。
               </p>
             ) : (
               <div className="mb-5">
@@ -1127,8 +1198,8 @@ const [stats, setStats] = useState<{
                 {auditLogs.map((log: any) => (
                   <div key={log.id} className="bg-gray-50 rounded-lg p-3 text-sm">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${log.action === 'approve' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {log.action === 'approve' ? '通过' : '拒绝'}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${log.action === 'approve' ? 'bg-green-100 text-green-700' : log.action === 'reject' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {log.action === 'approve' ? '通过' : log.action === 'reject' ? '拒绝' : '完成打款'}
                       </span>
                       <span className="text-gray-400 text-xs">{formatTime(log.createdAt)}</span>
                     </div>
@@ -1268,6 +1339,107 @@ const [stats, setStats] = useState<{
           )
         }
       />
+
+      {/* 完成打款弹窗 */}
+      {completeModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setCompleteModal(null); setPaymentProofUrl(''); setCompleteRemark('') }} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">完成提现打款</h3>
+            <div className="mb-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">用户</span>
+                <span className="text-gray-900">{completeModal.user.phone}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">提现金额</span>
+                <span className="text-red-600 font-medium">¥{completeModal.amount.toFixed(2)}</span>
+              </div>
+              {completeModal.paymentMethod && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">收款方式</span>
+                    <span className="text-gray-900">
+                      {completeModal.paymentMethod === 'alipay' ? '支付宝' : completeModal.paymentMethod === 'wechat' ? '微信' : completeModal.paymentMethod === 'bank_card' ? '银行卡' : completeModal.paymentMethod}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">收款账号</span>
+                    <span className="text-gray-900 font-mono">{completeModal.accountNumber}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">收款人</span>
+                    <span className="text-gray-900">{completeModal.accountName}</span>
+                  </div>
+                  {completeModal.bankName && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">开户银行</span>
+                      <span className="text-gray-900">{completeModal.bankName}</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <p className="text-sm text-blue-600 mb-4">
+              确认打款后，将从用户冻结收益中扣除 ¥{completeModal.amount.toFixed(2)}。
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                打款凭证 URL <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={paymentProofUrl}
+                onChange={e => setPaymentProofUrl(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                  focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                  transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400"
+                placeholder="请输入打款凭证图片地址或转账截图 URL"
+                autoFocus
+              />
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">备注（选填）</label>
+              <input
+                type="text"
+                value={completeRemark}
+                onChange={e => setCompleteRemark(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                  focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                  transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400"
+                placeholder="打款备注..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setCompleteModal(null); setPaymentProofUrl(''); setCompleteRemark('') }}
+                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg
+                  hover:bg-gray-50 transition-colors font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleComplete}
+                disabled={completing}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
+                  text-white font-medium transition-all ${
+                    completing
+                      ? 'bg-blue-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 shadow-sm'
+                  }`}
+              >
+                {completing && <Loader2 className="w-4 h-4 animate-spin" />}
+                <DollarSign className="w-4 h-4" />
+                确认完成打款
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

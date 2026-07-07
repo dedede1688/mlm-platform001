@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
         consumeBalance: user.consumeBalance ?? 0,
         earningsPending: user.earningsPending ?? 0,
         earningsAvailable: user.earningsAvailable ?? 0,
+        earningsFrozen: user.earningsFrozen ?? 0,
         earningsVoided: user.earningsVoided ?? 0,
         totalPoints: user.totalPoints,
         unlockedPoints: user.unlockedPoints,

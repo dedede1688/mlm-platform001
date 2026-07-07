@@ -231,6 +231,9 @@ model Withdrawal {
   rejectTemplateId  String?   @map("reject_template_id")
   remark            String?   @map("remark")
   paidAt            DateTime? @map("paid_at")
+  completedBy       String?   @map("completed_by")
+  completedAt       DateTime? @map("completed_at")
+  paymentProofUrl   String?   @map("payment_proof_url")
   createdAt         DateTime  @default(now()) @map("created_at")
   user              User      @relation(fields: [userId], references: [id])
   auditLogs         WithdrawalAuditLog[]

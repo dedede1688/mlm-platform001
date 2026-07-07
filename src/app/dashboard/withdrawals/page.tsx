@@ -15,6 +15,8 @@ interface UserInfo {
   nickname: string | null
   balance: number
   frozenBalance: number
+  earningsAvailable: number
+  earningsFrozen: number
   hasPaymentPassword: boolean
 }
 
@@ -34,8 +36,9 @@ const PAYMENT_METHODS = [
 ]
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending: { label: '审核中', color: 'text-yellow-600 bg-yellow-50' },
-  approved: { label: '已通过', color: 'text-green-600 bg-green-50' },
+  pending: { label: '待审核', color: 'text-yellow-600 bg-yellow-50' },
+  approved: { label: '已审核通过，待打款', color: 'text-blue-600 bg-blue-50' },
+  completed: { label: '已打款完成', color: 'text-green-600 bg-green-50' },
   rejected: { label: '已拒绝', color: 'text-red-600 bg-red-50' },
 }
 
@@ -109,6 +112,11 @@ export default function WithdrawalsPage() {
     const numAmount = parseFloat(amount)
     if (!numAmount || numAmount <= 0) {
       toast.error('请输入有效的提现金额')
+      return
+    }
+    // 前端校验可提现收益是否足够
+    if (user && numAmount > user.earningsAvailable) {
+      toast.error('可提现收益不足')
       return
     }
     if (!paymentMethod) {
@@ -226,11 +234,11 @@ export default function WithdrawalsPage() {
 
         <div className="bg-white rounded-xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-gray-500">可提现余额</span>
-            <span className="text-2xl font-bold text-primary">¥{user?.balance.toFixed(2) || '0.00'}</span>
+            <span className="text-sm text-gray-500">可提现收益</span>
+            <span className="text-2xl font-bold text-primary">¥{user?.earningsAvailable?.toFixed(2) || '0.00'}</span>
           </div>
           <div className="text-xs text-gray-400">
-            冻结余额：¥{user?.frozenBalance.toFixed(2) || '0.00'}
+            冻结收益：¥{user?.earningsFrozen?.toFixed(2) || '0.00'}
           </div>
         </div>
 

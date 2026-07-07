@@ -21,7 +21,21 @@ export interface ReviewWithdrawalParams {
   remark?: string
 }
 
+export interface CompleteWithdrawalParams {
+  completedBy: string
+  paymentProofUrl: string
+  remark?: string
+}
+
 export class WithdrawalService {
+  /**
+   * 创建提现申请
+   * 资金底座第 2 包：提现只能从 earningsAvailable 发起
+   * - earningsAvailable 减少
+   * - earningsFrozen 增加
+   * - status = pending
+   * - balance 全程不变
+   */
   static async createWithdrawal(userId: string, params: CreateWithdrawalParams) {
     const { amount, paymentMethod, accountNumber, accountName, bankName } = params
 
@@ -34,7 +48,7 @@ export class WithdrawalService {
     if (!user) throw new Error('用户不存在')
 
     if (!user.paymentPasswordHash) throw new Error('请先设置支付密码')
-    if (user.balance < amount) throw new Error('余额不足')
+    if (user.earningsAvailable < amount) throw new Error('可提现收益不足')
 
     const minAmount = await getBusinessConfig('withdrawal.min_amount', 100)
     const maxAmount = await getBusinessConfig('withdrawal.max_amount', 50000)
@@ -59,14 +73,15 @@ export class WithdrawalService {
     if (!accountName) throw new Error('请输入收款人姓名')
 
     return await prisma.$transaction(async (tx) => {
+      // 原子扣减 earningsAvailable，增加 earningsFrozen
       const result = await tx.user.updateMany({
-        where: { id: userId, balance: { gte: amount } },
+        where: { id: userId, earningsAvailable: { gte: amount } },
         data: {
-          balance: { decrement: amount },
-          frozenBalance: { increment: amount },
+          earningsAvailable: { decrement: amount },
+          earningsFrozen: { increment: amount },
         },
       })
-      if (result.count === 0) throw new Error('余额不足')
+      if (result.count === 0) throw new Error('可提现收益不足')
 
       const withdrawal = await tx.withdrawal.create({
         data: {
@@ -80,16 +95,17 @@ export class WithdrawalService {
         },
       })
 
+      // 写 BalanceRecord：balance 保持不变，frozenBalance 保持不变
       await tx.balanceRecord.create({
         data: {
           userId,
           type: 'withdraw_freeze',
           amount: -amount,
-          balance: user.balance - amount,
-          frozenBalance: user.frozenBalance + amount,
+          balance: user.balance,
+          frozenBalance: user.frozenBalance,
           sourceType: 'withdrawal',
           sourceId: withdrawal.id,
-          description: `提现申请冻结 ¥${amount}，提现 ID：${withdrawal.id}`,
+          description: `提现申请冻结收益，可提现收益 -¥${amount}，冻结收益 +¥${amount}，提现 ID：${withdrawal.id}`,
         },
       })
 
@@ -97,6 +113,12 @@ export class WithdrawalService {
     })
   }
 
+  /**
+   * 审核提现
+   * approve: pending → approved（只改状态，不扣 earningsFrozen，不写 paidAt）
+   * reject: pending → rejected（退回 earningsFrozen 到 earningsAvailable）
+   * balance 全程不变
+   */
   static async reviewWithdrawal(withdrawalId: string, params: ReviewWithdrawalParams) {
     const { approved, reviewedBy, rejectReason, rejectTemplateId, remark } = params
     const withdrawal = await prisma.withdrawal.findUnique({
@@ -109,42 +131,20 @@ export class WithdrawalService {
     }
 
     if (approved) {
+      // 审核通过：只改状态，不扣 earningsFrozen，不写 paidAt
       return await prisma.$transaction(async (tx) => {
-        const user = await tx.user.findUnique({
-          where: { id: withdrawal.userId },
-          select: { balance: true, frozenBalance: true },
-        })
-        if (!user) throw new Error('用户不存在')
-
-        const result = await tx.user.updateMany({
-          where: { id: withdrawal.userId, frozenBalance: { gte: withdrawal.amount } },
-          data: { frozenBalance: { decrement: withdrawal.amount } },
-        })
-        if (result.count === 0) throw new Error('冻结余额不足')
-
         const updatedWithdrawal = await tx.withdrawal.update({
           where: { id: withdrawalId },
           data: {
             status: WITHDRAWAL_STATUS.APPROVED,
             reviewedBy: reviewedBy || null,
             reviewedAt: new Date(),
-            paidAt: new Date(),
             remark: remark || null,
           },
         })
 
-        await tx.balanceRecord.create({
-          data: {
-            userId: withdrawal.userId,
-            type: 'withdraw',
-            amount: 0,
-            balance: user.balance,
-            frozenBalance: user.frozenBalance - withdrawal.amount,
-            sourceType: 'withdrawal',
-            sourceId: withdrawalId,
-            description: `提现审核通过，扣除冻结余额 ¥${withdrawal.amount}，提现 ID：${withdrawalId}`,
-          },
-        })
+        // P1 修复：approve 不写 BalanceRecord，审核动作由 WithdrawalAuditLog 和 OperationLog 记录
+        // 真正资金变化只在：创建提现、拒绝提现、完成打款
 
         await WithdrawalAuditLogService.logReview({
           withdrawalId,
@@ -165,21 +165,16 @@ export class WithdrawalService {
         return updatedWithdrawal
       })
     } else {
+      // 审核拒绝：退回 earningsFrozen 到 earningsAvailable
       return await prisma.$transaction(async (tx) => {
-        const user = await tx.user.findUnique({
-          where: { id: withdrawal.userId },
-          select: { balance: true, frozenBalance: true },
-        })
-        if (!user) throw new Error('用户不存在')
-
         const result = await tx.user.updateMany({
-          where: { id: withdrawal.userId, frozenBalance: { gte: withdrawal.amount } },
+          where: { id: withdrawal.userId, earningsFrozen: { gte: withdrawal.amount } },
           data: {
-            balance: { increment: withdrawal.amount },
-            frozenBalance: { decrement: withdrawal.amount },
+            earningsFrozen: { decrement: withdrawal.amount },
+            earningsAvailable: { increment: withdrawal.amount },
           },
         })
-        if (result.count === 0) throw new Error('冻结余额不足')
+        if (result.count === 0) throw new Error('冻结收益不足')
 
         const updatedWithdrawal = await tx.withdrawal.update({
           where: { id: withdrawalId },
@@ -193,16 +188,22 @@ export class WithdrawalService {
           },
         })
 
+        // 写 BalanceRecord：balance 不变
+        const user = await tx.user.findUnique({
+          where: { id: withdrawal.userId },
+          select: { balance: true, frozenBalance: true },
+        })
+
         await tx.balanceRecord.create({
           data: {
             userId: withdrawal.userId,
             type: 'unfreeze',
             amount: withdrawal.amount,
-            balance: user.balance + withdrawal.amount,
-            frozenBalance: user.frozenBalance - withdrawal.amount,
+            balance: user?.balance ?? 0,
+            frozenBalance: user?.frozenBalance ?? 0,
             sourceType: 'withdrawal',
             sourceId: withdrawalId,
-            description: `提现审核拒绝，退回余额 ¥${withdrawal.amount}，原因：${rejectReason || '无'}，提现 ID：${withdrawalId}`,
+            description: `提现审核拒绝，冻结收益退回可提现收益 ¥${withdrawal.amount}，原因：${rejectReason || '无'}，提现 ID：${withdrawalId}`,
           },
         })
 
@@ -227,6 +228,93 @@ export class WithdrawalService {
         return updatedWithdrawal
       })
     }
+  }
+
+  /**
+   * 完成提现打款（财务线下打款后调用）
+   * approved → completed
+   * - paymentProofUrl 必填
+   * - earningsFrozen 减少
+   * - 写 paidAt / completedAt / completedBy / paymentProofUrl
+   * - balance 全程不变
+   */
+  static async completeWithdrawal(withdrawalId: string, params: CompleteWithdrawalParams) {
+    const { completedBy, paymentProofUrl, remark } = params
+
+    if (!paymentProofUrl || !paymentProofUrl.trim()) {
+      throw new Error('打款凭证不能为空')
+    }
+
+    const withdrawal = await prisma.withdrawal.findUnique({
+      where: { id: withdrawalId },
+    })
+
+    if (!withdrawal) throw new Error('提现记录不存在')
+    if (withdrawal.status !== WITHDRAWAL_STATUS.APPROVED) {
+      throw new Error('只有已审核通过的提现才能完成打款')
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // 原子扣减 earningsFrozen
+      const result = await tx.user.updateMany({
+        where: { id: withdrawal.userId, earningsFrozen: { gte: withdrawal.amount } },
+        data: {
+          earningsFrozen: { decrement: withdrawal.amount },
+        },
+      })
+      if (result.count === 0) throw new Error('冻结收益不足，无法完成打款')
+
+      const now = new Date()
+      const updatedWithdrawal = await tx.withdrawal.update({
+        where: { id: withdrawalId },
+        data: {
+          status: WITHDRAWAL_STATUS.COMPLETED,
+          paidAt: now,
+          completedAt: now,
+          completedBy,
+          paymentProofUrl: paymentProofUrl.trim(),
+          remark: remark || null,
+        },
+      })
+
+      // 写 BalanceRecord：balance 不变
+      const user = await tx.user.findUnique({
+        where: { id: withdrawal.userId },
+        select: { balance: true, frozenBalance: true },
+      })
+
+      await tx.balanceRecord.create({
+        data: {
+          userId: withdrawal.userId,
+          type: 'withdraw',
+          amount: -withdrawal.amount,
+          balance: user?.balance ?? 0,
+          frozenBalance: user?.frozenBalance ?? 0,
+          sourceType: 'withdrawal',
+          sourceId: withdrawalId,
+          description: `提现打款完成，冻结收益扣除 ¥${withdrawal.amount}，提现 ID：${withdrawalId}，凭证：${paymentProofUrl.trim()}`,
+        },
+      })
+
+      await WithdrawalAuditLogService.logReview({
+        withdrawalId,
+        action: 'complete',
+        oldStatus: WITHDRAWAL_STATUS.APPROVED,
+        newStatus: WITHDRAWAL_STATUS.COMPLETED,
+        operatorId: completedBy,
+        remark,
+      })
+
+      await NotificationService.sendWithdrawalNotification({
+        userId: withdrawal.userId,
+        type: 'withdrawal_completed',
+        withdrawalId,
+        amount: withdrawal.amount,
+        paymentProofUrl: paymentProofUrl.trim(),
+      })
+
+      return updatedWithdrawal
+    })
   }
 
   static async batchReview(withdrawalIds: string[], params: ReviewWithdrawalParams) {
@@ -299,7 +387,7 @@ export class WithdrawalService {
   }
 
   static async getWithdrawalStats() {
-    const [pending, approved, rejected, totalAmount] = await Promise.all([
+    const [pending, approved, rejected, completed, totalAmount] = await Promise.all([
       prisma.withdrawal.count({
         where: { status: WITHDRAWAL_STATUS.PENDING },
       }),
@@ -309,8 +397,11 @@ export class WithdrawalService {
       prisma.withdrawal.count({
         where: { status: WITHDRAWAL_STATUS.REJECTED },
       }),
+      prisma.withdrawal.count({
+        where: { status: WITHDRAWAL_STATUS.COMPLETED },
+      }),
       prisma.withdrawal.aggregate({
-        where: { status: WITHDRAWAL_STATUS.APPROVED },
+        where: { status: WITHDRAWAL_STATUS.COMPLETED },
         _sum: { amount: true },
       }),
     ])
@@ -319,6 +410,7 @@ export class WithdrawalService {
       pending,
       approved,
       rejected,
+      completed,
       totalAmount: totalAmount._sum.amount || 0,
     }
   }

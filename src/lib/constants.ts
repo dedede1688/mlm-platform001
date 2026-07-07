@@ -33,6 +33,7 @@ export const WITHDRAWAL_STATUS = {
   PENDING: 'pending',
   APPROVED: 'approved',
   REJECTED: 'rejected',
+  COMPLETED: 'completed',
 } as const
 
 export const POINTS_RECORD_TYPE = {

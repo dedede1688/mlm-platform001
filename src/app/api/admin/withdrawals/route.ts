@@ -75,6 +75,9 @@ export async function GET(request: NextRequest) {
       reviewer: w.reviewedBy ? reviewerMap.get(w.reviewedBy) || null : null,
       reviewedAt: w.reviewedAt,
       paidAt: w.paidAt,
+      completedBy: w.completedBy,
+      completedAt: w.completedAt,
+      paymentProofUrl: w.paymentProofUrl,
       createdAt: w.createdAt,
     }))
 
@@ -148,7 +151,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: updated,
-      message: approved ? '提现已通过，冻结余额已扣减' : '提现已拒绝，冻结余额已退回',
+      message: approved ? '提现已审核通过，等待线下打款' : '提现已拒绝，冻结收益已退回可提现收益',
     })
   } catch (error: any) {
     console.error('Admin review withdrawal error:', error)
