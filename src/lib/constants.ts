@@ -51,6 +51,7 @@ export const REWARD_TYPE = {
 } as const
 
 // v54 阶段5: 余额/收益字段统一 select 常量（防并发/流水场景复用）
+// 资金底座重构: 新增 earningsFrozen（收益冻结）
 export const BALANCE_SELECT = {
   balance: true,
   frozenBalance: true,
@@ -58,4 +59,5 @@ export const BALANCE_SELECT = {
   earningsAvailable: true,
   earningsPending: true,
   earningsVoided: true,
+  earningsFrozen: true,
 } as const

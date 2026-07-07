@@ -100,7 +100,7 @@ describe('DividendService', () => {
       expect(call1.data.sourceType).toBe('dividend')
       expect(call1.data.sourceId).toBe('dividend-1')
       expect(call1.data.amount).toBe(1000)
-      expect(call1.data.balance).toBe(1000 + 1000) // before.balance + amount
+      expect(call1.data.balance).toBe(1000) // before.balance + 0 (资金底座重构: balance 不变)
       expect(call1.data.frozenBalance).toBe(0)
       expect(call1.data.userId).toBe('user-director')
 
@@ -110,14 +110,17 @@ describe('DividendService', () => {
       expect(call2.data.sourceType).toBe('dividend')
       expect(call2.data.sourceId).toBe('dividend-2')
       expect(call2.data.amount).toBe(1000)
-      expect(call2.data.balance).toBe(2000 + 1000)
+      expect(call2.data.balance).toBe(2000) // before.balance + 0 (资金底座重构: balance 不变)
       expect(call2.data.frozenBalance).toBe(10)
       expect(call2.data.userId).toBe('user-manager')
 
       const update1 = prisma.user.update.mock.calls[0][0]
       const update2 = prisma.user.update.mock.calls[1][0]
-      expect(update1.data).toMatchObject({ balance: { increment: 1000 }, earningsAvailable: { increment: 1000 } })
-      expect(update2.data).toMatchObject({ balance: { increment: 1000 }, earningsAvailable: { increment: 1000 } })
+      // 资金底座重构: 分红只进 earningsAvailable，不碰 balance
+      expect(update1.data).toMatchObject({ earningsAvailable: { increment: 1000 } })
+      expect(update1.data).not.toHaveProperty('balance')
+      expect(update2.data).toMatchObject({ earningsAvailable: { increment: 1000 } })
+      expect(update2.data).not.toHaveProperty('balance')
     })
 
     it('should throw error when dividends already settled today', async () => {

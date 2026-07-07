@@ -10,17 +10,19 @@ import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
 type AdjustType = typeof VALID_TYPES[number]
 
-const TYPE_FIELD_MAP: Record<AdjustType, { main: 'balance' | 'frozenBalance'; extra?: 'consumeBalance' | 'earningsAvailable' | 'earningsVoided'; label: string }> = {
+const TYPE_FIELD_MAP: Record<AdjustType, { main: 'balance' | 'frozenBalance' | 'earningsAvailable' | 'earningsVoided'; extra?: 'consumeBalance'; label: string }> = {
   balance:          { main: 'balance',          label: '余额' },
   frozenBalance:    { main: 'frozenBalance',    label: '冻结余额' },
   recharge:         { main: 'balance', extra: 'consumeBalance',     label: '余额/消费余额' },
   consume_void:     { main: 'balance', extra: 'consumeBalance',     label: '余额/消费余额' },
-  earnings_add:     { main: 'balance', extra: 'earningsAvailable',  label: '余额/可提现收益' },
-  earnings_void:    { main: 'balance', extra: 'earningsVoided',     label: '余额/累计作废' },
+  // 资金底座重构: earnings_add 只动可提现收益，不碰余额
+  earnings_add:     { main: 'earningsAvailable',  label: '可提现收益' },
+  // 资金底座重构: earnings_void 只动累计作废，不碰余额
+  earnings_void:    { main: 'earningsVoided',     label: '累计作废' },
 }
 
 const TYPE_EXTRA_SIGN: Partial<Record<AdjustType, 1 | -1>> = {
-  recharge: 1, consume_void: -1, earnings_add: 1, earnings_void: 1,
+  recharge: 1, consume_void: -1,
 }
 
 function getFieldLabel(field: string): string {
@@ -107,7 +109,7 @@ export async function POST(
       const newBalance = mapping.main === 'balance' ? before.balance + amount : before.balance
       const newFrozenBalance = mapping.main === 'frozenBalance' ? before.frozenBalance + amount : before.frozenBalance
       const oldValue: Record<string, unknown> = {
-        [mapping.main]: mapping.main === 'balance' ? before.balance : before.frozenBalance,
+        [mapping.main]: (before as Record<string, unknown>)[mapping.main] ?? 0,
       }
       if (mapping.extra) {
         oldValue[mapping.extra] = (before as Record<string, unknown>)[mapping.extra] ?? 0
@@ -118,9 +120,9 @@ export async function POST(
         : ''
       const after4Field = {
         consumeBalance: before.consumeBalance + (mapping.extra === 'consumeBalance' ? amount * extraSign : 0),
-        earningsAvailable: before.earningsAvailable + (mapping.extra === 'earningsAvailable' ? amount * extraSign : 0),
+        earningsAvailable: before.earningsAvailable + (mapping.main === 'earningsAvailable' ? amount : 0),
         earningsPending: before.earningsPending,
-        earningsVoided: before.earningsVoided + (mapping.extra === 'earningsVoided' ? amount * extraSign : 0),
+        earningsVoided: before.earningsVoided + (mapping.main === 'earningsVoided' ? amount : 0),
       }
       await tx.balanceRecord.create({
         data: {

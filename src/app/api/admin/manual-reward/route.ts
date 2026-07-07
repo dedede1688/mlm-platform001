@@ -58,10 +58,10 @@ export async function POST(request: NextRequest) {
       })
       if (!before) throw new Error('用户不存在')
 
-      // 步骤 2：变更（增加余额）
+      // 步骤 2：变更（资金底座重构: 手动奖励只进可提现收益，不进余额）
       const updatedUser = await tx.user.update({
         where: { id: userId },
-        data: { balance: { increment: amount }, earningsAvailable: { increment: amount } },
+        data: { earningsAvailable: { increment: amount } },
         select: { id: true, phone: true, nickname: true, balance: true },
       })
 
@@ -83,11 +83,11 @@ export async function POST(request: NextRequest) {
           userId,
           type: 'manual_reward',
           amount,
-          balance: before.balance + amount,
+          balance: before.balance,
           frozenBalance: before.frozenBalance,
           sourceType: 'manual_reward',
           sourceId: manualReward.id,
-          description: `手动奖励 ¥${amount.toFixed(2)}，原因：${rewardReason}${format4FieldDelta(before, afterReward)}`,
+          description: `手动奖励 ¥${amount.toFixed(2)}，可提现收益增加，余额不变，原因：${rewardReason}${format4FieldDelta(before, afterReward)}`,
         },
       })
 

@@ -88,7 +88,7 @@ export class RewardService {
 
       await tx.user.update({
         where: { id: referrerId },
-        data: { balance: { increment: amount }, earningsAvailable: { increment: amount } },
+        data: { earningsAvailable: { increment: amount } },
       })
 
       if (before) {
@@ -98,11 +98,11 @@ export class RewardService {
             userId: referrerId,
             type: 'referral_reward',
             amount,
-            balance: before.balance + amount,
+            balance: before.balance,
             frozenBalance: before.frozenBalance,
             sourceType: 'reward',
             sourceId: reward.id,
-            description: `直推奖 +¥${amount.toFixed(2)}，订单 ${orderId}${format4FieldDelta(before, after)}`,
+            description: `直推奖 +¥${amount.toFixed(2)}，可提现收益增加，余额不变，订单 ${orderId}${format4FieldDelta(before, after)}`,
           },
         })
       }
@@ -169,7 +169,7 @@ export class RewardService {
 
       await tx.user.update({
         where: { id: target.userId },
-        data: { balance: { increment: amount }, earningsAvailable: { increment: amount } },
+        data: { earningsAvailable: { increment: amount } },
       })
 
       if (before) {
@@ -179,11 +179,11 @@ export class RewardService {
             userId: target.userId,
             type: 'brand_bonus',
             amount,
-            balance: before.balance + amount,
+            balance: before.balance,
             frozenBalance: before.frozenBalance,
             sourceType: 'reward',
             sourceId: reward.id,
-            description: `品牌管理奖（第${target.layer}层）+¥${amount.toFixed(2)}，订单 ${orderId}${format4FieldDelta(before, after)}`,
+            description: `品牌管理奖（第${target.layer}层）+¥${amount.toFixed(2)}，可提现收益增加，余额不变，订单 ${orderId}${format4FieldDelta(before, after)}`,
           },
         })
       }
@@ -264,7 +264,7 @@ export class RewardService {
 
           await tx.user.update({
             where: { id: member.userId },
-            data: { balance: { increment: perUserAmount }, earningsAvailable: { increment: perUserAmount } },
+            data: { earningsAvailable: { increment: perUserAmount } },
           })
 
           if (before) {
@@ -274,11 +274,11 @@ export class RewardService {
                 userId: member.userId,
                 type: 'dividend_reward',
                 amount: perUserAmount,
-                balance: before.balance + perUserAmount,
+                balance: before.balance,
                 frozenBalance: before.frozenBalance,
                 sourceType: 'dividend',
                 sourceId: dividend.id,
-                description: `分红奖（${pool.configKey}池）+¥${perUserAmount.toFixed(2)}，订单 ${orderId}${format4FieldDelta(before, after)}`,
+                description: `分红奖（${pool.configKey}池）+¥${perUserAmount.toFixed(2)}，可提现收益增加，余额不变，订单 ${orderId}${format4FieldDelta(before, after)}`,
               },
             })
           }
@@ -416,16 +416,26 @@ export class RewardService {
         })
         if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
 
-        if (user.balance < reward.amount) {
-          throw new Error(`用户 ${reward.userId} 余额不足，无法扣回奖励 ¥${reward.amount}，当前余额 ¥${user.balance}`)
+        // P0 修复: 退款扣回奖励不报错，优先扣可提现收益，不足部分写作废
+        const deductFromAvailable = Math.min(user.earningsAvailable, reward.amount)
+        const voidedAmount = reward.amount - deductFromAvailable
+
+        const afterRefundReward = {
+          consumeBalance: user.consumeBalance,
+          earningsAvailable: user.earningsAvailable - deductFromAvailable,
+          earningsPending: user.earningsPending,
+          earningsVoided: user.earningsVoided + voidedAmount,
         }
 
-        const newBalance = user.balance - reward.amount
-        const afterRefundReward = { consumeBalance: user.consumeBalance, earningsAvailable: user.earningsAvailable - reward.amount, earningsPending: user.earningsPending, earningsVoided: user.earningsVoided }
-
+        const updateData: Record<string, { decrement?: number; increment?: number }> = {
+          earningsAvailable: { decrement: deductFromAvailable },
+        }
+        if (voidedAmount > 0) {
+          updateData.earningsVoided = { increment: voidedAmount }
+        }
         await tx.user.update({
           where: { id: reward.userId },
-          data: { balance: { decrement: reward.amount }, earningsAvailable: { decrement: reward.amount } },
+          data: updateData,
         })
 
         await tx.reward.update({
@@ -433,16 +443,19 @@ export class RewardService {
           data: { status: 'refunded' },
         })
 
+        const voidDesc = voidedAmount > 0
+          ? `，其中可提现收益扣减 ¥${deductFromAvailable.toFixed(2)}，作废收益 ¥${voidedAmount.toFixed(2)}`
+          : `，可提现收益扣减 ¥${reward.amount.toFixed(2)}`
         await tx.balanceRecord.create({
           data: {
             userId: reward.userId,
             type: 'refund_reward',
             amount: -reward.amount,
-            balance: newBalance,
+            balance: user.balance,
             frozenBalance: user.frozenBalance,
             sourceType: 'reward',
             sourceId: reward.id,
-            description: `扣回奖励（${reward.type}），订单退款${format4FieldDelta(user, afterRefundReward)}`,
+            description: `扣回奖励（${reward.type}），余额不变${voidDesc}，订单退款${format4FieldDelta(user, afterRefundReward)}`,
           },
         })
       }
@@ -454,32 +467,45 @@ export class RewardService {
         })
         if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
 
-        if (user.balance < dividend.amount) {
-          throw new Error(`用户 ${dividend.userId} 余额不足，无法扣回分红 ¥${dividend.amount}，当前余额 ¥${user.balance}`)
+        // P0 修复: 退款扣回分红不报错，优先扣可提现收益，不足部分写作废
+        const deductFromAvailableDiv = Math.min(user.earningsAvailable, dividend.amount)
+        const voidedAmountDiv = dividend.amount - deductFromAvailableDiv
+
+        const afterRefundDiv = {
+          consumeBalance: user.consumeBalance,
+          earningsAvailable: user.earningsAvailable - deductFromAvailableDiv,
+          earningsPending: user.earningsPending,
+          earningsVoided: user.earningsVoided + voidedAmountDiv,
         }
 
-        const newBalance = user.balance - dividend.amount
-        const afterRefundDiv = { consumeBalance: user.consumeBalance, earningsAvailable: user.earningsAvailable, earningsPending: user.earningsPending, earningsVoided: user.earningsVoided + dividend.amount }
-
+        const updateDataDiv: Record<string, { decrement?: number; increment?: number }> = {
+          earningsAvailable: { decrement: deductFromAvailableDiv },
+        }
+        if (voidedAmountDiv > 0) {
+          updateDataDiv.earningsVoided = { increment: voidedAmountDiv }
+        }
         await tx.user.update({
           where: { id: dividend.userId },
-          data: { balance: { decrement: dividend.amount }, earningsVoided: { increment: dividend.amount } },
+          data: updateDataDiv,
         })
 
         await tx.dividend.delete({
           where: { id: dividend.id },
         })
 
+        const voidDescDiv = voidedAmountDiv > 0
+          ? `，其中可提现收益扣减 ¥${deductFromAvailableDiv.toFixed(2)}，作废收益 ¥${voidedAmountDiv.toFixed(2)}`
+          : `，可提现收益扣减 ¥${dividend.amount.toFixed(2)}`
         await tx.balanceRecord.create({
           data: {
             userId: dividend.userId,
             type: 'refund_dividend',
             amount: -dividend.amount,
-            balance: newBalance,
+            balance: user.balance,
             frozenBalance: user.frozenBalance,
             sourceType: 'reward',
             sourceId: dividend.id,
-            description: `扣回分红，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
+            description: `扣回分红，余额不变${voidDescDiv}，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
           },
         })
       }

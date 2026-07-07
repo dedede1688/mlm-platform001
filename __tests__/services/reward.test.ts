@@ -106,10 +106,11 @@ describe('RewardService', () => {
       expect(balanceRecordCall.data.amount).toBe(expectedAmount)
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      // 资金底座重构: 奖励只进 earningsAvailable，不进 balance
       expect(userUpdateCall.data).toMatchObject({
-        balance: { increment: expectedAmount },
         earningsAvailable: { increment: expectedAmount },
       })
+      expect(userUpdateCall.data).not.toHaveProperty('balance')
     })
 
     it('should skip reward when referrer has no upgrade product', async () => {
@@ -158,10 +159,11 @@ describe('RewardService', () => {
       expect(call.data.type).toBe('brand_bonus')
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      // 资金底座重构: 奖励只进 earningsAvailable，不进 balance
       expect(userUpdateCall.data).toMatchObject({
-        balance: { increment: expectedAmount },
         earningsAvailable: { increment: expectedAmount },
       })
+      expect(userUpdateCall.data).not.toHaveProperty('balance')
     })
 
     it('v60 step3: A 是会员且安置链无经销商时沉淀到 OperationLog', async () => {
@@ -280,8 +282,11 @@ describe('RewardService', () => {
 
       const update1 = prisma.user.update.mock.calls[0][0]
       const update2 = prisma.user.update.mock.calls[1][0]
-      expect(update1.data).toMatchObject({ balance: { increment: 500 }, earningsAvailable: { increment: 500 } })
-      expect(update2.data).toMatchObject({ balance: { increment: 500 }, earningsAvailable: { increment: 500 } })
+      // 资金底座重构: 分红只进 earningsAvailable，不进 balance
+      expect(update1.data).toMatchObject({ earningsAvailable: { increment: 500 } })
+      expect(update1.data).not.toHaveProperty('balance')
+      expect(update2.data).toMatchObject({ earningsAvailable: { increment: 500 } })
+      expect(update2.data).not.toHaveProperty('balance')
     })
 
     it('should return early when no eligible users (all levels < DIRECTOR)', async () => {
@@ -309,7 +314,7 @@ describe('RewardService', () => {
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0 })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, earningsAvailable: 500 })
       prisma.user.update.mockResolvedValueOnce({})
       prisma.reward.update.mockResolvedValueOnce({})
       prisma.balanceRecord.create.mockResolvedValueOnce({})
@@ -320,13 +325,14 @@ describe('RewardService', () => {
       const call = prisma.balanceRecord.create.mock.calls[0][0]
       expect(call.data.type).toBe('refund_reward')
       expect(call.data.amount).toBe(-100)
-      expect(call.data.balance).toBe(400)
+      // 资金底座重构: 退款不碰 balance，balance 快照保持原值
+      expect(call.data.balance).toBe(500)
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
       expect(userUpdateCall.data).toMatchObject({
-        balance: { decrement: 100 },
         earningsAvailable: { decrement: 100 },
       })
+      expect(userUpdateCall.data).not.toHaveProperty('balance')
     })
 
     it('should deduct dividends and write BalanceRecord with type=refund_dividend', async () => {
@@ -339,7 +345,7 @@ describe('RewardService', () => {
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 300, frozenBalance: 10 })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 300, frozenBalance: 10, earningsAvailable: 300 })
       prisma.user.update.mockResolvedValueOnce({})
       prisma.dividend.delete.mockResolvedValueOnce({})
       prisma.balanceRecord.create.mockResolvedValueOnce({})
@@ -350,16 +356,19 @@ describe('RewardService', () => {
       const call = prisma.balanceRecord.create.mock.calls[0][0]
       expect(call.data.type).toBe('refund_dividend')
       expect(call.data.amount).toBe(-50)
-      expect(call.data.balance).toBe(250)
+      // 资金底座重构: 退款不碰 balance，balance 快照保持原值
+      expect(call.data.balance).toBe(300)
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      // 资金底座重构: earningsAvailable=300 够扣 50，只扣 earningsAvailable，不碰 balance/earningsVoided
       expect(userUpdateCall.data).toMatchObject({
-        balance: { decrement: 50 },
-        earningsVoided: { increment: 50 },
+        earningsAvailable: { decrement: 50 },
       })
+      expect(userUpdateCall.data).not.toHaveProperty('balance')
+      expect(userUpdateCall.data).not.toHaveProperty('earningsVoided')
     })
 
-    it('should throw error when user balance insufficient for reward refund', async () => {
+    it('P0: earningsAvailable 不足时不报错，扣完可提现 + 余额写作废 (reward refund)', async () => {
       const orderId = 'order-refund-3'
 
       prisma.reward.findMany.mockResolvedValueOnce([
@@ -367,17 +376,34 @@ describe('RewardService', () => {
       ])
       prisma.dividend.findMany.mockResolvedValueOnce([])
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 50, frozenBalance: 0 })
+      // earningsAvailable=50 < reward.amount=1000 → 扣 50 可提现 + 作废 950
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 5000, frozenBalance: 0, earningsAvailable: 50, consumeBalance: 0, earningsPending: 0, earningsVoided: 0 })
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      await expect(RewardService.processRefund(orderId))
-        .rejects.toThrow('余额不足，无法扣回奖励')
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.reward.update.mockResolvedValueOnce({})
+      prisma.balanceRecord.create.mockResolvedValueOnce({})
 
-      expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
+      await RewardService.processRefund(orderId)
+
+      // 不报错，且写了流水
+      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(1)
+      const call = prisma.balanceRecord.create.mock.calls[0][0]
+      expect(call.data.type).toBe('refund_reward')
+      expect(call.data.amount).toBe(-1000)
+      expect(call.data.balance).toBe(5000) // 余额不变
+
+      // 验证 update: 扣 earningsAvailable 50 + 增 earningsVoided 950
+      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      expect(userUpdateCall.data).toMatchObject({
+        earningsAvailable: { decrement: 50 },
+        earningsVoided: { increment: 950 },
+      })
+      expect(userUpdateCall.data).not.toHaveProperty('balance')
     })
 
-    it('should throw error when user balance insufficient for dividend refund', async () => {
+    it('P0: earningsAvailable 不足时不报错，扣完可提现 + 余额写作废 (dividend refund)', async () => {
       const orderId = 'order-refund-4'
 
       prisma.reward.findMany.mockResolvedValueOnce([])
@@ -385,14 +411,31 @@ describe('RewardService', () => {
         { id: 'dividend-d2', userId: 'user-4', orderId, amount: 500 },
       ])
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 100, frozenBalance: 0 })
+      // earningsAvailable=100 < dividend.amount=500 → 扣 100 可提现 + 作废 400
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 2000, frozenBalance: 0, earningsAvailable: 100, consumeBalance: 0, earningsPending: 0, earningsVoided: 0 })
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      await expect(RewardService.processRefund(orderId))
-        .rejects.toThrow('余额不足，无法扣回分红')
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.dividend.delete.mockResolvedValueOnce({})
+      prisma.balanceRecord.create.mockResolvedValueOnce({})
 
-      expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
+      await RewardService.processRefund(orderId)
+
+      // 不报错，且写了流水
+      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(1)
+      const call = prisma.balanceRecord.create.mock.calls[0][0]
+      expect(call.data.type).toBe('refund_dividend')
+      expect(call.data.amount).toBe(-500)
+      expect(call.data.balance).toBe(2000) // 余额不变
+
+      // 验证 update: 扣 earningsAvailable 100 + 增 earningsVoided 400
+      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      expect(userUpdateCall.data).toMatchObject({
+        earningsAvailable: { decrement: 100 },
+        earningsVoided: { increment: 400 },
+      })
+      expect(userUpdateCall.data).not.toHaveProperty('balance')
     })
 
     // v60.3 batch 6: 补 line 417,455 - processRefund 中 user.findUnique 返回 null
@@ -443,12 +486,12 @@ describe('RewardService', () => {
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 200, frozenBalance: 0 })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 200, frozenBalance: 0, earningsAvailable: 200 })
       prisma.user.update.mockResolvedValueOnce({})
       prisma.reward.update.mockResolvedValueOnce({})
       prisma.balanceRecord.create.mockResolvedValueOnce({})
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 170, frozenBalance: 0 })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 200, frozenBalance: 0, earningsAvailable: 170 })
       prisma.user.update.mockResolvedValueOnce({})
       prisma.dividend.delete.mockResolvedValueOnce({})
       prisma.balanceRecord.create.mockResolvedValueOnce({})
@@ -461,8 +504,13 @@ describe('RewardService', () => {
 
       const update1 = prisma.user.update.mock.calls[0][0]
       const update2 = prisma.user.update.mock.calls[1][0]
-      expect(update1.data).toMatchObject({ balance: { decrement: 30 }, earningsAvailable: { decrement: 30 } })
-      expect(update2.data).toMatchObject({ balance: { decrement: 20 }, earningsVoided: { increment: 20 } })
+      // 资金底座重构: 退款只扣 earningsAvailable（够扣时不碰 earningsVoided），都不碰 balance
+      expect(update1.data).toMatchObject({ earningsAvailable: { decrement: 30 } })
+      expect(update1.data).not.toHaveProperty('balance')
+      expect(update1.data).not.toHaveProperty('earningsVoided')
+      expect(update2.data).toMatchObject({ earningsAvailable: { decrement: 20 } })
+      expect(update2.data).not.toHaveProperty('balance')
+      expect(update2.data).not.toHaveProperty('earningsVoided')
     })
 
     it('should do nothing when no rewards or dividends found', async () => {

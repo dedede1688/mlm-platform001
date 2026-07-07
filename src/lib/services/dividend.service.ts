@@ -223,13 +223,10 @@ export class DividendService {
             },
           })
 
-          // 更新用户余额
+          // 更新用户余额（资金底座重构: 分红只进可提现收益，不进余额）
           await tx.user.update({
             where: { id: user.id },
             data: {
-              balance: {
-                increment: dividendAmount,
-              },
               earningsAvailable: {
                 increment: dividendAmount,
               },
@@ -245,9 +242,9 @@ export class DividendService {
               sourceType: 'dividend',
               sourceId: dividendRecord.id,
               amount: +dividendAmount,
-              balance: currentUser!.balance + dividendAmount,
+              balance: currentUser!.balance,
               frozenBalance: currentUser!.frozenBalance,
-              description: `每日分红结算（v2 5级独立池），发放 ¥${dividendAmount}，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}${currentUser ? format4FieldDelta(currentUser, afterDividend) : ''}`,
+              description: `每日分红结算（v2 5级独立池），发放 ¥${dividendAmount}，可提现收益增加，余额不变，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}${currentUser ? format4FieldDelta(currentUser, afterDividend) : ''}`,
             },
           })
 

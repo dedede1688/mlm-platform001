@@ -54,6 +54,7 @@ model User {
   earningsPending   Float   @default(0) @map("earnings_pending")    // v43-7 Batch 2.2.a: 待结算收益
   earningsAvailable Float   @default(0) @map("earnings_available")  // v43-7 Batch 2.2.a: 可提现收益
   earningsVoided    Float   @default(0) @map("earnings_voided")     // v43-7 Batch 2.2.a: 累计作废（审计）
+  earningsFrozen    Float   @default(0) @map("earnings_frozen")     // 资金底座重构: 收益冻结（提现申请时冻结，打款时扣减）
   passwordResetCodes      PasswordResetCode[]
 
   @@index([referrerId])
