@@ -56,6 +56,7 @@ model User {
   earningsVoided    Float   @default(0) @map("earnings_voided")     // v43-7 Batch 2.2.a: 累计作废（审计）
   earningsFrozen    Float   @default(0) @map("earnings_frozen")     // 资金底座重构: 收益冻结（提现申请时冻结，打款时扣减）
   passwordResetCodes      PasswordResetCode[]
+  rechargeRequests        RechargeRequest[]
 
   @@index([referrerId])
   @@index([parentId])
@@ -548,4 +549,67 @@ model PasswordResetCode {
   @@index([phone, code])
   @@index([expiresAt])
   @@map("password_reset_codes")
+}
+
+// ============ 资金底座第 3 包：充值申请 ============
+
+model RechargeRequest {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  amount          Float
+  paymentMethod   String    @map("payment_method")
+  paymentProofUrl String    @map("payment_proof_url")
+  status          String    @default("pending") @map("status")
+  rejectReason    String?   @map("reject_reason")
+  rejectTemplateId String?  @map("reject_template_id")
+  reviewedBy      String?   @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  approvedAt      DateTime? @map("approved_at")
+  remark          String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user            User                      @relation(fields: [userId], references: [id])
+  auditLogs       RechargeAuditLog[]
+  rejectTemplate  RechargeRejectTemplate?   @relation(fields: [rejectTemplateId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([rejectTemplateId])
+  @@map("recharge_requests")
+}
+
+model RechargeAuditLog {
+  id          String   @id @default(uuid())
+  requestId   String   @map("request_id")
+  action      String   @map("action")
+  oldStatus   String?  @map("old_status")
+  newStatus   String?  @map("new_status")
+  operatorId  String?  @map("operator_id")
+  reason      String?
+  remark      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  request     RechargeRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("recharge_audit_logs")
+}
+
+model RechargeRejectTemplate {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  sortOrder Int      @default(0) @map("sort_order")
+  isEnabled Boolean  @default(true) @map("is_enabled")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  recharges RechargeRequest[]
+
+  @@index([isEnabled])
+  @@index([sortOrder])
+  @@map("recharge_reject_templates")
 }

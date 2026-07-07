@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
   TrendingUp, Award, Clock, MapPin, ShieldCheck,
-  CheckCircle2, Lock, Camera, BarChart3, PieChart as PieIcon
+  CheckCircle2, Lock, Camera, BarChart3, PieChart as PieIcon,
+  PlusCircle
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -434,6 +435,13 @@ export default function DashboardPage() {
                   label="提现申请"
                   desc="申请余额提现"
                   color="text-orange-600 bg-orange-50"
+                />
+                <QuickLink
+                  href="/dashboard/recharge"
+                  icon={<PlusCircle className="w-6 h-6" />}
+                  label="充值"
+                  desc="提交充值申请"
+                  color="text-emerald-600 bg-emerald-50"
                 />
                 <QuickLink
                   href="/dashboard/payment-password"

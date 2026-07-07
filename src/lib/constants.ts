@@ -36,6 +36,24 @@ export const WITHDRAWAL_STATUS = {
   COMPLETED: 'completed',
 } as const
 
+export const RECHARGE_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+} as const
+
+export const RECHARGE_PAYMENT_METHOD = {
+  ALIPAY: 'alipay',
+  WECHAT: 'wechat',
+  BANK_CARD: 'bank_card',
+} as const
+
+export const RECHARGE_AUDIT_ACTION = {
+  SUBMIT: 'submit',
+  APPROVE: 'approve',
+  REJECT: 'reject',
+} as const
+
 export const POINTS_RECORD_TYPE = {
   EARN: 'earn',
   UNLOCK: 'unlock',

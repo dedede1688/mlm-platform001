@@ -15,6 +15,7 @@ async function loadCache() {
         { key: { startsWith: 'feature.' } },
         { key: { startsWith: 'points.' } },
         { key: { startsWith: 'withdrawal.' } },
+        { key: { startsWith: 'recharge.' } },
       ],
     },
   })

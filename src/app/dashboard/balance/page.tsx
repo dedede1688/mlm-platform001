@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Wallet, Loader2,
-  ShoppingCart, Undo2, Gift, Lock, Unlock, Settings2, Banknote
+  ShoppingCart, Undo2, Gift, Lock, Unlock, Settings2, Banknote,
+  PlusCircle, Info
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 
@@ -175,6 +176,22 @@ export default function BalancePage() {
                 <span className="text-xs text-gray-400">已作废收益</span>
                 <span className="text-xs font-medium text-red-500">¥{formatMoney(userEarningsVoided)}</span>
               </div>
+            </div>
+          </div>
+          {/* 充值入口 */}
+          <div className="border-t border-gray-100 mt-4 pt-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Info className="w-3.5 h-3.5" />
+                <span>充值余额用于购物消费，不可提现</span>
+              </div>
+              <Link
+                href="/dashboard/recharge"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary-600 transition-colors"
+              >
+                <PlusCircle className="w-4 h-4" />
+                充值
+              </Link>
             </div>
           </div>
         </div>
