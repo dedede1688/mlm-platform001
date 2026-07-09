@@ -387,4 +387,426 @@ describe('RechargeService', () => {
       expect(bankCard?.label).toBe('银行卡')
     })
   })
+
+  // ============ approveRecharge ============
+  describe('approveRecharge', () => {
+    it('正常通过：status approved，balance + amount，consumeBalance + amount', async () => {
+      // 事务前查 recharge
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      // updateMany 返回 count=1
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      // 事务内查用户旧值
+      prisma.user.findUnique.mockResolvedValueOnce({
+        balance: 1000, frozenBalance: 0, consumeBalance: 200,
+        earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
+      })
+      // user.update 返回更新后的最新值
+      prisma.user.update.mockResolvedValueOnce({
+        balance: 1500, frozenBalance: 0,
+      })
+      // balanceRecord.create
+      prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
+      // rechargeAuditLog.create
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      // 事务后查 updated
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'approved', reviewedBy: 'admin1',
+      })
+
+      const result = await RechargeService.approveRecharge('r1', 'admin1')
+
+      expect(result.status).toBe('approved')
+
+      // 验证 user.update 增加了 balance 和 consumeBalance
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: {
+            balance: { increment: 500 },
+            consumeBalance: { increment: 500 },
+          },
+        })
+      )
+    })
+
+    it('写 BalanceRecord，type=recharge，sourceType=recharge_request', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.user.findUnique.mockResolvedValueOnce({
+        balance: 1000, frozenBalance: 0, consumeBalance: 200,
+        earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
+      })
+      prisma.user.update.mockResolvedValueOnce({
+        balance: 1500, frozenBalance: 0,
+      })
+      prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'approved',
+      })
+
+      await RechargeService.approveRecharge('r1', 'admin1')
+
+      expect(prisma.balanceRecord.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'u1',
+            type: 'recharge',
+            amount: 500,
+            sourceType: 'recharge_request',
+            sourceId: 'r1',
+          }),
+        })
+      )
+    })
+
+    it('使用 updatedUser.balance 写 BalanceRecord.balance', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      // 旧余额 1000
+      prisma.user.findUnique.mockResolvedValueOnce({
+        balance: 1000, frozenBalance: 0, consumeBalance: 200,
+        earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
+      })
+      // user.update 返回新余额 1500（1000+500）
+      prisma.user.update.mockResolvedValueOnce({
+        balance: 1500, frozenBalance: 0,
+      })
+      prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'approved',
+      })
+
+      await RechargeService.approveRecharge('r1', 'admin1')
+
+      // BalanceRecord.balance 应该是 updatedUser.balance = 1500，不是旧 balance + amount
+      expect(prisma.balanceRecord.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            balance: 1500,
+            frozenBalance: 0,
+          }),
+        })
+      )
+    })
+
+    it('不修改 earningsAvailable / earningsFrozen / earningsVoided / earningsPending', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.user.findUnique.mockResolvedValueOnce({
+        balance: 1000, frozenBalance: 0, consumeBalance: 200,
+        earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
+      })
+      prisma.user.update.mockResolvedValueOnce({
+        balance: 1500, frozenBalance: 0,
+      })
+      prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'approved',
+      })
+
+      await RechargeService.approveRecharge('r1', 'admin1')
+
+      // user.update 的 data 里只能有 balance 和 consumeBalance，不能有 earnings* 字段
+      const updateCall = prisma.user.update.mock.calls[0][0]
+      expect(updateCall.data).toHaveProperty('balance')
+      expect(updateCall.data).toHaveProperty('consumeBalance')
+      expect(updateCall.data).not.toHaveProperty('earningsAvailable')
+      expect(updateCall.data).not.toHaveProperty('earningsFrozen')
+      expect(updateCall.data).not.toHaveProperty('earningsVoided')
+      expect(updateCall.data).not.toHaveProperty('earningsPending')
+    })
+
+    it('非 pending 报错"充值申请不存在或已审核"', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'approved', remark: null,
+      })
+
+      await expect(
+        RechargeService.approveRecharge('r1', 'admin1')
+      ).rejects.toThrow('充值申请不存在或已审核')
+    })
+
+    it('充值申请不存在报错', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce(null)
+
+      await expect(
+        RechargeService.approveRecharge('r-nonexistent', 'admin1')
+      ).rejects.toThrow('充值申请不存在')
+    })
+
+    it('updateMany count=0 时报错（并发竞争）', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      // 模拟并发：updateMany 返回 count=0（已被其他事务改掉）
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 0 })
+
+      await expect(
+        RechargeService.approveRecharge('r1', 'admin1')
+      ).rejects.toThrow('充值申请不存在或已审核')
+
+      // 不应该执行后续操作
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
+    })
+
+    it('写 RechargeAuditLog action=approve', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.user.findUnique.mockResolvedValueOnce({
+        balance: 1000, frozenBalance: 0, consumeBalance: 200,
+        earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
+      })
+      prisma.user.update.mockResolvedValueOnce({
+        balance: 1500, frozenBalance: 0,
+      })
+      prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'approved',
+      })
+
+      await RechargeService.approveRecharge('r1', 'admin1')
+
+      expect(prisma.rechargeAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            requestId: 'r1',
+            action: 'approve',
+            oldStatus: 'pending',
+            newStatus: 'approved',
+            operatorId: 'admin1',
+          }),
+        })
+      )
+    })
+
+    it('approve 不调用 logOperation（logOperation 在 route 层）', async () => {
+      // service 不再 import logOperation，所以不需要额外验证
+      // 这里确保 service 只做数据操作
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.user.findUnique.mockResolvedValueOnce({
+        balance: 1000, frozenBalance: 0, consumeBalance: 200,
+        earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
+      })
+      prisma.user.update.mockResolvedValueOnce({
+        balance: 1500, frozenBalance: 0,
+      })
+      prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'approved',
+      })
+
+      await RechargeService.approveRecharge('r1', 'admin1')
+
+      // service 层不应该创建 operationLog
+      expect(prisma.operationLog).toBeUndefined()
+    })
+  })
+
+  // ============ rejectRecharge ============
+  describe('rejectRecharge', () => {
+    it('正常拒绝：status rejected，写 rejectReason', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'rejected', rejectReason: '凭证不清晰',
+      })
+
+      const result = await RechargeService.rejectRecharge(
+        'r1', 'admin1', '凭证不清晰'
+      )
+
+      expect(result.status).toBe('rejected')
+      expect(result.rejectReason).toBe('凭证不清晰')
+
+      // 验证 updateMany 写了 rejectReason
+      expect(prisma.rechargeRequest.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'rejected',
+            rejectReason: '凭证不清晰',
+          }),
+        })
+      )
+    })
+
+    it('不写 BalanceRecord', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'rejected',
+      })
+
+      await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
+
+      expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
+    })
+
+    it('不调用 user.update / user.updateMany', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'rejected',
+      })
+
+      await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.user.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('空字符串 rejectReason 且无 rejectTemplateId 时报错', async () => {
+      await expect(
+        RechargeService.rejectRecharge('r1', 'admin1', '')
+      ).rejects.toThrow('请填写拒绝原因或选择拒绝模板')
+    })
+
+    it('纯空格 rejectReason 且无 rejectTemplateId 时报错', async () => {
+      await expect(
+        RechargeService.rejectRecharge('r1', 'admin1', '   ')
+      ).rejects.toThrow('请填写拒绝原因或选择拒绝模板')
+    })
+
+    it('非 pending 报错"充值申请不存在或已审核"', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'rejected', remark: null,
+      })
+
+      await expect(
+        RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
+      ).rejects.toThrow('充值申请不存在或已审核')
+    })
+
+    it('充值申请不存在报错', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce(null)
+
+      await expect(
+        RechargeService.rejectRecharge('r-nonexistent', 'admin1', '凭证不清晰')
+      ).rejects.toThrow('充值申请不存在')
+    })
+
+    it('updateMany count=0 时报错（并发竞争）', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 0 })
+
+      await expect(
+        RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
+      ).rejects.toThrow('充值申请不存在或已审核')
+
+      expect(prisma.rechargeAuditLog.create).not.toHaveBeenCalled()
+    })
+
+    it('写 RechargeAuditLog action=reject', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'rejected',
+      })
+
+      await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
+
+      expect(prisma.rechargeAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            requestId: 'r1',
+            action: 'reject',
+            oldStatus: 'pending',
+            newStatus: 'rejected',
+            operatorId: 'admin1',
+            reason: '凭证不清晰',
+          }),
+        })
+      )
+    })
+
+    it('rejectReason 被 trim 后存储', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'rejected',
+      })
+
+      await RechargeService.rejectRecharge('r1', 'admin1', '  凭证不清晰  ')
+
+      // updateMany 存的 rejectReason 是 trim 后的
+      expect(prisma.rechargeRequest.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            rejectReason: '凭证不清晰',
+          }),
+        })
+      )
+
+      // auditLog 存的 reason 也是 trim 后的
+      expect(prisma.rechargeAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            reason: '凭证不清晰',
+          }),
+        })
+      )
+    })
+
+    it('有 rejectTemplateId 但无 rejectReason 时正常通过', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', status: 'rejected',
+      })
+
+      const result = await RechargeService.rejectRecharge(
+        'r1', 'admin1', '', 'tpl-001'
+      )
+
+      expect(result.status).toBe('rejected')
+
+      // rejectTemplateId 被写入
+      expect(prisma.rechargeRequest.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            rejectTemplateId: 'tpl-001',
+            rejectReason: null,
+          }),
+        })
+      )
+    })
+  })
 })
