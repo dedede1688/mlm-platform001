@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Wallet, Search, Loader2, ChevronLeft, ChevronRight,
   X, CheckCircle, XCircle, DollarSign, Gift,
-  ListChecks, FileText, History, Bell, SquareCheck, Square
+  ListChecks, FileText, History, Bell, SquareCheck, Square,
+  ArrowDownCircle
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
@@ -69,6 +70,38 @@ interface WithdrawalItem {
   createdAt: string
 }
 
+interface RechargeUser {
+  id: string
+  phone: string
+  nickname: string | null
+  level: number
+}
+
+interface RechargeReviewer {
+  id: string
+  phone: string
+  nickname: string | null
+}
+
+interface RechargeItem {
+  id: string
+  userId: string
+  user: RechargeUser
+  amount: number
+  paymentMethod: string
+  paymentProofUrl: string
+  status: string
+  rejectReason: string | null
+  rejectTemplateId: string | null
+  reviewedBy: string | null
+  reviewer: RechargeReviewer | null
+  reviewedAt: string | null
+  approvedAt: string | null
+  remark: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 interface Pagination {
   page: number
   pageSize: number
@@ -112,13 +145,41 @@ const WITHDRAWAL_STATUS_OPTIONS = [
   { value: 'rejected', label: '已拒绝' },
 ]
 
+const RECHARGE_STATUS_MAP: Record<string, { label: string; color: string }> = {
+  pending:  { label: '待审核', color: 'bg-yellow-50 text-yellow-700' },
+  approved: { label: '已通过', color: 'bg-green-50 text-green-700' },
+  rejected: { label: '已拒绝', color: 'bg-red-50 text-red-700' },
+}
+
+const RECHARGE_STATUS_OPTIONS = [
+  { value: '', label: '全部状态' },
+  { value: 'pending', label: '待审核' },
+  { value: 'approved', label: '已通过' },
+  { value: 'rejected', label: '已拒绝' },
+]
+
+const RECHARGE_PAYMENT_METHOD_MAP: Record<string, string> = {
+  alipay:    '支付宝',
+  wechat:    '微信',
+  bank_card: '银行卡',
+  other:     '其他',
+}
+
+const RECHARGE_PAYMENT_METHOD_OPTIONS = [
+  { value: '', label: '全部方式' },
+  { value: 'alipay', label: '支付宝' },
+  { value: 'wechat', label: '微信' },
+  { value: 'bank_card', label: '银行卡' },
+  { value: 'other', label: '其他' },
+]
+
 // ---- 主组件 ----
 
 export default function AdminFinancePage() {
   const [token, setToken] = useState<string | null>(null)
   // v68:当前用户角色 + 权限检查
   const [userRole, setUserRole] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'rewards' | 'withdrawals'>('withdrawals')
+  const [activeTab, setActiveTab] = useState<'rewards' | 'withdrawals' | 'recharge'>('withdrawals')
   // v68:大额提现二次确认
   const [largeWithdrawalConfirm, setLargeWithdrawalConfirm] = useState<{ item: WithdrawalItem; type: 'approve' | 'reject' } | null>(null)
   // v68:操作权限
@@ -139,6 +200,14 @@ export default function AdminFinancePage() {
   const [withdrawalLoading, setWithdrawalLoading] = useState(true)
   const [withdrawalStatus, setWithdrawalStatus] = useState('')
   const [withdrawalSearch, setWithdrawalSearch] = useState('')
+
+  // 充值审核状态
+  const [recharges, setRecharges] = useState<RechargeItem[]>([])
+  const [rechargePagination, setRechargePagination] = useState<Pagination>({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
+  const [rechargeLoading, setRechargeLoading] = useState(false)
+  const [rechargeStatus, setRechargeStatus] = useState('')
+  const [rechargePaymentMethod, setRechargePaymentMethod] = useState('')
+  const [rechargeSearch, setRechargeSearch] = useState('')
 
   // 审核弹窗
   const [reviewModal, setReviewModal] = useState<{
@@ -205,6 +274,7 @@ const [stats, setStats] = useState<{
       fetchRewards(storedToken, 1)
       fetchWithdrawals(storedToken, 1)
       fetchRejectTemplates(storedToken)
+      fetchRecharges(storedToken, 1)
     }
   }, [])
 
@@ -246,6 +316,38 @@ const [stats, setStats] = useState<{
       setRewardLoading(false)
     }
   }, [rewardSearch, rewardType, rewardStartDate, rewardEndDate])
+
+  // ---- 充值审核 API ----
+
+  const fetchRecharges = useCallback(async (authToken: string, page: number) => {
+    setRechargeLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('pageSize', '10')
+      if (rechargeStatus) params.set('status', rechargeStatus)
+      if (rechargePaymentMethod) params.set('paymentMethod', rechargePaymentMethod)
+      if (rechargeSearch) params.set('search', rechargeSearch)
+
+      const res = await fetch(`/api/admin/recharge?${params}`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      if (res.status === 403 || res.status === 401) {
+        window.location.href = '/login'
+        return
+      }
+      const data = await res.json()
+      if (data.success) {
+        setRecharges(data.data || [])
+        setRechargePagination(data.pagination || { page: 1, pageSize: 10, total: 0, totalPages: 0 })
+      }
+    } catch (error) {
+      console.error('获取充值列表失败:', error)
+      showMessage('error', '获取充值列表失败')
+    } finally {
+      setRechargeLoading(false)
+    }
+  }, [rechargeStatus, rechargePaymentMethod, rechargeSearch])
 
   // ---- 提现审核 API ----
 
@@ -496,6 +598,10 @@ const [stats, setStats] = useState<{
     if (token) fetchWithdrawals(token, 1)
   }
 
+  const handleRechargeSearch = () => {
+    if (token) fetchRecharges(token, 1)
+  }
+
   const handleRewardPageChange = (newPage: number) => {
     if (token && newPage >= 1 && newPage <= rewardPagination.totalPages) {
       fetchRewards(token, newPage)
@@ -505,6 +611,12 @@ const [stats, setStats] = useState<{
   const handleWithdrawalPageChange = (newPage: number) => {
     if (token && newPage >= 1 && newPage <= withdrawalPagination.totalPages) {
       fetchWithdrawals(token, newPage)
+    }
+  }
+
+  const handleRechargePageChange = (newPage: number) => {
+    if (token && newPage >= 1 && newPage <= rechargePagination.totalPages) {
+      fetchRecharges(token, newPage)
     }
   }
 
@@ -561,6 +673,16 @@ const [stats, setStats] = useState<{
             }`}
           >
             提现审核
+          </button>
+          <button
+            onClick={() => setActiveTab('recharge')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'recharge'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            充值审核
           </button>
           {/* 手动发放按钮 */}
           <button
@@ -1040,6 +1162,191 @@ const [stats, setStats] = useState<{
                     <button
                       onClick={() => handleWithdrawalPageChange(withdrawalPagination.page + 1)}
                       disabled={withdrawalPagination.page >= withdrawalPagination.totalPages}
+                      className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700
+                        bg-white border border-gray-300 rounded-lg hover:bg-gray-50
+                        disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      下一页
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ===== 充值审核标签页 ===== */}
+        {activeTab === 'recharge' && (
+          <>
+            {/* 筛选栏 */}
+            <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={rechargeSearch}
+                    onChange={e => setRechargeSearch(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleRechargeSearch()}
+                    placeholder="搜索手机号/昵称..."
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg
+                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                      transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400"
+                  />
+                </div>
+                <select
+                  value={rechargeStatus}
+                  onChange={e => setRechargeStatus(e.target.value)}
+                  className="px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 hover:border-gray-400"
+                >
+                  {RECHARGE_STATUS_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={rechargePaymentMethod}
+                  onChange={e => setRechargePaymentMethod(e.target.value)}
+                  className="px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 hover:border-gray-400"
+                >
+                  {RECHARGE_PAYMENT_METHOD_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleRechargeSearch}
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700
+                    transition-colors font-medium whitespace-nowrap"
+                >
+                  搜索
+                </button>
+              </div>
+            </div>
+
+            {/* 充值列表 */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
+              {rechargeLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-500">加载中...</span>
+                </div>
+              ) : recharges.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                  <ArrowDownCircle className="w-12 h-12 mb-3" />
+                  <p>暂无充值申请</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">用户信息</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">充值金额</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">支付方式</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">付款凭证</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">状态</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">申请时间</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">审核时间</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">审核人</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {recharges.map(r => {
+                        const statusInfo = RECHARGE_STATUS_MAP[r.status] || { label: r.status, color: 'bg-gray-100 text-gray-500' }
+                        const methodLabel = RECHARGE_PAYMENT_METHOD_MAP[r.paymentMethod] || r.paymentMethod
+                        return (
+                          <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="text-sm text-gray-900">{r.user.phone}</div>
+                              {r.user.nickname && (
+                                <div className="text-xs text-gray-400">{r.user.nickname}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-green-600 font-medium">¥{r.amount.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{methodLabel}</td>
+                            <td className="px-4 py-3">
+                              {r.paymentProofUrl ? (
+                                <a href={r.paymentProofUrl} target="_blank" rel="noopener noreferrer"
+                                   className="text-blue-600 hover:text-blue-700 text-sm underline">
+                                  查看凭证
+                                </a>
+                              ) : (
+                                <span className="text-gray-300">-</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                                {statusInfo.label}
+                              </span>
+                              {r.status === 'rejected' && r.rejectReason && (
+                                <div className="text-xs text-red-400 mt-1">原因：{r.rejectReason}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{formatTime(r.createdAt)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{formatTime(r.reviewedAt)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">
+                              {r.reviewer ? (r.reviewer.nickname || r.reviewer.phone) : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm text-gray-400">
+                              待后续接入
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* 分页 */}
+              {!rechargeLoading && rechargePagination.totalPages > 0 && (
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  <div className="text-sm text-gray-500">
+                    共 {rechargePagination.total} 条记录，第 {rechargePagination.page}/{rechargePagination.totalPages} 页
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleRechargePageChange(rechargePagination.page - 1)}
+                      disabled={rechargePagination.page <= 1}
+                      className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700
+                        bg-white border border-gray-300 rounded-lg hover:bg-gray-50
+                        disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      上一页
+                    </button>
+                    {Array.from({ length: rechargePagination.totalPages }, (_, i) => i + 1)
+                      .filter(p => {
+                        if (rechargePagination.totalPages <= 7) return true
+                        return Math.abs(p - rechargePagination.page) <= 2 || p === 1 || p === rechargePagination.totalPages
+                      })
+                      .map((p, idx, arr) => {
+                        const prev = arr[idx - 1]
+                        const showEllipsis = prev && p - prev > 1
+                        return (
+                          <span key={p} className="flex items-center">
+                            {showEllipsis && <span className="px-2 text-gray-400">...</span>}
+                            <button
+                              onClick={() => handleRechargePageChange(p)}
+                              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                p === rechargePagination.page
+                                  ? 'bg-blue-600 text-white'
+                                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          </span>
+                        )
+                      })}
+                    <button
+                      onClick={() => handleRechargePageChange(rechargePagination.page + 1)}
+                      disabled={rechargePagination.page >= rechargePagination.totalPages}
                       className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700
                         bg-white border border-gray-300 rounded-lg hover:bg-gray-50
                         disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
