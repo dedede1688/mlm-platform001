@@ -198,6 +198,22 @@ async function main() {
       enabled: true,
     },
     {
+      id: 'seed-tpl-recharge_approved-in_app',
+      type: 'recharge_approved',
+      channel: 'in_app',
+      subject: '充值审核通过通知',
+      content: '【敏维科技】{{userName}} 您好，您的充值申请 ¥{{amount}} 已审核通过，余额已入账。当前可用余额：¥{{newBalance}}。如有疑问请联系客服。',
+      enabled: true,
+    },
+    {
+      id: 'seed-tpl-recharge_rejected-in_app',
+      type: 'recharge_rejected',
+      channel: 'in_app',
+      subject: '充值审核拒绝通知',
+      content: '【敏维科技】{{userName}} 您好，您的充值申请 ¥{{amount}} 已被拒绝，原因：{{rejectReason}}。如有疑问请联系客服。',
+      enabled: true,
+    },
+    {
       id: 'seed-tpl-general-in_app',
       type: 'general',
       channel: 'in_app',

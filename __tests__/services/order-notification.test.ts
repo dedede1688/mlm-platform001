@@ -906,4 +906,110 @@ describe('OrderNotificationService', () => {
       expect(loggerMock.error).toHaveBeenCalledWith('手动奖励通知失败', { error: expect.any(String) })
     })
   })
+
+  // ============================================================
+  // notifyRechargeApproved - 充值审核通过通知 (v3.2-1-hotfix)
+  // ============================================================
+  describe('notifyRechargeApproved', () => {
+    it('happy path: sends recharge_approved with userName / amount / newBalance', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'RechargeUser',
+        phone: '13900000010',
+      })
+
+      await OrderNotificationService.notifyRechargeApproved({
+        userId: 'user-ra',
+        amount: 500,
+        newBalance: 1500,
+        operatorId: 'admin-ra',
+      })
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-ra' },
+        select: { nickname: true, phone: true },
+      })
+      expect(notifications.batches[0]).toMatchObject({
+        type: 'business',
+        title: '充值审核通过通知',
+        templateType: 'recharge_approved',
+        recipientCount: 1,
+        senderId: 'admin-ra',
+      })
+      expect(notifications.sendCalls[0]).toMatchObject({
+        userId: 'user-ra',
+        templateType: 'recharge_approved',
+        batchId: 'batch-1',
+        senderId: 'admin-ra',
+        variables: {
+          userName: 'RechargeUser',
+          amount: '500.00',
+          newBalance: '1500.00',
+        },
+      })
+    })
+
+    it('returns early when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null)
+
+      await OrderNotificationService.notifyRechargeApproved({
+        userId: 'nonexistent',
+        amount: 100,
+        newBalance: 100,
+      })
+
+      expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
+      expect(sendInAppMock).not.toHaveBeenCalled()
+    })
+  })
+
+  // ============================================================
+  // notifyRechargeRejected - 充值审核拒绝通知 (v3.2-1-hotfix)
+  // ============================================================
+  describe('notifyRechargeRejected', () => {
+    it('happy path: sends recharge_rejected with userName / amount / rejectReason', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'RejectedUser',
+        phone: '13900000011',
+      })
+
+      await OrderNotificationService.notifyRechargeRejected({
+        userId: 'user-rr',
+        amount: 300,
+        rejectReason: '凭证不足',
+        operatorId: 'admin-rr',
+      })
+
+      expect(notifications.batches[0]).toMatchObject({
+        type: 'business',
+        title: '充值审核拒绝通知',
+        templateType: 'recharge_rejected',
+        recipientCount: 1,
+        senderId: 'admin-rr',
+      })
+      expect(notifications.sendCalls[0]).toMatchObject({
+        userId: 'user-rr',
+        templateType: 'recharge_rejected',
+        batchId: 'batch-1',
+        senderId: 'admin-rr',
+        variables: {
+          userName: 'RejectedUser',
+          amount: '300.00',
+          rejectReason: '凭证不足',
+        },
+      })
+    })
+
+    it('returns early when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null)
+
+      await OrderNotificationService.notifyRechargeRejected({
+        userId: 'nonexistent',
+        amount: 100,
+        rejectReason: '测试',
+      })
+
+      expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
+      expect(sendInAppMock).not.toHaveBeenCalled()
+    })
+  })
 })

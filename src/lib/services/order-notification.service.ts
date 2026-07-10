@@ -607,4 +607,98 @@ export class OrderNotificationService {
       }
     })()
   }
+
+  // v3.2-1-hotfix: 充值审核通过通知（admin 审核通过充值申请后触发）
+  static async notifyRechargeApproved(params: {
+    userId: string
+    amount: number
+    newBalance: number
+    operatorId?: string
+  }) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { nickname: true, phone: true },
+    })
+    if (!user) return
+    const variables = {
+      userName: user.nickname ?? user.phone ?? '',
+      amount: params.amount.toFixed(2),
+      newBalance: params.newBalance.toFixed(2),
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '充值审核通过通知',
+            content: `您的充值申请 ¥${params.amount.toFixed(2)} 已审核通过，余额已入账`,
+            templateType: 'recharge_approved',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'recharge_approved',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v3.2-1-hotfix notifyRechargeApproved]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('充值审核通过通知失败', { error: String(err) })
+      }
+    })()
+  }
+
+  // v3.2-1-hotfix: 充值审核拒绝通知（admin 拒绝充值申请后触发）
+  static async notifyRechargeRejected(params: {
+    userId: string
+    amount: number
+    rejectReason: string
+    operatorId?: string
+  }) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { nickname: true, phone: true },
+    })
+    if (!user) return
+    const variables = {
+      userName: user.nickname ?? user.phone ?? '',
+      amount: params.amount.toFixed(2),
+      rejectReason: params.rejectReason,
+    }
+    await (async () => {
+      try {
+        const b = await prisma.notificationBatch.create({
+          data: {
+            type: 'business',
+            title: '充值审核拒绝通知',
+            content: `您的充值申请 ¥${params.amount.toFixed(2)} 已被拒绝，原因：${params.rejectReason}`,
+            templateType: 'recharge_rejected',
+            recipientCount: 1,
+            senderId: params.operatorId ?? null,
+          },
+        })
+        await sendInApp({
+          userId: params.userId,
+          templateType: 'recharge_rejected',
+          variables,
+          batchId: b.id,
+          senderId: params.operatorId,
+        })
+      } catch (err) {
+        console.error('[v3.2-1-hotfix notifyRechargeRejected]', {
+          error: String(err),
+          code: (err as any)?.code,
+          meta: (err as any)?.meta,
+        })
+        logger.error('充值审核拒绝通知失败', { error: String(err) })
+      }
+    })()
+  }
 }
