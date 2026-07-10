@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Wallet, Search, Loader2, ChevronLeft, ChevronRight,
   X, CheckCircle, XCircle, DollarSign, Gift,
   ListChecks, FileText, History, Bell, SquareCheck, Square,
-  ArrowDownCircle
+  ArrowDownCircle, ZoomIn, ZoomOut, Maximize2, Minimize2, ImageOff
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
@@ -287,6 +287,14 @@ export default function AdminFinancePage() {
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [auditModalId, setAuditModalId] = useState<string | null>(null)
   const [auditLoading, setAuditLoading] = useState(false)
+
+  // 凭证查看弹窗
+  const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null)
+  const [proofViewerScale, setProofViewerScale] = useState(1)
+  const [proofViewerOffset, setProofViewerOffset] = useState({ x: 0, y: 0 })
+  const [proofViewerDragging, setProofViewerDragging] = useState(false)
+  const [proofViewerError, setProofViewerError] = useState(false)
+  const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 })
 
   // 备注
   const [reviewRemark, setReviewRemark] = useState('')
@@ -737,6 +745,72 @@ const [stats, setStats] = useState<{
     } finally {
       setRechargeReviewLoading(false)
     }
+  }
+
+  // ---- 凭证查看弹窗 ----
+
+  const openProofViewer = (url: string) => {
+    setProofViewerUrl(url)
+    setProofViewerScale(1)
+    setProofViewerOffset({ x: 0, y: 0 })
+    setProofViewerError(false)
+  }
+
+  const closeProofViewer = () => {
+    setProofViewerUrl(null)
+    setProofViewerScale(1)
+    setProofViewerOffset({ x: 0, y: 0 })
+    setProofViewerDragging(false)
+    setProofViewerError(false)
+  }
+
+  const handleProofWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.2 : 0.2
+    setProofViewerScale(prev => Math.min(4, Math.max(0.5, prev + delta)))
+  }
+
+  const handleProofMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setProofViewerDragging(true)
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      offsetX: proofViewerOffset.x,
+      offsetY: proofViewerOffset.y,
+    }
+  }
+
+  const handleProofMouseMove = (e: React.MouseEvent) => {
+    if (!proofViewerDragging) return
+    const dx = e.clientX - dragStartRef.current.x
+    const dy = e.clientY - dragStartRef.current.y
+    setProofViewerOffset({
+      x: dragStartRef.current.offsetX + dx,
+      y: dragStartRef.current.offsetY + dy,
+    })
+  }
+
+  const handleProofMouseUp = () => {
+    setProofViewerDragging(false)
+  }
+
+  const handleZoomIn = () => {
+    setProofViewerScale(prev => Math.min(4, prev + 0.25))
+  }
+
+  const handleZoomOut = () => {
+    setProofViewerScale(prev => Math.max(0.5, prev - 0.25))
+  }
+
+  const handleResetZoom = () => {
+    setProofViewerScale(1)
+    setProofViewerOffset({ x: 0, y: 0 })
+  }
+
+  const handleFitToWindow = () => {
+    setProofViewerScale(1)
+    setProofViewerOffset({ x: 0, y: 0 })
   }
 
   // 格式化时间
@@ -1390,10 +1464,12 @@ const [stats, setStats] = useState<{
                             <td className="px-4 py-3 text-sm text-gray-700">{methodLabel}</td>
                             <td className="px-4 py-3">
                               {r.paymentProofUrl ? (
-                                <a href={r.paymentProofUrl} target="_blank" rel="noopener noreferrer"
-                                   className="text-blue-600 hover:text-blue-700 text-sm underline">
+                                <button
+                                  onClick={() => openProofViewer(r.paymentProofUrl)}
+                                  className="text-blue-600 hover:text-blue-700 text-sm underline"
+                                >
                                   查看凭证
-                                </a>
+                                </button>
                               ) : (
                                 <span className="text-gray-300">-</span>
                               )}
@@ -1544,10 +1620,12 @@ const [stats, setStats] = useState<{
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">付款凭证</span>
                 {rechargeReviewModal.item.paymentProofUrl ? (
-                  <a href={rechargeReviewModal.item.paymentProofUrl} target="_blank" rel="noopener noreferrer"
-                     className="text-blue-600 hover:text-blue-700 underline">
+                  <button
+                    onClick={() => openProofViewer(rechargeReviewModal.item.paymentProofUrl)}
+                    className="text-blue-600 hover:text-blue-700 underline"
+                  >
                     查看凭证
-                  </a>
+                  </button>
                 ) : (
                   <span className="text-gray-400">-</span>
                 )}
@@ -1689,6 +1767,99 @@ const [stats, setStats] = useState<{
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 凭证查看弹窗 ===== */}
+      {proofViewerUrl && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80" onClick={closeProofViewer} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+              <h3 className="text-base font-semibold text-gray-900">付款凭证</h3>
+              <button
+                onClick={closeProofViewer}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 工具栏 */}
+            <div className="flex items-center justify-center gap-2 px-5 py-2 border-b border-gray-100 bg-gray-50">
+              <button
+                onClick={handleZoomOut}
+                disabled={proofViewerScale <= 0.5}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ZoomOut className="w-4 h-4" />
+                缩小
+              </button>
+              <span className="text-sm text-gray-500 min-w-[50px] text-center">
+                {Math.round(proofViewerScale * 100)}%
+              </span>
+              <button
+                onClick={handleZoomIn}
+                disabled={proofViewerScale >= 4}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ZoomIn className="w-4 h-4" />
+                放大
+              </button>
+              <button
+                onClick={handleResetZoom}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Maximize2 className="w-4 h-4" />
+                原始大小
+              </button>
+              <button
+                onClick={handleFitToWindow}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Minimize2 className="w-4 h-4" />
+                适应窗口
+              </button>
+            </div>
+
+            {/* 图片区域 */}
+            <div
+              className="flex-1 overflow-hidden flex items-center justify-center bg-gray-100 relative"
+              style={{
+                minHeight: '300px',
+                maxHeight: 'calc(90vh - 120px)',
+                cursor: proofViewerDragging ? 'grabbing' : 'grab',
+              }}
+              onWheel={handleProofWheel}
+              onMouseDown={handleProofMouseDown}
+              onMouseMove={handleProofMouseMove}
+              onMouseUp={handleProofMouseUp}
+              onMouseLeave={handleProofMouseUp}
+            >
+              {proofViewerError ? (
+                <div className="flex flex-col items-center justify-center text-gray-400">
+                  <ImageOff className="w-12 h-12 mb-3" />
+                  <p className="text-sm">图片加载失败，请检查凭证链接</p>
+                </div>
+              ) : (
+                <img
+                  src={proofViewerUrl}
+                  alt="付款凭证"
+                  draggable={false}
+                  onError={() => setProofViewerError(true)}
+                  style={{
+                    transform: `scale(${proofViewerScale}) translate(${proofViewerOffset.x / proofViewerScale}px, ${proofViewerOffset.y / proofViewerScale}px)`,
+                    transition: proofViewerDragging ? 'none' : 'transform 0.1s ease-out',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
