@@ -33,12 +33,20 @@ interface RechargeRecord {
   paymentProofUrl: string
   createdAt: string
   rejectReason: string | null
+  reviewedAt: string | null
+  approvedAt: string | null
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   pending: { label: '待审核', color: 'text-yellow-600 bg-yellow-50' },
-  approved: { label: '已审核通过', color: 'text-green-600 bg-green-50' },
+  approved: { label: '已通过', color: 'text-green-600 bg-green-50' },
   rejected: { label: '已拒绝', color: 'text-red-600 bg-red-50' },
+}
+
+const PAYMENT_METHOD_MAP: Record<string, string> = {
+  alipay: '支付宝',
+  wechat: '微信',
+  bank_card: '银行卡',
 }
 
 const METHOD_ICON: Record<string, React.ReactNode> = {
@@ -63,6 +71,10 @@ export default function RechargePage() {
   const [remark, setRemark] = useState('')
 
   const [records, setRecords] = useState<RechargeRecord[]>([])
+  const [recordsLoading, setRecordsLoading] = useState(false)
+  const [recordPage, setRecordPage] = useState(1)
+  const [recordTotalPages, setRecordTotalPages] = useState(1)
+  const recordPageSize = 10
   const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
@@ -97,19 +109,23 @@ export default function RechargePage() {
     }
   }
 
-  const fetchRecords = async (authToken: string) => {
+  const fetchRecords = async (authToken: string, page: number = 1) => {
+    setRecordsLoading(true)
     try {
-      const res = await fetch('/api/user/recharge?page=1&limit=5', {
+      const res = await fetch(`/api/user/recharge?page=${page}&limit=${recordPageSize}`, {
         headers: { Authorization: `Bearer ${authToken}` },
       })
       if (res.ok) {
         const data = await res.json()
         if (data.success && data.data?.requests) {
           setRecords(data.data.requests)
+          setRecordTotalPages(data.data.pagination?.totalPages || 1)
         }
       }
     } catch (error) {
       console.error('获取充值记录失败:', error)
+    } finally {
+      setRecordsLoading(false)
     }
   }
 
@@ -173,7 +189,7 @@ export default function RechargePage() {
         setPaymentProofUrl('')
         setRemark('')
         // 刷新记录
-        if (token) fetchRecords(token)
+        if (token) fetchRecords(token, recordPage)
       } else {
         toast.error(data.error || '提交失败')
       }
@@ -195,6 +211,18 @@ export default function RechargePage() {
     const days = Math.floor(hours / 24)
     if (days < 7) return `${days}天前`
     return new Date(s).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const formatDateTime = (s: string | null) => {
+    if (!s) return '-'
+    return new Date(s).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const handleRecordPageChange = (newPage: number) => {
+    if (token && newPage >= 1 && newPage <= recordTotalPages) {
+      setRecordPage(newPage)
+      fetchRecords(token, newPage)
+    }
   }
 
   if (loading) {
@@ -435,46 +463,93 @@ export default function RechargePage() {
           )}
         </form>
 
-        {/* 充值申请记录 */}
+        {/* 充值记录 */}
         <div className="bg-white rounded-xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-semibold text-gray-900">最近充值申请</h3>
-            {records.length > 0 && (
-              <Link href="/dashboard/balance" className="text-xs text-primary hover:underline">
-                查看全部 →
-              </Link>
-            )}
+            <h3 className="text-base font-semibold text-gray-900">充值记录</h3>
           </div>
 
-          {records.length === 0 ? (
+          {recordsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <span className="ml-2 text-sm text-gray-400">加载中...</span>
+            </div>
+          ) : records.length === 0 ? (
             <div className="text-center py-8">
               <Wallet className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">暂无充值申请记录</p>
+              <p className="text-sm text-gray-400">暂无充值记录</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {records.map((record) => {
-                const statusConf = STATUS_MAP[record.status] || { label: record.status, color: 'text-gray-600 bg-gray-50' }
-                return (
-                  <div key={record.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-base font-bold text-gray-900">¥{formatMoney(record.amount)}</span>
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusConf.color}`}>
-                          {statusConf.label}
-                        </span>
+            <>
+              <div className="space-y-3">
+                {records.map((record) => {
+                  const statusConf = STATUS_MAP[record.status] || { label: record.status, color: 'text-gray-600 bg-gray-50' }
+                  const methodLabel = PAYMENT_METHOD_MAP[record.paymentMethod] || record.paymentMethod
+                  return (
+                    <div key={record.id} className="p-3 bg-gray-50 rounded-lg">
+                      {/* 第一行：金额 + 状态 */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-gray-900">¥{formatMoney(record.amount)}</span>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusConf.color}`}>
+                            {statusConf.label}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-400">{formatRelativeTime(record.createdAt)}</span>
                       </div>
-                      <p className="text-xs text-gray-400">
-                        {formatRelativeTime(record.createdAt)}
-                        {record.rejectReason && (
-                          <span className="text-red-500 ml-1">· 拒绝原因：{record.rejectReason}</span>
+                      {/* 第二行：支付方式 + 付款凭证 */}
+                      <div className="flex items-center gap-4 text-xs text-gray-500 mb-1">
+                        <span>支付方式：{methodLabel}</span>
+                        {record.paymentProofUrl ? (
+                          <a
+                            href={record.paymentProofUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            查看凭证
+                          </a>
+                        ) : (
+                          <span className="text-gray-300">凭证：-</span>
                         )}
-                      </p>
+                      </div>
+                      {/* 第三行：提交时间 + 审核时间 */}
+                      <div className="flex items-center gap-4 text-xs text-gray-400">
+                        <span>提交时间：{formatDateTime(record.createdAt)}</span>
+                        <span>审核时间：{formatDateTime(record.reviewedAt)}</span>
+                      </div>
+                      {/* 拒绝原因（仅 rejected 显示） */}
+                      {record.status === 'rejected' && (
+                        <div className="mt-2 text-xs text-red-500">
+                          拒绝原因：{record.rejectReason || '-'}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+
+              {/* 分页 */}
+              {recordTotalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <button
+                    onClick={() => handleRecordPageChange(recordPage - 1)}
+                    disabled={recordPage <= 1}
+                    className="px-3 py-1.5 bg-white rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 shadow-sm"
+                  >
+                    上一页
+                  </button>
+                  <span className="text-sm text-gray-500">第 {recordPage} / {recordTotalPages} 页</span>
+                  <button
+                    onClick={() => handleRecordPageChange(recordPage + 1)}
+                    disabled={recordPage >= recordTotalPages}
+                    className="px-3 py-1.5 bg-white rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 shadow-sm"
+                  >
+                    下一页
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
