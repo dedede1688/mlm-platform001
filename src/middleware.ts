@@ -13,6 +13,7 @@ const pathRoleMap: Record<string, string[]> = {
   '/api/admin/settings': ['super_admin'],
   '/api/admin/refunds': ['super_admin', 'finance_admin'],
   '/api/admin/withdrawals': ['super_admin', 'finance_admin'],
+  '/api/admin/recharge': ['super_admin', 'finance_admin'],
   '/api/admin/settle-dividends': ['super_admin', 'finance_admin'],
   '/api/admin/manual-reward': ['super_admin', 'finance_admin'],
   '/api/admin/rewards': ['super_admin', 'finance_admin', 'auditor'],

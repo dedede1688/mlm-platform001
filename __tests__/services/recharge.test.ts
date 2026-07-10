@@ -809,4 +809,178 @@ describe('RechargeService', () => {
       )
     })
   })
+
+  // ============ listAdminRechargeRequests ============
+  describe('listAdminRechargeRequests', () => {
+    it('默认分页：page=1, pageSize=20', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([
+        { id: 'r1', userId: 'u1', amount: 100, status: 'pending', reviewedBy: null },
+      ] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(1)
+
+      const result = await RechargeService.listAdminRechargeRequests({})
+
+      expect(result.data).toHaveLength(1)
+      expect(result.pagination.page).toBe(1)
+      expect(result.pagination.pageSize).toBe(20)
+      expect(result.pagination.total).toBe(1)
+      expect(result.pagination.totalPages).toBe(1)
+
+      // 验证 findMany 调用参数
+      expect(prisma.rechargeRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 0,
+          take: 20,
+          orderBy: { createdAt: 'desc' },
+        })
+      )
+    })
+
+    it('按 status 筛选', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(0)
+
+      await RechargeService.listAdminRechargeRequests({ status: 'pending' })
+
+      expect(prisma.rechargeRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: 'pending' }),
+        })
+      )
+      expect(prisma.rechargeRequest.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: 'pending' }) })
+      )
+    })
+
+    it('按 paymentMethod 筛选', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(0)
+
+      await RechargeService.listAdminRechargeRequests({ paymentMethod: 'alipay' })
+
+      expect(prisma.rechargeRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ paymentMethod: 'alipay' }),
+        })
+      )
+    })
+
+    it('按 search 搜索 user.phone / nickname', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(0)
+
+      await RechargeService.listAdminRechargeRequests({ search: '13800' })
+
+      expect(prisma.rechargeRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            user: {
+              OR: [
+                { phone: { contains: '13800' } },
+                { nickname: { contains: '13800' } },
+              ],
+            },
+          }),
+        })
+      )
+    })
+
+    it('补充审核人信息（reviewer）', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([
+        { id: 'r1', userId: 'u1', amount: 100, status: 'approved', reviewedBy: 'admin1' },
+      ] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(1)
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'admin1', phone: '13900000000', nickname: '管理员' },
+      ])
+
+      const result = await RechargeService.listAdminRechargeRequests({})
+
+      expect(result.data[0].reviewer).toEqual({
+        id: 'admin1', phone: '13900000000', nickname: '管理员',
+      })
+    })
+
+    it('reviewedBy 为 null 时 reviewer 也为 null', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([
+        { id: 'r1', userId: 'u1', amount: 100, status: 'pending', reviewedBy: null },
+      ] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(1)
+
+      const result = await RechargeService.listAdminRechargeRequests({})
+
+      expect(result.data[0].reviewer).toBeNull()
+    })
+
+    it('pageSize 最大 100', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(0)
+
+      await RechargeService.listAdminRechargeRequests({ pageSize: 200 })
+
+      expect(prisma.rechargeRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 100 })
+      )
+    })
+
+    it('page=2 时 skip 正确计算', async () => {
+      prisma.rechargeRequest.findMany.mockResolvedValueOnce([] as any)
+      prisma.rechargeRequest.count.mockResolvedValueOnce(0)
+
+      await RechargeService.listAdminRechargeRequests({ page: 2, pageSize: 10 })
+
+      expect(prisma.rechargeRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 10, take: 10 })
+      )
+    })
+  })
+
+  // ============ getAdminRechargeRequestById ============
+  describe('getAdminRechargeRequestById', () => {
+    it('找到记录时返回详情 + 用户信息', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending',
+        paymentMethod: 'alipay', paymentProofUrl: 'https://example.com/proof.png',
+        rejectReason: null, rejectTemplateId: null, reviewedBy: null,
+        reviewedAt: null, approvedAt: null, remark: null,
+        createdAt: new Date(), updatedAt: new Date(),
+        user: { id: 'u1', phone: '13800000000', nickname: '张三', level: 1 },
+      } as any)
+
+      const result = await RechargeService.getAdminRechargeRequestById('r1')
+
+      expect(result).not.toBeNull()
+      expect(result?.id).toBe('r1')
+      expect(result?.user).toEqual({ id: 'u1', phone: '13800000000', nickname: '张三', level: 1 })
+      expect(result?.reviewer).toBeNull()
+    })
+
+    it('找不到返回 null', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce(null)
+
+      const result = await RechargeService.getAdminRechargeRequestById('r-nonexistent')
+      expect(result).toBeNull()
+    })
+
+    it('有 reviewedBy 时补充审核人信息', async () => {
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'approved',
+        paymentMethod: 'alipay', paymentProofUrl: 'https://example.com/proof.png',
+        rejectReason: null, rejectTemplateId: null, reviewedBy: 'admin1',
+        reviewedAt: new Date(), approvedAt: new Date(), remark: null,
+        createdAt: new Date(), updatedAt: new Date(),
+        user: { id: 'u1', phone: '13800000000', nickname: '张三', level: 1 },
+      } as any)
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'admin1', phone: '13900000000', nickname: '管理员',
+      })
+
+      const result = await RechargeService.getAdminRechargeRequestById('r1')
+
+      expect(result).not.toBeNull()
+      expect(result?.reviewer).toEqual({
+        id: 'admin1', phone: '13900000000', nickname: '管理员',
+      })
+    })
+  })
 })

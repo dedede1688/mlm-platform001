@@ -361,4 +361,145 @@ export class RechargeService {
       return updated
     })
   }
+
+  /**
+   * 后台充值申请列表查询（管理员）
+   * v3.2-2A：只读查询，不修改任何数据库数据
+   * 支持分页、状态筛选、支付方式筛选、用户搜索
+   */
+  static async listAdminRechargeRequests(filters: {
+    page?: number
+    pageSize?: number
+    status?: string
+    paymentMethod?: string
+    search?: string
+  }) {
+    const page = Math.max(1, filters.page || 1)
+    const pageSize = Math.min(100, Math.max(1, filters.pageSize || 20))
+    const skip = (page - 1) * pageSize
+
+    const where: Record<string, unknown> = {}
+
+    if (filters.status && filters.status.trim()) {
+      where.status = filters.status.trim()
+    }
+
+    if (filters.paymentMethod && filters.paymentMethod.trim()) {
+      where.paymentMethod = filters.paymentMethod.trim()
+    }
+
+    if (filters.search && filters.search.trim()) {
+      const search = filters.search.trim()
+      where.user = {
+        OR: [
+          { phone: { contains: search } },
+          { nickname: { contains: search } },
+        ],
+      }
+    }
+
+    const [requests, total] = await Promise.all([
+      prisma.rechargeRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+        include: {
+          user: {
+            select: { id: true, phone: true, nickname: true, level: true },
+          },
+        },
+      }),
+      prisma.rechargeRequest.count({ where }),
+    ])
+
+    // 补充审核人信息
+    const reviewerIds = requests
+      .map((r) => r.reviewedBy)
+      .filter((id): id is string => !!id)
+
+    const reviewers = reviewerIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: reviewerIds } },
+          select: { id: true, phone: true, nickname: true },
+        })
+      : []
+
+    const reviewerMap = new Map(reviewers.map((r) => [r.id, r]))
+
+    const data = requests.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      user: r.user,
+      amount: r.amount,
+      paymentMethod: r.paymentMethod,
+      paymentProofUrl: r.paymentProofUrl,
+      status: r.status,
+      rejectReason: r.rejectReason,
+      rejectTemplateId: r.rejectTemplateId,
+      reviewedBy: r.reviewedBy,
+      reviewer: r.reviewedBy ? reviewerMap.get(r.reviewedBy) || null : null,
+      reviewedAt: r.reviewedAt,
+      approvedAt: r.approvedAt,
+      remark: r.remark,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }))
+
+    return {
+      data,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    }
+  }
+
+  /**
+   * 后台充值申请详情查询（管理员）
+   * v3.2-2A：只读查询，返回充值信息 + 用户信息 + 审核人信息
+   * 找不到返回 null
+   */
+  static async getAdminRechargeRequestById(id: string) {
+    const request = await prisma.rechargeRequest.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: { id: true, phone: true, nickname: true, level: true },
+        },
+      },
+    })
+
+    if (!request) return null
+
+    // 补充审核人信息
+    let reviewer: { id: string; phone: string; nickname: string | null } | null = null
+    if (request.reviewedBy) {
+      reviewer = await prisma.user.findUnique({
+        where: { id: request.reviewedBy },
+        select: { id: true, phone: true, nickname: true },
+      })
+    }
+
+    return {
+      id: request.id,
+      userId: request.userId,
+      user: request.user,
+      amount: request.amount,
+      paymentMethod: request.paymentMethod,
+      paymentProofUrl: request.paymentProofUrl,
+      status: request.status,
+      rejectReason: request.rejectReason,
+      rejectTemplateId: request.rejectTemplateId,
+      reviewedBy: request.reviewedBy,
+      reviewer,
+      reviewedAt: request.reviewedAt,
+      approvedAt: request.approvedAt,
+      remark: request.remark,
+      createdAt: request.createdAt,
+      updatedAt: request.updatedAt,
+    }
+  }
 }
