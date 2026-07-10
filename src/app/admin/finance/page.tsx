@@ -209,6 +209,15 @@ export default function AdminFinancePage() {
   const [rechargePaymentMethod, setRechargePaymentMethod] = useState('')
   const [rechargeSearch, setRechargeSearch] = useState('')
 
+  // 充值审核弹窗（独立于提现审核弹窗）
+  const [rechargeReviewModal, setRechargeReviewModal] = useState<{
+    type: 'approve' | 'reject'
+    item: RechargeItem
+  } | null>(null)
+  const [rechargeRejectReason, setRechargeRejectReason] = useState('')
+  const [rechargeReviewRemark, setRechargeReviewRemark] = useState('')
+  const [rechargeReviewLoading, setRechargeReviewLoading] = useState(false)
+
   // 审核弹窗
   const [reviewModal, setReviewModal] = useState<{
     type: 'approve' | 'reject'
@@ -617,6 +626,53 @@ const [stats, setStats] = useState<{
   const handleRechargePageChange = (newPage: number) => {
     if (token && newPage >= 1 && newPage <= rechargePagination.totalPages) {
       fetchRecharges(token, newPage)
+    }
+  }
+
+  // ---- 充值审核操作 ----
+
+  const handleRechargeReview = async () => {
+    if (!token || !rechargeReviewModal) return
+    if (rechargeReviewModal.type === 'reject' && !rechargeRejectReason.trim()) {
+      showMessage('error', '请填写拒绝原因')
+      return
+    }
+    setRechargeReviewLoading(true)
+    try {
+      const body: Record<string, unknown> = {
+        action: rechargeReviewModal.type,
+      }
+      if (rechargeReviewModal.type === 'reject') {
+        body.rejectReason = rechargeRejectReason.trim()
+      }
+      if (rechargeReviewRemark.trim()) body.remark = rechargeReviewRemark.trim()
+
+      const res = await fetch(`/api/admin/recharge/${rechargeReviewModal.item.id}/review`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      })
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = '/login'
+        return
+      }
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', rechargeReviewModal.type === 'approve' ? '充值审核已通过' : '充值审核已拒绝')
+        setRechargeReviewModal(null)
+        setRechargeRejectReason('')
+        setRechargeReviewRemark('')
+        fetchRecharges(token, rechargePagination.page)
+      } else {
+        showMessage('error', data.message || '充值审核失败')
+      }
+    } catch {
+      showMessage('error', '网络错误，请重试')
+    } finally {
+      setRechargeReviewLoading(false)
     }
   }
 
@@ -1292,8 +1348,29 @@ const [stats, setStats] = useState<{
                             <td className="px-4 py-3 text-sm text-gray-500">
                               {r.reviewer ? (r.reviewer.nickname || r.reviewer.phone) : '-'}
                             </td>
-                            <td className="px-4 py-3 text-right text-sm text-gray-400">
-                              待后续接入
+                            <td className="px-4 py-3 text-right">
+                              {r.status === 'pending' ? (
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => setRechargeReviewModal({ type: 'approve', item: r })}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600
+                                      hover:bg-green-50 rounded-lg transition-colors font-medium"
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    通过
+                                  </button>
+                                  <button
+                                    onClick={() => setRechargeReviewModal({ type: 'reject', item: r })}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600
+                                      hover:bg-red-50 rounded-lg transition-colors font-medium"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    拒绝
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-400">已处理</span>
+                              )}
                             </td>
                           </tr>
                         )
@@ -1360,6 +1437,118 @@ const [stats, setStats] = useState<{
             </div>
           </>
         )}
+
+      {/* ===== 充值审核弹窗 ===== */}
+      {rechargeReviewModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setRechargeReviewModal(null); setRechargeRejectReason(''); setRechargeReviewRemark('') }} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {rechargeReviewModal.type === 'approve' ? '确认通过充值' : '拒绝充值申请'}
+            </h3>
+            <div className="mb-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">用户</span>
+                <span className="text-gray-900">{rechargeReviewModal.item.user.phone}</span>
+              </div>
+              {rechargeReviewModal.item.user.nickname && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">昵称</span>
+                  <span className="text-gray-900">{rechargeReviewModal.item.user.nickname}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">充值金额</span>
+                <span className="text-green-600 font-medium">¥{rechargeReviewModal.item.amount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">支付方式</span>
+                <span className="text-gray-900">
+                  {RECHARGE_PAYMENT_METHOD_MAP[rechargeReviewModal.item.paymentMethod] || rechargeReviewModal.item.paymentMethod}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">付款凭证</span>
+                {rechargeReviewModal.item.paymentProofUrl ? (
+                  <a href={rechargeReviewModal.item.paymentProofUrl} target="_blank" rel="noopener noreferrer"
+                     className="text-blue-600 hover:text-blue-700 underline">
+                    查看凭证
+                  </a>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">申请时间</span>
+                <span className="text-gray-900">{formatTime(rechargeReviewModal.item.createdAt)}</span>
+              </div>
+            </div>
+
+            {rechargeReviewModal.type === 'approve' ? (
+              <p className="text-sm text-gray-500 mb-5">
+                审核通过后，充值金额将计入用户余额。
+              </p>
+            ) : (
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  拒绝原因 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={rechargeRejectReason}
+                  onChange={e => setRechargeRejectReason(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                    transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400
+                    resize-none"
+                  rows={3}
+                  placeholder="请输入拒绝原因..."
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">备注（选填）</label>
+              <input
+                type="text"
+                value={rechargeReviewRemark}
+                onChange={e => setRechargeReviewRemark(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
+                  focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                  transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400"
+                placeholder="审核备注..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setRechargeReviewModal(null); setRechargeRejectReason(''); setRechargeReviewRemark('') }}
+                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg
+                  hover:bg-gray-50 transition-colors font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleRechargeReview}
+                disabled={rechargeReviewLoading}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
+                  text-white font-medium transition-all ${
+                    rechargeReviewModal.type === 'approve'
+                      ? rechargeReviewLoading
+                        ? 'bg-green-400 cursor-not-allowed'
+                        : 'bg-green-600 hover:bg-green-700 shadow-sm'
+                      : rechargeReviewLoading
+                        ? 'bg-red-400 cursor-not-allowed'
+                        : 'bg-red-600 hover:bg-red-700 shadow-sm'
+                  }`}
+              >
+                {rechargeReviewLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {rechargeReviewModal.type === 'approve' ? '确认通过' : '确认拒绝'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 审核确认弹窗 */}
       {reviewModal && (
