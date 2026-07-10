@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import ImageUpload from '@/components/ImageUpload'
+import ProofViewerModal from '@/components/ProofViewerModal'
 import { formatMoney } from '@/lib/utils/format'
 
 interface RechargeSettings {
@@ -76,6 +77,7 @@ export default function RechargePage() {
   const [recordTotalPages, setRecordTotalPages] = useState(1)
   const recordPageSize = 10
   const [submitted, setSubmitted] = useState(false)
+  const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -501,14 +503,13 @@ export default function RechargePage() {
                       <div className="flex items-center gap-4 text-xs text-gray-500 mb-1">
                         <span>支付方式：{methodLabel}</span>
                         {record.paymentProofUrl ? (
-                          <a
-                            href={record.paymentProofUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => setProofViewerUrl(record.paymentProofUrl)}
                             className="text-primary hover:underline"
                           >
                             查看凭证
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-gray-300">凭证：-</span>
                         )}
@@ -561,6 +562,11 @@ export default function RechargePage() {
           </p>
         </div>
       </main>
+
+      <ProofViewerModal
+        url={proofViewerUrl}
+        onClose={() => setProofViewerUrl(null)}
+      />
     </div>
   )
 }
