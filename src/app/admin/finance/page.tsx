@@ -102,6 +102,19 @@ interface RechargeItem {
   updatedAt: string
 }
 
+interface RechargeAuditLog {
+  id: string
+  requestId: string
+  action: string
+  oldStatus: string | null
+  newStatus: string | null
+  operatorId: string | null
+  operator: { id: string; phone: string; nickname: string | null } | null
+  reason: string | null
+  remark: string | null
+  createdAt: string
+}
+
 interface Pagination {
   page: number
   pageSize: number
@@ -173,6 +186,18 @@ const RECHARGE_PAYMENT_METHOD_OPTIONS = [
   { value: 'other', label: '其他' },
 ]
 
+const RECHARGE_AUDIT_ACTION_MAP: Record<string, string> = {
+  submit:  '提交申请',
+  approve: '审核通过',
+  reject:  '审核拒绝',
+}
+
+const RECHARGE_AUDIT_STATUS_MAP: Record<string, string> = {
+  pending:  '待审核',
+  approved: '已通过',
+  rejected: '已拒绝',
+}
+
 // ---- 主组件 ----
 
 export default function AdminFinancePage() {
@@ -217,6 +242,11 @@ export default function AdminFinancePage() {
   const [rechargeRejectReason, setRechargeRejectReason] = useState('')
   const [rechargeReviewRemark, setRechargeReviewRemark] = useState('')
   const [rechargeReviewLoading, setRechargeReviewLoading] = useState(false)
+
+  // 充值审核日志弹窗（独立于提现审核日志）
+  const [rechargeAuditModalId, setRechargeAuditModalId] = useState<string | null>(null)
+  const [rechargeAuditLogs, setRechargeAuditLogs] = useState<RechargeAuditLog[]>([])
+  const [rechargeAuditLoading, setRechargeAuditLoading] = useState(false)
 
   // 审核弹窗
   const [reviewModal, setReviewModal] = useState<{
@@ -627,6 +657,39 @@ const [stats, setStats] = useState<{
     if (token && newPage >= 1 && newPage <= rechargePagination.totalPages) {
       fetchRecharges(token, newPage)
     }
+  }
+
+  // ---- 充值审核日志 ----
+
+  const handleViewRechargeAuditLogs = async (rechargeId: string) => {
+    if (!token) return
+    setRechargeAuditModalId(rechargeId)
+    setRechargeAuditLoading(true)
+    try {
+      const res = await fetch(`/api/admin/recharge/${rechargeId}/audit-logs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = '/login'
+        return
+      }
+      const data = await res.json()
+      if (data.success) {
+        setRechargeAuditLogs(data.data || [])
+      } else {
+        showMessage('error', '获取充值审核日志失败')
+      }
+    } catch {
+      showMessage('error', '获取充值审核日志失败')
+    } finally {
+      setRechargeAuditLoading(false)
+    }
+  }
+
+  const closeRechargeAuditModal = () => {
+    setRechargeAuditModalId(null)
+    setRechargeAuditLogs([])
+    setRechargeAuditLoading(false)
   }
 
   // ---- 充值审核操作 ----
@@ -1349,28 +1412,39 @@ const [stats, setStats] = useState<{
                               {r.reviewer ? (r.reviewer.nickname || r.reviewer.phone) : '-'}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              {r.status === 'pending' ? (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => setRechargeReviewModal({ type: 'approve', item: r })}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600
-                                      hover:bg-green-50 rounded-lg transition-colors font-medium"
-                                  >
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    通过
-                                  </button>
-                                  <button
-                                    onClick={() => setRechargeReviewModal({ type: 'reject', item: r })}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600
-                                      hover:bg-red-50 rounded-lg transition-colors font-medium"
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                    拒绝
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-sm text-gray-400">已处理</span>
-                              )}
+                              <div className="flex items-center justify-end gap-2">
+                                {r.status === 'pending' ? (
+                                  <>
+                                    <button
+                                      onClick={() => setRechargeReviewModal({ type: 'approve', item: r })}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600
+                                        hover:bg-green-50 rounded-lg transition-colors font-medium"
+                                    >
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      通过
+                                    </button>
+                                    <button
+                                      onClick={() => setRechargeReviewModal({ type: 'reject', item: r })}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600
+                                        hover:bg-red-50 rounded-lg transition-colors font-medium"
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      拒绝
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-sm text-gray-400">已处理</span>
+                                )}
+                                <button
+                                  onClick={() => handleViewRechargeAuditLogs(r.id)}
+                                  className="inline-flex items-center gap-1 px-2 py-1.5 text-sm text-gray-500
+                                    hover:bg-gray-100 rounded-lg transition-colors"
+                                  title="充值审核日志"
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                  日志
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )
@@ -1546,6 +1620,75 @@ const [stats, setStats] = useState<{
                 {rechargeReviewModal.type === 'approve' ? '确认通过' : '确认拒绝'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 充值审核日志弹窗 ===== */}
+      {rechargeAuditModalId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeRechargeAuditModal} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">充值审核日志</h3>
+              <button onClick={closeRechargeAuditModal} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {rechargeAuditLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-500">加载中...</span>
+              </div>
+            ) : rechargeAuditLogs.length === 0 ? (
+              <p className="text-gray-400 text-center py-10">暂无日志</p>
+            ) : (
+              <div className="space-y-3">
+                {rechargeAuditLogs.map((log) => {
+                  const actionLabel = RECHARGE_AUDIT_ACTION_MAP[log.action] || log.action
+                  const oldStatusLabel = log.oldStatus ? (RECHARGE_AUDIT_STATUS_MAP[log.oldStatus] || log.oldStatus) : '-'
+                  const newStatusLabel = log.newStatus ? (RECHARGE_AUDIT_STATUS_MAP[log.newStatus] || log.newStatus) : '-'
+                  return (
+                    <div key={log.id} className="bg-gray-50 rounded-lg p-3 text-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          log.action === 'approve' ? 'bg-green-100 text-green-700'
+                            : log.action === 'reject' ? 'bg-red-100 text-red-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {actionLabel}
+                        </span>
+                        <span className="text-gray-400 text-xs">{formatTime(log.createdAt)}</span>
+                      </div>
+                      <div className="space-y-1 text-gray-600">
+                        {log.operator && (
+                          <div>
+                            <span className="text-gray-400">操作人：</span>
+                            <span className="text-gray-700">{log.operator.phone}{log.operator.nickname ? ` (${log.operator.nickname})` : ''}</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-gray-400">状态变更：</span>
+                          <span className="text-gray-700">{oldStatusLabel} → {newStatusLabel}</span>
+                        </div>
+                        {log.reason && (
+                          <div>
+                            <span className="text-gray-400">原因：</span>
+                            <span className="text-red-500">{log.reason}</span>
+                          </div>
+                        )}
+                        {log.remark && (
+                          <div>
+                            <span className="text-gray-400">备注：</span>
+                            <span className="text-blue-500">{log.remark}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
