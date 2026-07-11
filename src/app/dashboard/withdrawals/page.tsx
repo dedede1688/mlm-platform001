@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Wallet, Eye, EyeOff, Loader2,
-  CreditCard, User, Building2, AlertCircle
+  CreditCard, User, Building2, AlertCircle, ArrowRightLeft
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
+import { EarningsTransferModal } from '@/components/EarningsTransferModal'
 
 interface UserInfo {
   id: string
@@ -59,6 +60,7 @@ export default function WithdrawalsPage() {
 
   const [records, setRecords] = useState<WithdrawalRecord[]>([])
   const [_recordsLoading, setRecordsLoading] = useState(false)
+  const [showTransferModal, setShowTransferModal] = useState(false)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -237,8 +239,18 @@ export default function WithdrawalsPage() {
             <span className="text-sm text-gray-500">可提现收益</span>
             <span className="text-2xl font-bold text-primary">¥{user?.earningsAvailable?.toFixed(2) || '0.00'}</span>
           </div>
-          <div className="text-xs text-gray-400">
-            冻结收益：¥{user?.earningsFrozen?.toFixed(2) || '0.00'}
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-400">
+              冻结收益：¥{user?.earningsFrozen?.toFixed(2) || '0.00'}
+            </div>
+            <button
+              onClick={() => setShowTransferModal(true)}
+              disabled={!user || user.earningsAvailable <= 0}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-medium hover:bg-orange-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              {!user || user.earningsAvailable <= 0 ? '暂无可转入收益' : '收益转入余额'}
+            </button>
           </div>
         </div>
 
@@ -419,6 +431,19 @@ export default function WithdrawalsPage() {
           返回 Dashboard
         </Link>
       </main>
+
+      <EarningsTransferModal
+        open={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        earningsAvailable={user?.earningsAvailable ?? 0}
+        balance={user?.balance ?? 0}
+        onSuccess={() => {
+          if (token) {
+            fetchUser(token)
+            fetchRecords(token)
+          }
+        }}
+      />
     </div>
   )
 }

@@ -6,9 +6,10 @@ import Link from 'next/link'
 import {
   ArrowLeft, Wallet, Loader2,
   ShoppingCart, Undo2, Gift, Lock, Unlock, Settings2, Banknote,
-  PlusCircle, Info
+  PlusCircle, Info, ArrowRightLeft
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
+import { EarningsTransferModal } from '@/components/EarningsTransferModal'
 
 interface BalanceRecord {
   id: string
@@ -65,6 +66,7 @@ export default function BalancePage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const pageSize = 20
+  const [showTransferModal, setShowTransferModal] = useState(false)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -178,20 +180,30 @@ export default function BalancePage() {
               </div>
             </div>
           </div>
-          {/* 充值入口 */}
+          {/* 收益转余额 + 充值入口 */}
           <div className="border-t border-gray-100 mt-4 pt-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <Info className="w-3.5 h-3.5" />
                 <span>充值余额用于购物消费，不可提现</span>
               </div>
-              <Link
-                href="/dashboard/recharge"
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary-600 transition-colors"
-              >
-                <PlusCircle className="w-4 h-4" />
-                充值
-              </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowTransferModal(true)}
+                  disabled={userEarningsAvailable <= 0}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-medium hover:bg-orange-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ArrowRightLeft className="w-4 h-4" />
+                  {userEarningsAvailable <= 0 ? '暂无可转入收益' : '收益转入余额'}
+                </button>
+                <Link
+                  href="/dashboard/recharge"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary-600 transition-colors"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  充值
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -295,6 +307,20 @@ export default function BalancePage() {
           </div>
         )}
       </main>
+
+      <EarningsTransferModal
+        open={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        earningsAvailable={userEarningsAvailable}
+        balance={userBalance ?? 0}
+        onSuccess={() => {
+          const storedToken = localStorage.getItem('token')
+          if (storedToken) {
+            fetchUser(storedToken)
+            fetchRecords(storedToken)
+          }
+        }}
+      />
     </div>
   )
 }
