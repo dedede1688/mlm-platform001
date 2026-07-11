@@ -206,6 +206,14 @@ async function main() {
       enabled: true,
     },
     {
+      id: 'seed-tpl-recharge_submitted-in_app',
+      type: 'recharge_submitted',
+      channel: 'in_app',
+      subject: '充值申请已提交',
+      content: '【敏维科技】{{userName}} 您好，您的充值申请 ¥{{amount}} 已提交成功，平台会尽快审核。请留意审核结果通知。',
+      enabled: true,
+    },
+    {
       id: 'seed-tpl-recharge_rejected-in_app',
       type: 'recharge_rejected',
       channel: 'in_app',

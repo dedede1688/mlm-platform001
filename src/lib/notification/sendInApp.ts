@@ -7,9 +7,13 @@ interface SendInAppParams {
   variables: Record<string, string>
   batchId?: string
   senderId?: string
+  /** 通知来源类型（如 'recharge_request'），不传则默认从 templateType 拆分 */
+  sourceType?: string
+  /** 通知来源 ID（如充值申请 ID），不传则保持 null */
+  sourceId?: string
 }
 
-export async function sendInApp({ userId, templateType, variables, batchId, senderId }: SendInAppParams): Promise<boolean> {
+export async function sendInApp({ userId, templateType, variables, batchId, senderId, sourceType, sourceId }: SendInAppParams): Promise<boolean> {
   try {
     const template = await prisma.notificationTemplate.findUnique({
       where: { type_channel: { type: templateType, channel: 'in_app' } },
@@ -34,8 +38,8 @@ export async function sendInApp({ userId, templateType, variables, batchId, send
         type: templateType,
         title: subject,
         content,
-        sourceType: templateType.split('_')[0],
-        sourceId: null,
+        sourceType: sourceType ?? templateType.split('_')[0],
+        sourceId: sourceId ?? null,
         batchId: batchId ?? null,
         senderId: senderId ?? null,
       },

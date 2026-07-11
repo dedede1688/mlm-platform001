@@ -919,6 +919,7 @@ describe('OrderNotificationService', () => {
 
       await OrderNotificationService.notifyRechargeApproved({
         userId: 'user-ra',
+        rechargeId: 'recharge-1',
         amount: 500,
         newBalance: 1500,
         operatorId: 'admin-ra',
@@ -940,6 +941,8 @@ describe('OrderNotificationService', () => {
         templateType: 'recharge_approved',
         batchId: 'batch-1',
         senderId: 'admin-ra',
+        sourceType: 'recharge_request',
+        sourceId: 'recharge-1',
         variables: {
           userName: 'RechargeUser',
           amount: '500.00',
@@ -953,6 +956,7 @@ describe('OrderNotificationService', () => {
 
       await OrderNotificationService.notifyRechargeApproved({
         userId: 'nonexistent',
+        rechargeId: 'recharge-x',
         amount: 100,
         newBalance: 100,
       })
@@ -974,6 +978,7 @@ describe('OrderNotificationService', () => {
 
       await OrderNotificationService.notifyRechargeRejected({
         userId: 'user-rr',
+        rechargeId: 'recharge-2',
         amount: 300,
         rejectReason: '凭证不足',
         operatorId: 'admin-rr',
@@ -991,6 +996,8 @@ describe('OrderNotificationService', () => {
         templateType: 'recharge_rejected',
         batchId: 'batch-1',
         senderId: 'admin-rr',
+        sourceType: 'recharge_request',
+        sourceId: 'recharge-2',
         variables: {
           userName: 'RejectedUser',
           amount: '300.00',
@@ -1004,12 +1011,95 @@ describe('OrderNotificationService', () => {
 
       await OrderNotificationService.notifyRechargeRejected({
         userId: 'nonexistent',
+        rechargeId: 'recharge-x',
         amount: 100,
         rejectReason: '测试',
       })
 
       expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
       expect(sendInAppMock).not.toHaveBeenCalled()
+    })
+  })
+
+  // ============================================================
+  // notifyRechargeSubmitted - 充值申请提交通知
+  // ============================================================
+  describe('notifyRechargeSubmitted', () => {
+    it('happy path: creates batch and sends with userName / amount / sourceType / sourceId', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'Submitter',
+        phone: '13900000020',
+      })
+
+      await OrderNotificationService.notifyRechargeSubmitted({
+        userId: 'user-rs',
+        rechargeId: 'recharge-sub-1',
+        amount: 800,
+      })
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-rs' },
+        select: { nickname: true, phone: true },
+      })
+      expect(notifications.batches[0]).toMatchObject({
+        type: 'business',
+        title: '充值申请已提交',
+        templateType: 'recharge_submitted',
+        recipientCount: 1,
+      })
+      expect(notifications.sendCalls[0]).toMatchObject({
+        userId: 'user-rs',
+        templateType: 'recharge_submitted',
+        batchId: 'batch-1',
+        sourceType: 'recharge_request',
+        sourceId: 'recharge-sub-1',
+        variables: {
+          userName: 'Submitter',
+          amount: '800.00',
+        },
+      })
+    })
+
+    it('falls back to phone when nickname is null', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: null,
+        phone: '13900000021',
+      })
+
+      await OrderNotificationService.notifyRechargeSubmitted({
+        userId: 'user-rs2',
+        rechargeId: 'recharge-sub-2',
+        amount: 100,
+      })
+
+      expect(notifications.sendCalls[0].variables.userName).toBe('13900000021')
+    })
+
+    it('falls back to "用户" when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null)
+
+      await OrderNotificationService.notifyRechargeSubmitted({
+        userId: 'user-rs3',
+        rechargeId: 'recharge-sub-3',
+        amount: 50,
+      })
+
+      expect(notifications.sendCalls[0].variables.userName).toBe('用户')
+    })
+
+    it('catches error and does not throw', async () => {
+      mockPrisma.user.findUnique.mockRejectedValueOnce(new Error('DB error'))
+
+      await expect(
+        OrderNotificationService.notifyRechargeSubmitted({
+          userId: 'user-rs4',
+          rechargeId: 'recharge-sub-4',
+          amount: 200,
+        })
+      ).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('充值申请提交通知失败', expect.any(Object))
     })
   })
 })

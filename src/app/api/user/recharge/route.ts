@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { RechargeService } from '@/lib/services/recharge.service'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 export async function GET(request: NextRequest) {
   try {
@@ -70,6 +71,13 @@ export async function POST(request: NextRequest) {
       createdAt: recharge.createdAt,
       remark: recharge.remark,
     }
+
+    // 通知用户：充值申请已提交（await 确保完成，catch 确保失败不影响主流程）
+    await OrderNotificationService.notifyRechargeSubmitted({
+      userId: auth.userId,
+      rechargeId: recharge.id,
+      amount: recharge.amount,
+    }).catch(() => {})
 
     return NextResponse.json({ success: true, data: safeRecharge })
   } catch (error: any) {

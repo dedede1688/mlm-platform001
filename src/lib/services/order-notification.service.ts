@@ -611,6 +611,7 @@ export class OrderNotificationService {
   // v3.2-1-hotfix: 充值审核通过通知（admin 审核通过充值申请后触发）
   static async notifyRechargeApproved(params: {
     userId: string
+    rechargeId: string
     amount: number
     newBalance: number
     operatorId?: string
@@ -643,6 +644,8 @@ export class OrderNotificationService {
           variables,
           batchId: b.id,
           senderId: params.operatorId,
+          sourceType: 'recharge_request',
+          sourceId: params.rechargeId,
         })
       } catch (err) {
         console.error('[v3.2-1-hotfix notifyRechargeApproved]', {
@@ -658,6 +661,7 @@ export class OrderNotificationService {
   // v3.2-1-hotfix: 充值审核拒绝通知（admin 拒绝充值申请后触发）
   static async notifyRechargeRejected(params: {
     userId: string
+    rechargeId: string
     amount: number
     rejectReason: string
     operatorId?: string
@@ -690,6 +694,8 @@ export class OrderNotificationService {
           variables,
           batchId: b.id,
           senderId: params.operatorId,
+          sourceType: 'recharge_request',
+          sourceId: params.rechargeId,
         })
       } catch (err) {
         console.error('[v3.2-1-hotfix notifyRechargeRejected]', {
@@ -700,5 +706,51 @@ export class OrderNotificationService {
         logger.error('充值审核拒绝通知失败', { error: String(err) })
       }
     })()
+  }
+
+  // 充值申请提交通知（用户提交充值申请后触发）
+  static async notifyRechargeSubmitted(params: {
+    userId: string
+    rechargeId: string
+    amount: number
+    operatorId?: string
+  }) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: params.userId },
+        select: { nickname: true, phone: true },
+      })
+      const userName = user?.nickname || user?.phone || '用户'
+
+      const batch = await prisma.notificationBatch.create({
+        data: {
+          type: 'business',
+          title: '充值申请已提交',
+          content: `您的充值申请 ¥${params.amount.toFixed(2)} 已提交成功，等待平台审核`,
+          templateType: 'recharge_submitted',
+          recipientCount: 1,
+          senderId: params.operatorId ?? null,
+        },
+      })
+
+      await sendInApp({
+        userId: params.userId,
+        templateType: 'recharge_submitted',
+        variables: {
+          userName,
+          amount: params.amount.toFixed(2),
+        },
+        batchId: batch.id,
+        sourceType: 'recharge_request',
+        sourceId: params.rechargeId,
+      })
+    } catch (err) {
+      console.error('[notifyRechargeSubmitted]', {
+        error: String(err),
+        code: (err as any)?.code,
+        meta: (err as any)?.meta,
+      })
+      logger.error('充值申请提交通知失败', { error: String(err) })
+    }
   }
 }

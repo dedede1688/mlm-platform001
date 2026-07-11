@@ -234,4 +234,56 @@ describe('sendInApp', () => {
       }),
     })
   })
+
+  // ===== 分支 9: sourceType / sourceId 传入时写入对应字段
+  it('writes sourceType and sourceId when provided', async () => {
+    prisma.notificationTemplate.findUnique.mockResolvedValueOnce({
+      type: 'recharge_approved',
+      channel: 'in_app',
+      subject: '充值通过',
+      content: '¥{{amount}}',
+      enabled: true,
+    } as any)
+    prisma.notification.create.mockResolvedValueOnce({ id: 'notif-src-1' } as any)
+
+    await sendInApp({
+      userId: 'user-src',
+      templateType: 'recharge_approved',
+      variables: { amount: '500' },
+      sourceType: 'recharge_request',
+      sourceId: 'recharge-123',
+    })
+
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        sourceType: 'recharge_request',
+        sourceId: 'recharge-123',
+      }),
+    })
+  })
+
+  // ===== 分支 10: 不传 sourceType/sourceId 时保持原有默认行为
+  it('uses default sourceType and null sourceId when not provided', async () => {
+    prisma.notificationTemplate.findUnique.mockResolvedValueOnce({
+      type: 'order_paid',
+      channel: 'in_app',
+      subject: 's',
+      content: 'c',
+      enabled: true,
+    } as any)
+    prisma.notification.create.mockResolvedValueOnce({ id: 'notif-src-2' } as any)
+
+    await sendInApp({
+      userId: 'user-src-2',
+      templateType: 'order_paid',
+      variables: {},
+    })
+
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        sourceType: 'order', // templateType.split('_')[0]
+        sourceId: null,
+      }),
+    })
+  })
 })

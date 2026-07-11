@@ -76,6 +76,7 @@ export async function PATCH(
           } else {
             await OrderNotificationService.notifyRechargeApproved({
               userId: updated.userId,
+              rechargeId: id,
               amount: updated.amount,
               newBalance: userAfterApprove.balance,
               operatorId: admin.id,
@@ -130,6 +131,7 @@ export async function PATCH(
       if (updated) {
         await OrderNotificationService.notifyRechargeRejected({
           userId: updated.userId,
+          rechargeId: id,
           amount: updated.amount,
           rejectReason: updated.rejectReason || rejectReason || '',
           operatorId: admin.id,
