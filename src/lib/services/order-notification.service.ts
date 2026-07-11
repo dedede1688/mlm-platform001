@@ -753,4 +753,52 @@ export class OrderNotificationService {
       logger.error('充值申请提交通知失败', { error: String(err) })
     }
   }
+
+  // 收益转余额通知（用户把可用收益转入购物余额后触发）
+  static async notifyEarningsTransferred(params: {
+    userId: string
+    amount: number
+    balance: number
+    earningsAvailable: number
+  }) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: params.userId },
+        select: { nickname: true, phone: true },
+      })
+      const userName = user?.nickname || user?.phone || '用户'
+
+      const batch = await prisma.notificationBatch.create({
+        data: {
+          type: 'business',
+          title: '收益转入购物余额通知',
+          content: `您的收益 ¥${params.amount.toFixed(2)} 已成功转入购物余额，当前购物余额 ¥${params.balance.toFixed(2)}`,
+          templateType: 'earnings_transferred',
+          recipientCount: 1,
+          senderId: null,
+        },
+      })
+
+      await sendInApp({
+        userId: params.userId,
+        templateType: 'earnings_transferred',
+        variables: {
+          userName,
+          amount: params.amount.toFixed(2),
+          balance: params.balance.toFixed(2),
+          earningsAvailable: params.earningsAvailable.toFixed(2),
+        },
+        batchId: batch.id,
+        sourceType: 'earnings_transfer',
+        sourceId: params.userId,
+      })
+    } catch (err) {
+      console.error('[notifyEarningsTransferred]', {
+        error: String(err),
+        code: (err as any)?.code,
+        meta: (err as any)?.meta,
+      })
+      logger.error('收益转余额通知失败', { error: String(err) })
+    }
+  }
 }

@@ -70,6 +70,21 @@ export const REWARD_TYPE = {
   DIVIDEND: 'dividend',
 } as const
 
+export const BALANCE_RECORD_TYPE = {
+  PAYMENT: 'payment',
+  REFUND: 'refund',
+  REWARD: 'reward',
+  WITHDRAW_FREEZE: 'withdraw_freeze',
+  WITHDRAW: 'withdraw',
+  UNFREEZE: 'unfreeze',
+  ADMIN_ADJUST: 'admin_adjust',
+  MANUAL_REWARD: 'manual_reward',
+  REFUND_REWARD: 'refund_reward',
+  REFUND_DIVIDEND: 'refund_dividend',
+  RECHARGE: 'recharge',
+  EARNINGS_TO_BALANCE: 'earnings_to_balance',
+} as const
+
 // v54 阶段5: 余额/收益字段统一 select 常量（防并发/流水场景复用）
 // 资金底座重构: 新增 earningsFrozen（收益冻结）
 export const BALANCE_SELECT = {

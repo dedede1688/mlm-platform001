@@ -222,6 +222,14 @@ async function main() {
       enabled: true,
     },
     {
+      id: 'seed-tpl-earnings_transferred-in_app',
+      type: 'earnings_transferred',
+      channel: 'in_app',
+      subject: '收益转入购物余额通知',
+      content: '【敏维科技】{{userName}} 您好，您的收益 ¥{{amount}} 已成功转入购物余额，当前购物余额 ¥{{balance}}，剩余可用收益 ¥{{earningsAvailable}}。',
+      enabled: true,
+    },
+    {
       id: 'seed-tpl-general-in_app',
       type: 'general',
       channel: 'in_app',

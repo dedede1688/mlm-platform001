@@ -7,8 +7,8 @@ function toJsonValue(value: unknown): InputJsonValue | undefined {
   return JSON.parse(JSON.stringify(value)) as InputJsonValue
 }
 
-export type LogAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT' | 'BATCH_APPROVE' | 'BATCH_REJECT' | 'COMPLETE_REFUND' | 'COMPLETE_WITHDRAWAL'
-export type LogModule = 'product' | 'order' | 'user' | 'finance' | 'setting' | 'refund'
+export type LogAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT' | 'BATCH_APPROVE' | 'BATCH_REJECT' | 'COMPLETE_REFUND' | 'COMPLETE_WITHDRAWAL' | 'TRANSFER'
+export type LogModule = 'product' | 'order' | 'user' | 'finance' | 'setting' | 'refund' | 'earnings'
 
 interface LogOperationParams {
   userId: string
