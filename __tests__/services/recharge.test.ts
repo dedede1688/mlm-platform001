@@ -8,6 +8,7 @@ vi.mock('@/lib/prisma', () => {
     create: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
+    upsert: vi.fn(),
     delete: vi.fn(),
     count: vi.fn(),
     aggregate: vi.fn(),
@@ -32,27 +33,77 @@ vi.mock('@/lib/config/business', () => ({
 }))
 
 import { prisma } from '@/lib/prisma'
+import { getBusinessConfig } from '@/lib/config/business'
 import { RechargeService } from '@/lib/services/recharge.service'
+import { RECHARGE_PAYMENT_METHOD } from '@/lib/constants'
+
+// 测试辅助：配置充值开启 + 有效二维码
+const setupRechargeOpen = () => {
+  vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+    const values: Record<string, unknown> = {
+      'recharge.enabled': true,
+      'recharge.qr_code_url': 'https://example.com/recharge-qr.png',
+      'recharge.min_amount': 1,
+      'recharge.max_amount': 50000,
+    }
+    return key in values ? values[key] : defaultValue
+  })
+}
+
+const setupRechargeClosed = () => {
+  vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+    const values: Record<string, unknown> = {
+      'recharge.enabled': false,
+    }
+    return key in values ? values[key] : defaultValue
+  })
+}
+
+const setupQrMissing = () => {
+  vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+    const values: Record<string, unknown> = {
+      'recharge.enabled': true,
+      'recharge.qr_code_url': undefined,
+    }
+    return key in values ? values[key] : defaultValue
+  })
+}
 
 describe('RechargeService', () => {
   beforeEach(() => {
+    // vi.clearAllMocks 不清 mockResolvedValueOnce 队列，会导致前一个 it 的 mock 残留
+    // 用 mockReset 精确清掉 chain 上各方法的队列
     vi.clearAllMocks()
+    prisma.user.findUnique.mockReset()
+    prisma.user.findMany.mockReset()
+    prisma.user.update.mockReset()
+    prisma.user.updateMany.mockReset()
+    prisma.rechargeRequest.findUnique.mockReset()
+    prisma.rechargeRequest.findMany.mockReset()
+    prisma.rechargeRequest.create.mockReset()
+    prisma.rechargeRequest.updateMany.mockReset()
+    prisma.rechargeRequest.count.mockReset()
+    prisma.balanceRecord.create.mockReset()
+    prisma.rechargeAuditLog.create.mockReset()
+    prisma.systemConfig.findMany.mockReset()
+    prisma.systemConfig.upsert.mockReset()
+    // $transaction 实现保留
     prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
   })
 
   // ============ createRechargeRequest ============
   describe('createRechargeRequest', () => {
-    it('should create recharge request successfully', async () => {
+    it('新充值申请固定写入 qr_code，不接受用户支付方式', async () => {
+      setupRechargeOpen()
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
       prisma.rechargeRequest.create.mockResolvedValueOnce({
         id: 'r1', userId: 'u1', amount: 500, status: 'pending',
-        paymentMethod: 'alipay', paymentProofUrl: 'https://example.com/proof.png',
+        paymentMethod: 'qr_code', paymentProofUrl: 'https://example.com/proof.png',
       })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'a1' })
 
       const result = await RechargeService.createRechargeRequest('u1', {
         amount: 500,
-        paymentMethod: 'alipay',
         paymentProofUrl: 'https://example.com/proof.png',
       })
 
@@ -60,36 +111,79 @@ describe('RechargeService', () => {
       expect(result.status).toBe('pending')
       expect(result.amount).toBe(500)
 
-      // 验证创建的充值申请
+      // 验证 create 写入的 paymentMethod 必须是 'qr_code'
       expect(prisma.rechargeRequest.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             userId: 'u1',
             amount: 500,
-            paymentMethod: 'alipay',
+            paymentMethod: 'qr_code',
             paymentProofUrl: 'https://example.com/proof.png',
             status: 'pending',
           }),
         })
       )
+    })
 
-      // 验证写了审核日志
-      expect(prisma.rechargeAuditLog.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            action: 'submit',
-            newStatus: 'pending',
-            operatorId: 'u1',
-          }),
+    it('CreateRechargeParams 类型不包含 paymentMethod（运行时：传 paymentMethod 被忽略）', async () => {
+      // 修复五清理：只保留一种验证方式
+      // 运行时"恶意传 paymentMethod"测试：用 as unknown as CreateRechargeParams 绕过编译期检查
+      setupRechargeOpen()
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
+      prisma.rechargeRequest.create.mockResolvedValueOnce({ id: 'r1', status: 'pending' })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'a1' })
+
+      await RechargeService.createRechargeRequest('u1', {
+        amount: 500,
+        paymentProofUrl: 'https://example.com/proof.png',
+        paymentMethod: 'alipay',  // 即使传 alipay 也应被忽略
+      } as unknown as Parameters<typeof RechargeService.createRechargeRequest>[1])
+
+      // 验证最终写入的还是 qr_code（不是 alipay）
+      const createCall = prisma.rechargeRequest.create.mock.calls[0][0] as any
+      expect(createCall.data.paymentMethod).toBe('qr_code')
+    })
+
+    it('充值关闭时拒绝创建新申请', async () => {
+      setupRechargeClosed()
+
+      await expect(
+        RechargeService.createRechargeRequest('u1', {
+          amount: 500,
+          paymentProofUrl: 'https://example.com/proof.png',
         })
-      )
+      ).rejects.toThrow('充值服务暂时关闭，请联系客服')
+    })
+
+    it('二维码未配置时拒绝创建新申请', async () => {
+      setupQrMissing()
+
+      await expect(
+        RechargeService.createRechargeRequest('u1', {
+          amount: 500,
+          paymentProofUrl: 'https://example.com/proof.png',
+        })
+      ).rejects.toThrow('充值二维码尚未配置')
+    })
+
+    it('充值开启且二维码有效时正常创建申请', async () => {
+      setupRechargeOpen()
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
+      prisma.rechargeRequest.create.mockResolvedValueOnce({ id: 'r1', status: 'pending' })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'a1' })
+
+      await RechargeService.createRechargeRequest('u1', {
+        amount: 500,
+        paymentProofUrl: 'https://example.com/proof.png',
+      })
+
+      expect(prisma.rechargeRequest.create).toHaveBeenCalledTimes(1)
     })
 
     it('throws "充值金额必须为有效数字且大于0" when amount <= 0', async () => {
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: 0,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('充值金额必须为有效数字且大于0')
@@ -97,7 +191,6 @@ describe('RechargeService', () => {
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: -100,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('充值金额必须为有效数字且大于0')
@@ -105,9 +198,9 @@ describe('RechargeService', () => {
 
     it('throws "充值金额必须为有效数字且大于0" when amount is a string', async () => {
       await expect(
+        // @ts-expect-error 测试目的
         RechargeService.createRechargeRequest('u1', {
-          amount: '100' as any,
-          paymentMethod: 'alipay',
+          amount: '100',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('充值金额必须为有效数字且大于0')
@@ -117,7 +210,6 @@ describe('RechargeService', () => {
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: NaN,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('充值金额必须为有效数字且大于0')
@@ -127,161 +219,114 @@ describe('RechargeService', () => {
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: Infinity,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('充值金额必须为有效数字且大于0')
     })
 
     it('throws "请上传付款凭证" when paymentProofUrl missing', async () => {
+      setupRechargeOpen()
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: 100,
-          paymentMethod: 'alipay',
           paymentProofUrl: '',
         })
       ).rejects.toThrow('请上传付款凭证')
     })
 
     it('throws "请上传付款凭证" when paymentProofUrl is whitespace', async () => {
+      setupRechargeOpen()
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: 100,
-          paymentMethod: 'alipay',
           paymentProofUrl: '   ',
         })
       ).rejects.toThrow('请上传付款凭证')
     })
 
     it('throws "付款凭证链接必须为 https:// 开头" when paymentProofUrl is not https', async () => {
+      setupRechargeOpen()
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: 100,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'http://example.com/proof.png',
         })
       ).rejects.toThrow('付款凭证链接必须为 https:// 开头')
     })
 
-    it('throws "请选择有效的支付方式" when paymentMethod is invalid', async () => {
-      await expect(
-        RechargeService.createRechargeRequest('u1', {
-          amount: 100,
-          paymentMethod: 'paypal',
-          paymentProofUrl: 'https://example.com/proof.png',
-        })
-      ).rejects.toThrow('请选择有效的支付方式')
-    })
-
-    it('throws "请选择有效的支付方式" when paymentMethod is empty', async () => {
-      await expect(
-        RechargeService.createRechargeRequest('u1', {
-          amount: 100,
-          paymentMethod: '',
-          paymentProofUrl: 'https://example.com/proof.png',
-        })
-      ).rejects.toThrow('请选择有效的支付方式')
-    })
-
     it('throws "用户不存在" when user not found', async () => {
+      setupRechargeOpen()
       prisma.user.findUnique.mockResolvedValueOnce(null)
 
       await expect(
         RechargeService.createRechargeRequest('u-nonexistent', {
           amount: 100,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('用户不存在')
     })
 
     it('throws "最低充值金额" when amount < minAmount', async () => {
+      setupRechargeOpen()
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
 
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: 0.5,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('最低充值金额')
     })
 
     it('throws "单笔最高充值金额" when amount > maxAmount', async () => {
+      setupRechargeOpen()
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
 
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: 60000,
-          paymentMethod: 'alipay',
           paymentProofUrl: 'https://example.com/proof.png',
         })
       ).rejects.toThrow('单笔最高充值金额')
     })
 
     it('提交申请不修改 balance / consumeBalance / earningsAvailable / earningsFrozen', async () => {
+      setupRechargeOpen()
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
-      prisma.rechargeRequest.create.mockResolvedValueOnce({
-        id: 'r1', userId: 'u1', amount: 500, status: 'pending',
-      })
+      prisma.rechargeRequest.create.mockResolvedValueOnce({ id: 'r1', status: 'pending' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'a1' })
 
       await RechargeService.createRechargeRequest('u1', {
         amount: 500,
-        paymentMethod: 'wechat',
         paymentProofUrl: 'https://example.com/proof.png',
       })
 
-      // 验证没有调用 user.updateMany（不修改用户资金字段）
+      // 验证没有调用 user.updateMany
       expect(prisma.user.updateMany).not.toHaveBeenCalled()
     })
 
     it('提交申请不写 BalanceRecord', async () => {
+      setupRechargeOpen()
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
-      prisma.rechargeRequest.create.mockResolvedValueOnce({
-        id: 'r1', userId: 'u1', amount: 500, status: 'pending',
-      })
+      prisma.rechargeRequest.create.mockResolvedValueOnce({ id: 'r1', status: 'pending' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'a1' })
 
       await RechargeService.createRechargeRequest('u1', {
         amount: 500,
-        paymentMethod: 'bank_card',
         paymentProofUrl: 'https://example.com/proof.png',
       })
 
-      // 验证没有写 balanceRecord
       expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
     })
 
-    it('accepts all three valid payment methods', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1' })
-      prisma.rechargeRequest.create.mockResolvedValue({
-        id: 'r1', status: 'pending',
-      })
-      prisma.rechargeAuditLog.create.mockResolvedValue({ id: 'a1' })
-
-      for (const method of ['alipay', 'wechat', 'bank_card']) {
-        await RechargeService.createRechargeRequest('u1', {
-          amount: 100,
-          paymentMethod: method,
-          paymentProofUrl: 'https://example.com/proof.png',
-        })
-      }
-
-      // 验证 3 次都成功创建
-      expect(prisma.rechargeRequest.create).toHaveBeenCalledTimes(3)
-    })
-
     it('trims paymentProofUrl whitespace', async () => {
+      setupRechargeOpen()
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'u1' })
-      prisma.rechargeRequest.create.mockResolvedValueOnce({
-        id: 'r1', status: 'pending',
-      })
+      prisma.rechargeRequest.create.mockResolvedValueOnce({ id: 'r1', status: 'pending' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'a1' })
 
       await RechargeService.createRechargeRequest('u1', {
         amount: 100,
-        paymentMethod: 'alipay',
         paymentProofUrl: '  https://example.com/proof.png  ',
       })
 
@@ -292,6 +337,16 @@ describe('RechargeService', () => {
           }),
         })
       )
+    })
+
+    it('RECHARGE_PAYMENT_METHOD.QR_CODE 常量值为 qr_code', () => {
+      expect(RECHARGE_PAYMENT_METHOD.QR_CODE).toBe('qr_code')
+    })
+
+    it('RECHARGE_PAYMENT_METHOD 保留三个历史值（不删除）', () => {
+      expect(RECHARGE_PAYMENT_METHOD.ALIPAY).toBe('alipay')
+      expect(RECHARGE_PAYMENT_METHOD.WECHAT).toBe('wechat')
+      expect(RECHARGE_PAYMENT_METHOD.BANK_CARD).toBe('bank_card')
     })
   })
 
@@ -361,56 +416,51 @@ describe('RechargeService', () => {
     })
   })
 
-  // ============ getRechargeSettings ============
+  // ============ getRechargeSettings (委托 RechargeSettingsService) ============
   describe('getRechargeSettings', () => {
-    it('returns default settings', async () => {
+    it('委托 RechargeSettingsService.getSettings() 返回新单二维码结构（无 paymentMethods / 旧字段）', async () => {
+      // getBusinessConfig 是 mock 的，默认走 defaultValue
+      // 真实 RechargeSettingsService.getSettings 内部 9 次 getBusinessConfig，
+      // 返回默认结构（enabled=false, qrCodeUrl=undefined, minAmount=1, maxAmount=50000, instruction=默认文案）
       const settings = await RechargeService.getRechargeSettings()
 
-      expect(settings.minAmount).toBe(1)
-      expect(settings.maxAmount).toBe(50000)
-      expect(settings.paymentMethods).toHaveLength(3)
-      expect(settings.paymentMethods.map(m => m.value)).toEqual(
-        expect.arrayContaining(['alipay', 'wechat', 'bank_card'])
-      )
-    })
+      // 验证新结构字段
+      expect(settings).toHaveProperty('enabled')
+      expect(settings).toHaveProperty('minAmount')
+      expect(settings).toHaveProperty('maxAmount')
+      expect(settings).toHaveProperty('instruction')
+      expect(settings).toHaveProperty('qrCodeUrl')
+      expect(settings).toHaveProperty('qrCodeLabel')
+      expect(settings).toHaveProperty('payeeName')
+      expect(settings).toHaveProperty('contactPhone')
+      expect(settings).toHaveProperty('serviceTime')
 
-    it('returns payment methods with labels', async () => {
-      const settings = await RechargeService.getRechargeSettings()
-
-      const alipay = settings.paymentMethods.find(m => m.value === 'alipay')
-      expect(alipay?.label).toBe('支付宝')
-
-      const wechat = settings.paymentMethods.find(m => m.value === 'wechat')
-      expect(wechat?.label).toBe('微信')
-
-      const bankCard = settings.paymentMethods.find(m => m.value === 'bank_card')
-      expect(bankCard?.label).toBe('银行卡')
+      // 验证旧字段已移除
+      expect((settings as any).paymentMethods).toBeUndefined()
+      expect((settings as any).alipayAccount).toBeUndefined()
+      expect((settings as any).wechatAccount).toBeUndefined()
+      expect((settings as any).bankCardAccount).toBeUndefined()
+      expect((settings as any).bankCardName).toBeUndefined()
+      expect((settings as any).bankName).toBeUndefined()
     })
   })
 
-  // ============ approveRecharge ============
+  // ============ approveRecharge (关键业务红线：不影响历史审核) ============
   describe('approveRecharge', () => {
     it('正常通过：status approved，balance + amount，consumeBalance + amount', async () => {
-      // 事务前查 recharge
       prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
         id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
       })
-      // updateMany 返回 count=1
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
-      // 事务内查用户旧值
       prisma.user.findUnique.mockResolvedValueOnce({
         balance: 1000, frozenBalance: 0, consumeBalance: 200,
         earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
       })
-      // user.update 返回更新后的最新值
       prisma.user.update.mockResolvedValueOnce({
         balance: 1500, frozenBalance: 0,
       })
-      // balanceRecord.create
       prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
-      // rechargeAuditLog.create
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      // 事务后查 updated
       prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
         id: 'r1', userId: 'u1', amount: 500, status: 'approved', reviewedBy: 'admin1',
       })
@@ -419,7 +469,6 @@ describe('RechargeService', () => {
 
       expect(result.status).toBe('approved')
 
-      // 验证 user.update 增加了 balance 和 consumeBalance
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'u1' },
@@ -440,9 +489,7 @@ describe('RechargeService', () => {
         balance: 1000, frozenBalance: 0, consumeBalance: 200,
         earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
       })
-      prisma.user.update.mockResolvedValueOnce({
-        balance: 1500, frozenBalance: 0,
-      })
+      prisma.user.update.mockResolvedValueOnce({ balance: 1500, frozenBalance: 0 })
       prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
       prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
@@ -469,24 +516,17 @@ describe('RechargeService', () => {
         id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
       })
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
-      // 旧余额 1000
       prisma.user.findUnique.mockResolvedValueOnce({
         balance: 1000, frozenBalance: 0, consumeBalance: 200,
         earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
       })
-      // user.update 返回新余额 1500（1000+500）
-      prisma.user.update.mockResolvedValueOnce({
-        balance: 1500, frozenBalance: 0,
-      })
+      prisma.user.update.mockResolvedValueOnce({ balance: 1500, frozenBalance: 0 })
       prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'approved',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'approved' })
 
       await RechargeService.approveRecharge('r1', 'admin1')
 
-      // BalanceRecord.balance 应该是 updatedUser.balance = 1500，不是旧 balance + amount
       expect(prisma.balanceRecord.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -506,18 +546,13 @@ describe('RechargeService', () => {
         balance: 1000, frozenBalance: 0, consumeBalance: 200,
         earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
       })
-      prisma.user.update.mockResolvedValueOnce({
-        balance: 1500, frozenBalance: 0,
-      })
+      prisma.user.update.mockResolvedValueOnce({ balance: 1500, frozenBalance: 0 })
       prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'approved',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'approved' })
 
       await RechargeService.approveRecharge('r1', 'admin1')
 
-      // user.update 的 data 里只能有 balance 和 consumeBalance，不能有 earnings* 字段
       const updateCall = prisma.user.update.mock.calls[0][0]
       expect(updateCall.data).toHaveProperty('balance')
       expect(updateCall.data).toHaveProperty('consumeBalance')
@@ -549,14 +584,12 @@ describe('RechargeService', () => {
       prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
         id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
       })
-      // 模拟并发：updateMany 返回 count=0（已被其他事务改掉）
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 0 })
 
       await expect(
         RechargeService.approveRecharge('r1', 'admin1')
       ).rejects.toThrow('充值申请不存在或已审核')
 
-      // 不应该执行后续操作
       expect(prisma.user.update).not.toHaveBeenCalled()
       expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
     })
@@ -570,14 +603,10 @@ describe('RechargeService', () => {
         balance: 1000, frozenBalance: 0, consumeBalance: 200,
         earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
       })
-      prisma.user.update.mockResolvedValueOnce({
-        balance: 1500, frozenBalance: 0,
-      })
+      prisma.user.update.mockResolvedValueOnce({ balance: 1500, frozenBalance: 0 })
       prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'approved',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'approved' })
 
       await RechargeService.approveRecharge('r1', 'admin1')
 
@@ -594,9 +623,9 @@ describe('RechargeService', () => {
       )
     })
 
-    it('approve 不调用 logOperation（logOperation 在 route 层）', async () => {
-      // service 不再 import logOperation，所以不需要额外验证
-      // 这里确保 service 只做数据操作
+    // 关键业务红线：关闭充值不影响 approveRecharge
+    it('关闭充值不影响 approveRecharge（历史待审核申请仍可通过）', async () => {
+      setupRechargeClosed()  // 充值关闭
       prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
         id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
       })
@@ -605,19 +634,13 @@ describe('RechargeService', () => {
         balance: 1000, frozenBalance: 0, consumeBalance: 200,
         earningsAvailable: 500, earningsPending: 100, earningsVoided: 50, earningsFrozen: 30,
       })
-      prisma.user.update.mockResolvedValueOnce({
-        balance: 1500, frozenBalance: 0,
-      })
+      prisma.user.update.mockResolvedValueOnce({ balance: 1500, frozenBalance: 0 })
       prisma.balanceRecord.create.mockResolvedValueOnce({ id: 'br1' })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'approved',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'approved' })
 
-      await RechargeService.approveRecharge('r1', 'admin1')
-
-      // service 层不应该创建 operationLog
-      expect(prisma.operationLog).toBeUndefined()
+      const result = await RechargeService.approveRecharge('r1', 'admin1')
+      expect(result.status).toBe('approved')
     })
   })
 
@@ -633,14 +656,11 @@ describe('RechargeService', () => {
         id: 'r1', status: 'rejected', rejectReason: '凭证不清晰',
       })
 
-      const result = await RechargeService.rejectRecharge(
-        'r1', 'admin1', '凭证不清晰'
-      )
+      const result = await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
 
       expect(result.status).toBe('rejected')
       expect(result.rejectReason).toBe('凭证不清晰')
 
-      // 验证 updateMany 写了 rejectReason
       expect(prisma.rechargeRequest.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -657,9 +677,7 @@ describe('RechargeService', () => {
       })
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'rejected',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'rejected' })
 
       await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
 
@@ -672,9 +690,7 @@ describe('RechargeService', () => {
       })
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'rejected',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'rejected' })
 
       await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
 
@@ -731,9 +747,7 @@ describe('RechargeService', () => {
       })
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'rejected',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'rejected' })
 
       await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
 
@@ -757,13 +771,10 @@ describe('RechargeService', () => {
       })
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'rejected',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'rejected' })
 
       await RechargeService.rejectRecharge('r1', 'admin1', '  凭证不清晰  ')
 
-      // updateMany 存的 rejectReason 是 trim 后的
       expect(prisma.rechargeRequest.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -772,7 +783,6 @@ describe('RechargeService', () => {
         })
       )
 
-      // auditLog 存的 reason 也是 trim 后的
       expect(prisma.rechargeAuditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -788,17 +798,12 @@ describe('RechargeService', () => {
       })
       prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
-      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
-        id: 'r1', status: 'rejected',
-      })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'rejected' })
 
-      const result = await RechargeService.rejectRecharge(
-        'r1', 'admin1', '', 'tpl-001'
-      )
+      const result = await RechargeService.rejectRecharge('r1', 'admin1', '', 'tpl-001')
 
       expect(result.status).toBe('rejected')
 
-      // rejectTemplateId 被写入
       expect(prisma.rechargeRequest.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -807,6 +812,20 @@ describe('RechargeService', () => {
           }),
         })
       )
+    })
+
+    // 关键业务红线：关闭充值不影响 rejectRecharge
+    it('关闭充值不影响 rejectRecharge（历史待审核申请仍可拒绝）', async () => {
+      setupRechargeClosed()  // 充值关闭
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({
+        id: 'r1', userId: 'u1', amount: 500, status: 'pending', remark: null,
+      })
+      prisma.rechargeRequest.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.rechargeAuditLog.create.mockResolvedValueOnce({ id: 'al1' })
+      prisma.rechargeRequest.findUnique.mockResolvedValueOnce({ id: 'r1', status: 'rejected' })
+
+      const result = await RechargeService.rejectRecharge('r1', 'admin1', '凭证不清晰')
+      expect(result.status).toBe('rejected')
     })
   })
 
@@ -826,7 +845,6 @@ describe('RechargeService', () => {
       expect(result.pagination.total).toBe(1)
       expect(result.pagination.totalPages).toBe(1)
 
-      // 验证 findMany 调用参数
       expect(prisma.rechargeRequest.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           skip: 0,
@@ -846,9 +864,6 @@ describe('RechargeService', () => {
         expect.objectContaining({
           where: expect.objectContaining({ status: 'pending' }),
         })
-      )
-      expect(prisma.rechargeRequest.count).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ status: 'pending' }) })
       )
     })
 

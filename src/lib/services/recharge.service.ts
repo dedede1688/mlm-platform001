@@ -1,60 +1,37 @@
 import { prisma } from '@/lib/prisma'
 import { RECHARGE_STATUS, RECHARGE_PAYMENT_METHOD, RECHARGE_AUDIT_ACTION } from '@/lib/constants'
-import { getBusinessConfig } from '@/lib/config/business'
+import { RechargeSettingsService, RechargeSettings } from '@/lib/services/recharge-settings.service'
 
 export interface CreateRechargeParams {
   amount: number
-  paymentMethod: string
   paymentProofUrl: string
   remark?: string
 }
 
-export interface RechargeSettings {
-  minAmount: number
-  maxAmount: number
-  paymentMethods: { value: string; label: string }[]
-  instruction: string
-  alipayAccount?: string
-  wechatAccount?: string
-  bankCardAccount?: string
-  bankCardName?: string
-  bankName?: string
-  contactPhone?: string
-  serviceTime?: string
-}
-
-const VALID_PAYMENT_METHODS = [
-  RECHARGE_PAYMENT_METHOD.ALIPAY,
-  RECHARGE_PAYMENT_METHOD.WECHAT,
-  RECHARGE_PAYMENT_METHOD.BANK_CARD,
-] as const
-
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  [RECHARGE_PAYMENT_METHOD.ALIPAY]: '支付宝',
-  [RECHARGE_PAYMENT_METHOD.WECHAT]: '微信',
-  [RECHARGE_PAYMENT_METHOD.BANK_CARD]: '银行卡',
-}
-
 export class RechargeService {
   /**
-   * 创建充值申请
-   * 资金底座第 3 包 v3.1：
-   * - 只生成 pending 状态的 RechargeRequest
+   * 创建充值申请（第一包底座）
+   * - 新充值申请由服务端统一写入 paymentMethod: QR_CODE（二维码扫码充值）
+   * - 服务端校验：充值启用 + 二维码有效 + 金额范围
+   * - 用户编号/手机号/支付方式不接受前端传入
    * - 不动 balance / consumeBalance / earningsAvailable / earningsFrozen
-   * - 不写 BalanceRecord
    * - 写 RechargeAuditLog（action = submit）
    */
   static async createRechargeRequest(userId: string, params: CreateRechargeParams) {
-    const { amount, paymentMethod, paymentProofUrl, remark } = params
+    const { amount, paymentProofUrl, remark } = params
 
     // 校验金额（严格类型校验）
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
       throw new Error('充值金额必须为有效数字且大于0')
     }
 
-    // 校验支付方式
-    if (!paymentMethod || !VALID_PAYMENT_METHODS.includes(paymentMethod as any)) {
-      throw new Error('请选择有效的支付方式（支付宝/微信/银行卡）')
+    // 服务端先读设置：充值是否启用、二维码是否有效
+    const settings = await RechargeSettingsService.getSettings()
+    if (!settings.enabled) {
+      throw new Error('充值服务暂时关闭，请联系客服')
+    }
+    if (!settings.qrCodeUrl || !/^https:\/\//i.test(settings.qrCodeUrl)) {
+      throw new Error('充值二维码尚未配置，请联系客服')
     }
 
     // 校验付款凭证
@@ -65,14 +42,12 @@ export class RechargeService {
       throw new Error('付款凭证链接必须为 https:// 开头')
     }
 
-    // 金额范围校验（从 SystemConfig 读取，默认 min=1, max=50000）
-    const minAmount = await getBusinessConfig('recharge.min_amount', 1)
-    const maxAmount = await getBusinessConfig('recharge.max_amount', 50000)
-    if (amount < minAmount) {
-      throw new Error(`最低充值金额 ¥${minAmount}`)
+    // 金额范围（来自服务端设置）
+    if (amount < settings.minAmount) {
+      throw new Error(`最低充值金额 ¥${settings.minAmount}`)
     }
-    if (amount > maxAmount) {
-      throw new Error(`单笔最高充值金额 ¥${maxAmount}`)
+    if (amount > settings.maxAmount) {
+      throw new Error(`单笔最高充值金额 ¥${settings.maxAmount}`)
     }
 
     // 校验用户存在
@@ -82,13 +57,13 @@ export class RechargeService {
     })
     if (!user) throw new Error('用户不存在')
 
-    // 创建充值申请 + 审核日志（事务）
+    // 创建充值申请 + 审核日志（事务）；支付方式由服务端统一写入 QR_CODE
     return await prisma.$transaction(async (tx) => {
       const recharge = await tx.rechargeRequest.create({
         data: {
           userId,
           amount,
-          paymentMethod,
+          paymentMethod: RECHARGE_PAYMENT_METHOD.QR_CODE,
           paymentProofUrl: paymentProofUrl.trim(),
           status: RECHARGE_STATUS.PENDING,
           remark: remark || null,
@@ -157,48 +132,22 @@ export class RechargeService {
   }
 
   /**
-   * 获取充值设置（本包返回默认值 + SystemConfig 已有配置）
-   * v3.3 会完善后台配置表单
+   * 读取充值设置（第一包：委托 RechargeSettingsService）
+   * 返回新单二维码结构：enabled / qrCodeUrl / qrCodeLabel / payeeName / minAmount / maxAmount / instruction / contactPhone / serviceTime
    */
   static async getRechargeSettings(): Promise<RechargeSettings> {
-    const minAmount = await getBusinessConfig('recharge.min_amount', 1)
-    const maxAmount = await getBusinessConfig('recharge.max_amount', 50000)
-    const instruction = await getBusinessConfig('recharge.instruction', '请向以下收款账户转账后上传付款凭证，等待后台审核入账。')
-    const alipayAccount = await getBusinessConfig<string | undefined>('recharge.alipay_account', undefined)
-    const wechatAccount = await getBusinessConfig<string | undefined>('recharge.wechat_account', undefined)
-    const bankCardAccount = await getBusinessConfig<string | undefined>('recharge.bank_card_account', undefined)
-    const bankCardName = await getBusinessConfig<string | undefined>('recharge.bank_card_name', undefined)
-    const bankName = await getBusinessConfig<string | undefined>('recharge.bank_name', undefined)
-    const contactPhone = await getBusinessConfig<string | undefined>('recharge.contact_phone', undefined)
-    const serviceTime = await getBusinessConfig<string | undefined>('recharge.service_time', undefined)
-
-    return {
-      minAmount,
-      maxAmount,
-      paymentMethods: VALID_PAYMENT_METHODS.map((m) => ({
-        value: m,
-        label: PAYMENT_METHOD_LABELS[m],
-      })),
-      instruction,
-      alipayAccount,
-      wechatAccount,
-      bankCardAccount,
-      bankCardName,
-      bankName,
-      contactPhone,
-      serviceTime,
-    }
+    return RechargeSettingsService.getSettings()
   }
 
   /**
-   * 审核通过充值申请
-   * 资金底座第 3 包 v3.2：
+   * 审核通过充值申请（资金底座第三包 v3.2 / 业务规则不变）
    * - pending → approved
    * - user.balance += amount
    * - user.consumeBalance += amount
    * - 写 BalanceRecord（type=recharge, sourceType=recharge_request）
    * - 写 RechargeAuditLog（action=approve）
    * - 绝不修改 earningsAvailable / earningsFrozen / earningsVoided / earningsPending
+   * - 关闭充值不影响本方法
    */
   static async approveRecharge(requestId: string, reviewedBy: string, remark?: string) {
     // 先查出充值申请（用于获取 amount / userId）
@@ -293,12 +242,12 @@ export class RechargeService {
   }
 
   /**
-   * 审核拒绝充值申请
-   * 资金底座第 3 包 v3.2：
+   * 审核拒绝充值申请（资金底座第三包 v3.2 / 业务规则不变）
    * - pending → rejected
    * - 不修改 user 表任何资金字段
    * - 不写 BalanceRecord
    * - 写 RechargeAuditLog（action=reject）
+   * - 关闭充值不影响本方法
    */
   static async rejectRecharge(
     requestId: string,
@@ -364,8 +313,7 @@ export class RechargeService {
 
   /**
    * 后台充值申请列表查询（管理员）
-   * v3.2-2A：只读查询，不修改任何数据库数据
-   * 支持分页、状态筛选、支付方式筛选、用户搜索
+   * 只读查询，不修改任何数据库数据
    */
   static async listAdminRechargeRequests(filters: {
     page?: number
@@ -459,7 +407,7 @@ export class RechargeService {
 
   /**
    * 后台充值申请详情查询（管理员）
-   * v3.2-2A：只读查询，返回充值信息 + 用户信息 + 审核人信息
+   * 只读查询，返回充值信息 + 用户信息 + 审核人信息
    * 找不到返回 null
    */
   static async getAdminRechargeRequestById(id: string) {

@@ -46,6 +46,7 @@ export const RECHARGE_PAYMENT_METHOD = {
   ALIPAY: 'alipay',
   WECHAT: 'wechat',
   BANK_CARD: 'bank_card',
+  QR_CODE: 'qr_code',
 } as const
 
 export const RECHARGE_AUDIT_ACTION = {

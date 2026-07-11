@@ -49,11 +49,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
-    const { amount, paymentMethod, paymentProofUrl, remark } = await request.json()
+    const { amount, paymentProofUrl, remark } = await request.json()
 
     const recharge = await RechargeService.createRechargeRequest(auth.userId, {
       amount,
-      paymentMethod,
       paymentProofUrl,
       remark,
     })
