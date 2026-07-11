@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
+import RechargeSettingsPanel from '@/components/admin/RechargeSettingsPanel'
 
 // v68:大额提现阈值
 const LARGE_WITHDRAWAL_THRESHOLD = 5000
@@ -172,19 +173,12 @@ const RECHARGE_STATUS_OPTIONS = [
 ]
 
 const RECHARGE_PAYMENT_METHOD_MAP: Record<string, string> = {
-  alipay:    '支付宝',
-  wechat:    '微信',
+  qr_code: '二维码扫码充值',
+  alipay: '支付宝',
+  wechat: '微信',
   bank_card: '银行卡',
-  other:     '其他',
+  other: '其他',
 }
-
-const RECHARGE_PAYMENT_METHOD_OPTIONS = [
-  { value: '', label: '全部方式' },
-  { value: 'alipay', label: '支付宝' },
-  { value: 'wechat', label: '微信' },
-  { value: 'bank_card', label: '银行卡' },
-  { value: 'other', label: '其他' },
-]
 
 const RECHARGE_AUDIT_ACTION_MAP: Record<string, string> = {
   submit:  '提交申请',
@@ -204,7 +198,7 @@ export default function AdminFinancePage() {
   const [token, setToken] = useState<string | null>(null)
   // v68:当前用户角色 + 权限检查
   const [userRole, setUserRole] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'rewards' | 'withdrawals' | 'recharge'>('withdrawals')
+  const [activeTab, setActiveTab] = useState<'rewards' | 'withdrawals' | 'recharge' | 'settings'>('withdrawals')
   // v68:大额提现二次确认
   const [largeWithdrawalConfirm, setLargeWithdrawalConfirm] = useState<{ item: WithdrawalItem; type: 'approve' | 'reject' } | null>(null)
   // v68:操作权限
@@ -231,7 +225,6 @@ export default function AdminFinancePage() {
   const [rechargePagination, setRechargePagination] = useState<Pagination>({ page: 1, pageSize: 10, total: 0, totalPages: 0 })
   const [rechargeLoading, setRechargeLoading] = useState(false)
   const [rechargeStatus, setRechargeStatus] = useState('')
-  const [rechargePaymentMethod, setRechargePaymentMethod] = useState('')
   const [rechargeSearch, setRechargeSearch] = useState('')
 
   // 充值审核弹窗（独立于提现审核弹窗）
@@ -373,7 +366,6 @@ const [stats, setStats] = useState<{
       params.set('page', String(page))
       params.set('pageSize', '10')
       if (rechargeStatus) params.set('status', rechargeStatus)
-      if (rechargePaymentMethod) params.set('paymentMethod', rechargePaymentMethod)
       if (rechargeSearch) params.set('search', rechargeSearch)
 
       const res = await fetch(`/api/admin/recharge?${params}`, {
@@ -394,7 +386,7 @@ const [stats, setStats] = useState<{
     } finally {
       setRechargeLoading(false)
     }
-  }, [rechargeStatus, rechargePaymentMethod, rechargeSearch])
+  }, [rechargeStatus, rechargeSearch])
 
   // ---- 提现审核 API ----
 
@@ -876,6 +868,16 @@ const [stats, setStats] = useState<{
             }`}
           >
             充值审核
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'settings'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            充值设置
           </button>
           {/* 手动发放按钮 */}
           <button
@@ -1399,17 +1401,6 @@ const [stats, setStats] = useState<{
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <select
-                  value={rechargePaymentMethod}
-                  onChange={e => setRechargePaymentMethod(e.target.value)}
-                  className="px-4 py-2.5 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 hover:border-gray-400"
-                >
-                  {RECHARGE_PAYMENT_METHOD_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
                 <button
                   onClick={handleRechargeSearch}
                   className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700
@@ -1586,6 +1577,11 @@ const [stats, setStats] = useState<{
               )}
             </div>
           </>
+        )}
+
+        {/* ===== 充值设置标签页 ===== */}
+        {activeTab === 'settings' && token && (
+          <RechargeSettingsPanel token={token} onMessage={showMessage} />
         )}
 
       {/* ===== 充值审核弹窗 ===== */}

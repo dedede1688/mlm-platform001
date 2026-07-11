@@ -5,23 +5,27 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Wallet, Loader2, CheckCircle2,
-  Smartphone, CreditCard, Landmark, Info, AlertCircle,
+  AlertCircle, Info, Phone, Clock,
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import ImageUpload from '@/components/ImageUpload'
 import ProofViewerModal from '@/components/ProofViewerModal'
+import RechargeQrPanel from '@/components/recharge/RechargeQrPanel'
 import { formatMoney } from '@/lib/utils/format'
 
+/**
+ * 充值设置（第一包单二维码结构）
+ * - 后台只维护一张当前二维码
+ * - 停用充值只阻止新申请，不影响历史记录
+ */
 interface RechargeSettings {
+  enabled: boolean
+  qrCodeUrl?: string
+  qrCodeLabel?: string
+  payeeName?: string
   minAmount: number
   maxAmount: number
-  paymentMethods: { value: string; label: string }[]
   instruction: string
-  alipayAccount?: string
-  wechatAccount?: string
-  bankCardAccount?: string
-  bankCardName?: string
-  bankName?: string
   contactPhone?: string
   serviceTime?: string
 }
@@ -45,15 +49,10 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 }
 
 const PAYMENT_METHOD_MAP: Record<string, string> = {
+  qr_code: '二维码扫码充值',
   alipay: '支付宝',
   wechat: '微信',
   bank_card: '银行卡',
-}
-
-const METHOD_ICON: Record<string, React.ReactNode> = {
-  alipay: <Smartphone className="w-5 h-5" />,
-  wechat: <Smartphone className="w-5 h-5" />,
-  bank_card: <Landmark className="w-5 h-5" />,
 }
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 2000, 5000]
@@ -65,8 +64,11 @@ export default function RechargePage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [settings, setSettings] = useState<RechargeSettings | null>(null)
+  const [settingsLoadError, setSettingsLoadError] = useState(false)
+
+  const [userPhone, setUserPhone] = useState('')
+
   const [amount, setAmount] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('')
   const [paymentProofUrl, setPaymentProofUrl] = useState('')
   const [proofWarning, setProofWarning] = useState(false)
   const [remark, setRemark] = useState('')
@@ -87,10 +89,12 @@ export default function RechargePage() {
     }
     setToken(storedToken)
     fetchSettings(storedToken)
+    fetchUserPhone(storedToken)
     fetchRecords(storedToken)
   }, [router])
 
   const fetchSettings = async (authToken: string) => {
+    setSettingsLoadError(false)
     try {
       const res = await fetch('/api/user/recharge-settings', {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -99,15 +103,32 @@ export default function RechargePage() {
         const data = await res.json()
         if (data.success) {
           setSettings(data.data)
-          if (data.data.paymentMethods?.length > 0) {
-            setPaymentMethod(data.data.paymentMethods[0].value)
-          }
+          return
         }
       }
-    } catch (error) {
-      console.error('获取充值设置失败:', error)
+      // 接口失败但有响应（非 2xx 或 success=false）→ 标记为读取失败
+      setSettingsLoadError(true)
+    } catch {
+      setSettingsLoadError(true)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchUserPhone = async (authToken: string) => {
+    try {
+      const res = await fetch('/api/users/me', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const phone = data?.data?.phone || data?.phone || ''
+        if (typeof phone === 'string') {
+          setUserPhone(phone)
+        }
+      }
+    } catch {
+      // 手机号仅用于展示，读取失败不影响充值流程
     }
   }
 
@@ -151,11 +172,6 @@ export default function RechargePage() {
       }
     }
 
-    if (!paymentMethod) {
-      toast.error('请选择支付方式')
-      return
-    }
-
     if (!paymentProofUrl || !paymentProofUrl.trim()) {
       toast.error('请上传付款凭证')
       return
@@ -168,6 +184,7 @@ export default function RechargePage() {
 
     setSubmitting(true)
     try {
+      // 注意：提交请求中不再发送 paymentMethod，由服务端固定写入 qr_code
       const res = await fetch('/api/user/recharge', {
         method: 'POST',
         headers: {
@@ -176,7 +193,6 @@ export default function RechargePage() {
         },
         body: JSON.stringify({
           amount: numAmount,
-          paymentMethod,
           paymentProofUrl: paymentProofUrl.trim(),
           remark: remark || undefined,
         }),
@@ -238,6 +254,11 @@ export default function RechargePage() {
     )
   }
 
+  // 判定主分支：设置读取成功且已启用 && 已有二维码 → 启用态；其他情况见分支
+  const isEnabled = settings?.enabled === true && !!settings?.qrCodeUrl
+  const isDisabledBySettings = settings && settings.enabled === false
+  const isLoadError = settingsLoadError || (settings === null && !loading)
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50 via-white to-gray-50">
       {/* 顶栏 */}
@@ -254,218 +275,208 @@ export default function RechargePage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
-        {/* 充值说明 banner */}
+        {/* 顶部说明 banner */}
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
           <Info className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-orange-700">
             <p className="font-medium mb-1">充值说明</p>
-            <p>充值余额仅用于购物消费，<span className="font-semibold">不可提现</span>。请向以下收款账户转账后上传付款凭证，等待后台审核入账。</p>
-            {settings?.serviceTime && (
-              <p className="mt-1 text-xs text-orange-500">客服服务时间：{settings.serviceTime}</p>
+            <p>充值余额仅用于购物消费，<span className="font-semibold">不可提现</span>。请扫描平台二维码完成付款，付款后填写金额并上传付款成功截图，等待后台审核入账。</p>
+            {(settings?.serviceTime || settings?.contactPhone) && (
+              <div className="mt-2 text-xs text-orange-600 space-y-0.5">
+                {settings.contactPhone && (
+                  <p>客服电话：{settings.contactPhone}</p>
+                )}
+                {settings.serviceTime && (
+                  <p>客服服务时间：{settings.serviceTime}</p>
+                )}
+              </div>
             )}
           </div>
         </div>
 
-        {/* 收款信息区域 */}
-        {settings && (
-          <div className="bg-white rounded-xl shadow-sm p-5">
-            <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-primary" />
-              收款方式
-            </h3>
-            <div className="space-y-3">
-              {settings.alipayAccount && (
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm text-gray-700">支付宝</span>
-                  </div>
-                  <span className="text-sm font-mono font-medium text-gray-900">{settings.alipayAccount}</span>
-                </div>
-              )}
-              {settings.wechatAccount && (
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="w-5 h-5 text-green-600" />
-                    <span className="text-sm text-gray-700">微信</span>
-                  </div>
-                  <span className="text-sm font-mono font-medium text-gray-900">{settings.wechatAccount}</span>
-                </div>
-              )}
-              {settings.bankCardAccount && (
-                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Landmark className="w-5 h-5 text-amber-600" />
-                    <span className="text-sm text-gray-700">
-                      银行卡
-                      {settings.bankName && <span className="text-gray-400 ml-1">({settings.bankName})</span>}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-mono font-medium text-gray-900">{settings.bankCardAccount}</span>
-                    {settings.bankCardName && (
-                      <p className="text-xs text-gray-400">{settings.bankCardName}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-              {!settings.alipayAccount && !settings.wechatAccount && !settings.bankCardAccount && (
-                <p className="text-sm text-gray-400 text-center py-4">
-                  收款信息尚未配置，请联系客服获取收款账户。
-                  {settings.contactPhone && (
-                    <span className="block mt-1">客服电话：{settings.contactPhone}</span>
-                  )}
-                </p>
-              )}
+        {/* 设置读取失败（注意：不能伪装成"充值关闭"） */}
+        {isLoadError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-red-700">
+              <p className="font-medium mb-1">充值设置读取失败，请稍后刷新</p>
+              <p className="text-xs">您仍可在下方查看历史充值记录。</p>
             </div>
           </div>
         )}
 
-        {/* 充值表单 */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-5 space-y-5">
-          <h3 className="text-base font-semibold text-gray-900">提交充值申请</h3>
+        {/* 停用状态：隐藏二维码 + 申请表单，仅展示关闭提示 + 客服信息 */}
+        {isDisabledBySettings && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center space-y-3">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-gray-100 rounded-full">
+              <AlertCircle className="w-6 h-6 text-gray-500" />
+            </div>
+            <p className="text-base font-medium text-gray-900">充值服务暂时关闭，请联系客服</p>
+            {(settings?.contactPhone || settings?.serviceTime) && (
+              <div className="text-sm text-gray-600 space-y-1">
+                {settings.contactPhone && (
+                  <p className="flex items-center justify-center gap-1.5">
+                    <Phone className="w-4 h-4" />
+                    客服电话：{settings.contactPhone}
+                  </p>
+                )}
+                {settings.serviceTime && (
+                  <p className="flex items-center justify-center gap-1.5">
+                    <Clock className="w-4 h-4" />
+                    服务时间：{settings.serviceTime}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-          {/* 金额输入 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              充值金额
-              {settings && (
-                <span className="text-xs text-gray-400 ml-2">
-                  （¥{settings.minAmount} - ¥{settings.maxAmount}）
-                </span>
+        {/* 启用状态：展示二维码 + 申请表单 */}
+        {isEnabled && settings && (
+          <>
+            <RechargeQrPanel
+              qrCodeUrl={settings.qrCodeUrl as string}
+              qrCodeLabel={settings.qrCodeLabel}
+              payeeName={settings.payeeName}
+              instruction={settings.instruction}
+            />
+
+            {/* 充值表单 */}
+            <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-5 space-y-5">
+              <h3 className="text-base font-semibold text-gray-900">提交充值申请</h3>
+
+              {/* 登录手机号（只读） */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  登录手机号
+                </label>
+                <input
+                  type="text"
+                  value={userPhone}
+                  readOnly
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-gray-700 cursor-not-allowed"
+                  placeholder={userPhone ? '' : '加载中...'}
+                />
+                <p className="text-xs text-gray-400 mt-1">手机号仅用于展示，提交充值时不会上传</p>
+              </div>
+
+              {/* 金额输入 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  充值金额
+                  {settings && (
+                    <span className="text-xs text-gray-400 ml-2">
+                      （¥{settings.minAmount} - ¥{settings.maxAmount}）
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">¥</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="请输入充值金额"
+                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors text-gray-900 placeholder-gray-400"
+                    min={settings?.minAmount || 1}
+                    max={settings?.maxAmount || 50000}
+                  />
+                </div>
+                {/* 快捷金额 */}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {QUICK_AMOUNTS.map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setAmount(String(amt))}
+                      className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary transition-colors"
+                    >
+                      ¥{amt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 付款凭证上传 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  付款成功截图
+                  <span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <ImageUpload
+                  value={paymentProofUrl}
+                  onChange={(url: string) => {
+                    if (url && !url.startsWith('https://')) {
+                      // Base64 fallback 或非 https 链接：不保存到 state，提示用户
+                      setProofWarning(true)
+                      setPaymentProofUrl('')
+                      return
+                    }
+                    setProofWarning(false)
+                    setPaymentProofUrl(url)
+                  }}
+                  label=""
+                  placeholder="输入凭证图片URL或拖拽上传"
+                  bucket="images"
+                  folder="recharge-proofs"
+                  maxSizeMB={10}
+                />
+                {proofWarning && (
+                  <div className="mt-2 flex items-start gap-1.5 p-2 bg-red-50 border border-red-200 rounded-lg">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-600">
+                      凭证图片未上传到云端，请重新上传或使用图片链接。付款凭证必须是已上传成功的 https:// 图片链接。
+                    </p>
+                  </div>
+                )}
+                <p className="text-xs text-gray-400 mt-1">请上传转账成功截图作为付款凭证，凭证必须为已上传成功的图片链接</p>
+              </div>
+
+              {/* 备注 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  备注 <span className="text-gray-400 text-xs">（选填）</span>
+                </label>
+                <textarea
+                  value={remark}
+                  onChange={(e) => setRemark(e.target.value)}
+                  placeholder="如有特殊说明请填写"
+                  rows={2}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors text-gray-900 placeholder-gray-400 resize-none"
+                />
+              </div>
+
+              {/* 提交按钮 */}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    提交中...
+                  </>
+                ) : (
+                  '提交充值申请'
+                )}
+              </button>
+
+              {submitted && (
+                <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-green-700">
+                    <p className="font-medium">充值申请已提交</p>
+                    <p className="text-xs mt-0.5">请等待后台审核，审核通过后余额将自动入账。您可以在下方查看申请记录。</p>
+                  </div>
+                </div>
               )}
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">¥</span>
-              <input
-                type="number"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="请输入充值金额"
-                className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors text-gray-900 placeholder-gray-400"
-                min={settings?.minAmount || 1}
-                max={settings?.maxAmount || 50000}
-              />
-            </div>
-            {/* 快捷金额 */}
-            <div className="flex flex-wrap gap-2 mt-2">
-              {QUICK_AMOUNTS.map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => setAmount(String(amt))}
-                  className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary transition-colors"
-                >
-                  ¥{amt}
-                </button>
-              ))}
-            </div>
-          </div>
+            </form>
+          </>
+        )}
 
-          {/* 支付方式选择 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">支付方式</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(settings?.paymentMethods || [
-                { value: 'alipay', label: '支付宝' },
-                { value: 'wechat', label: '微信' },
-                { value: 'bank_card', label: '银行卡' },
-              ]).map((method) => (
-                <button
-                  key={method.value}
-                  type="button"
-                  onClick={() => setPaymentMethod(method.value)}
-                  className={`flex flex-col items-center gap-1 py-3 rounded-lg border-2 transition-all ${
-                    paymentMethod === method.value
-                      ? 'border-primary bg-primary-50 text-primary'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                  }`}
-                >
-                  {METHOD_ICON[method.value] || <CreditCard className="w-5 h-5" />}
-                  <span className="text-xs font-medium">{method.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 付款凭证上传 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              付款凭证
-              <span className="text-red-500 ml-0.5">*</span>
-            </label>
-            <ImageUpload
-              value={paymentProofUrl}
-              onChange={(url: string) => {
-                if (url && !url.startsWith('https://')) {
-                  // Base64 fallback 或非 https 链接：不保存到 state，提示用户
-                  setProofWarning(true)
-                  setPaymentProofUrl('')
-                  return
-                }
-                setProofWarning(false)
-                setPaymentProofUrl(url)
-              }}
-              label=""
-              placeholder="输入凭证图片URL或拖拽上传"
-              bucket="images"
-              folder="recharge-proofs"
-              maxSizeMB={10}
-            />
-            {proofWarning && (
-              <div className="mt-2 flex items-start gap-1.5 p-2 bg-red-50 border border-red-200 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-red-600">
-                  凭证图片未上传到云端，请重新上传或使用图片链接。付款凭证必须是已上传成功的 https:// 图片链接。
-                </p>
-              </div>
-            )}
-            <p className="text-xs text-gray-400 mt-1">请上传转账成功截图作为付款凭证，凭证必须为已上传成功的图片链接</p>
-          </div>
-
-          {/* 备注 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              备注 <span className="text-gray-400 text-xs">（选填）</span>
-            </label>
-            <textarea
-              value={remark}
-              onChange={(e) => setRemark(e.target.value)}
-              placeholder="如有特殊说明请填写"
-              rows={2}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors text-gray-900 placeholder-gray-400 resize-none"
-            />
-          </div>
-
-          {/* 提交按钮 */}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                提交中...
-              </>
-            ) : (
-              '提交充值申请'
-            )}
-          </button>
-
-          {submitted && (
-            <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-green-700">
-                <p className="font-medium">充值申请已提交</p>
-                <p className="text-xs mt-0.5">请等待后台审核，审核通过后余额将自动入账。您可以在下方查看申请记录。</p>
-              </div>
-            </div>
-          )}
-        </form>
-
-        {/* 充值记录 */}
+        {/* 充值记录（无论启用/停用/读取失败都展示） */}
         <div className="bg-white rounded-xl shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-semibold text-gray-900">充值记录</h3>
