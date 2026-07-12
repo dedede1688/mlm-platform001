@@ -110,6 +110,16 @@ const LEVEL_OPTIONS = [
   ...Array.from({ length: 8 }, (_, i) => ({ value: String(i), label: `${i} - ${LEVEL_NAMES[i]}` })),
 ]
 
+// ---- 标签页定义 ----
+
+const DETAIL_TABS = [
+  { key: 'basic', label: '基本资料' },
+  { key: 'finance', label: '资金账户' },
+  { key: 'stats', label: '经营统计' },
+  { key: 'relation', label: '推荐关系' },
+  { key: 'referrals', label: '直推列表' },
+] as const
+
 // ---- 主组件 ----
 
 export default function AdminUsersPage() {
@@ -187,6 +197,9 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     stats: true, relation: true, referrals: true, children: false, level: false, balance: false, points: true, profile: false, password: true, status: false,
   })
+
+  // 详情弹窗标签页
+  const [detailTab, setDetailTab] = useState<'basic' | 'finance' | 'stats' | 'relation' | 'referrals'>('basic')
 
   // 消息提示
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -266,6 +279,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       if (data.success) {
         setDetailUser(data.data)
         setNewLevel(data.data.level)
+        setDetailTab('basic')
       } else { showMessage('error', data.message || '获取详情失败') }
     } catch { showMessage('error', '网络错误') }
     finally { setDetailLoading(false) }
@@ -660,12 +674,12 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                             <Wallet className="w-3.5 h-3.5" />流水
                           </Link>
                           {u.status === 'active' ? (
-                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setNewStatus('frozen'); setOpenSections(prev => ({ ...prev, status: true })) }}
+                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setDetailTab('basic'); setNewStatus('frozen'); setOpenSections(prev => ({ ...prev, status: true })) }}
                               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
                               <Lock className="w-3.5 h-3.5" />冻结
                             </button>
                           ) : (
-                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setNewStatus('active'); setOpenSections(prev => ({ ...prev, status: true })) }}
+                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setDetailTab('basic'); setNewStatus('active'); setOpenSections(prev => ({ ...prev, status: true })) }}
                               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors font-medium">
                               <LockOpen className="w-3.5 h-3.5" />解冻
                             </button>
@@ -716,134 +730,38 @@ const [treeUserName, setTreeUserName] = useState<string>('')
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[5vh]">
           <div className="absolute inset-0 bg-black/50" onClick={() => setDetailUser(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto">
-            {/* 标题 */}
-            <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between rounded-t-2xl z-10">
-              <h2 className="text-lg font-semibold text-gray-900">会员详情</h2>
-              <button onClick={() => setDetailUser(null)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+            {/* 标题 + 标签页 */}
+            <div className="sticky top-0 bg-white z-10 rounded-t-2xl">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">会员详情</h2>
+                <button onClick={() => setDetailUser(null)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+              </div>
+              {/* 标签页导航 */}
+              <div className="px-6 border-b border-gray-200">
+                <div className="flex gap-1 overflow-x-auto">
+                  {DETAIL_TABS.map(tab => (
+                    <button key={tab.key} onClick={() => setDetailTab(tab.key)}
+                      className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${detailTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="px-6 py-5 space-y-5">
+              {/* === 基本资料 === */}
+              {detailTab === 'basic' && (
+                <>
               {/* 基本信息 */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div><span className="text-xs text-gray-400">手机号</span><p className="text-sm text-gray-900 font-medium">{detailUser.phone}</p></div>
                 <div><span className="text-xs text-gray-400">昵称</span><p className="text-sm text-gray-900">{detailUser.nickname || '-'}</p></div>
                 <div><span className="text-xs text-gray-400">等级</span><p><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[detailUser.level]}`}>{LEVEL_NAMES[detailUser.level]}</span></p></div>
                 <div><span className="text-xs text-gray-400">状态</span><p className="text-sm text-gray-900">{detailUser.status === 'active' ? '正常' : detailUser.status}</p></div>
-                <div><span className="text-xs text-gray-400">余额</span><p className="text-sm text-gray-900">¥{detailUser.balance.toFixed(2)}</p></div>
-                <div><span className="text-xs text-gray-400">冻结余额</span><p className="text-sm text-gray-900">¥{detailUser.frozenBalance.toFixed(2)}</p></div>
                 <div><span className="text-xs text-gray-400">总积分</span><p className="text-sm text-gray-900">{detailUser.totalPoints}</p></div>
                 <div><span className="text-xs text-gray-400">可用/锁定</span><p className="text-sm text-gray-900">{detailUser.unlockedPoints} / {detailUser.lockedPoints}</p></div>
               </div>
-
-              {/* 收益账户 */}
-              <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Wallet className="w-4 h-4 text-orange-600" />
-                  <span className="text-sm font-semibold text-gray-900">收益账户</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <span className="text-xs text-gray-400">可用收益</span>
-                    <p className="text-sm font-medium text-green-600">¥{formatMoney(detailUser.earningsAvailable ?? 0)}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400">冻结收益</span>
-                    <p className="text-sm font-medium text-gray-700">¥{formatMoney(detailUser.earningsFrozen ?? 0)}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400">待结算收益</span>
-                    <p className="text-sm font-medium text-gray-700">¥{formatMoney(detailUser.earningsPending ?? 0)}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400">作废收益</span>
-                    <p className="text-sm font-medium text-red-600">¥{formatMoney(detailUser.earningsVoided ?? 0)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* 统计信息 */}
-              <Section title="经营统计" open={openSections.stats} onToggle={() => toggleSection('stats')}>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  <div><span className="text-xs text-gray-400">升级产品累计</span><p className="text-sm font-medium text-gray-900">{detailUser.upgradeProductCount} 件</p></div>
-                  <div><span className="text-xs text-gray-400">直推销售额</span><p className="text-sm font-medium text-gray-900">¥{detailUser.directSalesAmount.toFixed(2)}</p></div>
-                  <div><span className="text-xs text-gray-400">直推经销商数</span><p className="text-sm font-medium text-gray-900">{detailUser.directDistributorCount}</p></div>
-                  <div><span className="text-xs text-gray-400">直推会员数</span><p className="text-sm font-medium text-gray-900">{detailUser.directReferralCount}</p></div>
-                  <div><span className="text-xs text-gray-400">订单总数</span><p className="text-sm font-medium text-gray-900">{detailUser.orderCount}</p></div>
-                  <div><span className="text-xs text-gray-400">订单总额</span><p className="text-sm font-medium text-gray-900">¥{detailUser.totalOrderAmount.toFixed(2)}</p></div>
-                </div>
-              </Section>
-
-              {/* 推荐关系 */}
-              <Section title="推荐关系" open={openSections.relation} onToggle={() => toggleSection('relation')}>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-xs text-gray-400">推荐人（上级）</span>
-                    {detailUser.referrer ? (
-                      <p className="text-sm text-gray-900">{detailUser.referrer.phone} <span className="text-gray-400">({detailUser.referrer.nickname || '-'})</span>
-                        <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${LEVEL_COLORS[detailUser.referrer.level]}`}>{LEVEL_NAMES[detailUser.referrer.level]}</span>
-                      </p>
-                    ) : <p className="text-sm text-gray-400">无</p>}
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-400">安置上级</span>
-                    {detailUser.parent ? (
-                      <p className="text-sm text-gray-900">{detailUser.parent.phone} <span className="text-gray-400">({detailUser.parent.nickname || '-'})</span>
-                        <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${LEVEL_COLORS[detailUser.parent.level]}`}>{LEVEL_NAMES[detailUser.parent.level]}</span>
-                      </p>
-                    ) : <p className="text-sm text-gray-400">无</p>}
-                  </div>
-                </div>
-              </Section>
-
-              {/* 直推列表 */}
-              <Section title={`直推列表 (${detailUser.referrals.length})`} open={openSections.referrals} onToggle={() => toggleSection('referrals')}>
-                {detailUser.referrals.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-2">暂无直推会员</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead><tr className="border-b border-gray-100">
-                        <th className="py-2 text-left text-xs font-semibold text-gray-500">手机号</th>
-                        <th className="py-2 text-left text-xs font-semibold text-gray-500">昵称</th>
-                        <th className="py-2 text-left text-xs font-semibold text-gray-500">等级</th>
-                        <th className="py-2 text-left text-xs font-semibold text-gray-500">注册时间</th>
-                      </tr></thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {detailUser.referrals.map(r => (
-                          <tr key={r.id}>
-                            <td className="py-1.5 text-gray-900">{r.phone}</td>
-                            <td className="py-1.5 text-gray-700">{r.nickname || '-'}</td>
-                            <td className="py-1.5"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[r.level]}`}>{LEVEL_NAMES[r.level]}</span></td>
-                            <td className="py-1.5 text-gray-500">{formatTime(r.createdAt)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </Section>
-
-              {/* 安置下级 */}
-              <Section title={`安置下级 (${detailUser.children.length})`} open={openSections.children} onToggle={() => toggleSection('children')}>
-                {detailUser.children.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-2">暂无安置下级</p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-3">
-                    {detailUser.children.map(c => (
-                      <div key={c.id} className="p-3 border border-gray-100 rounded-lg bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-900">{c.phone}</span>
-                          {c.position != null && <span className="text-xs text-gray-400">位{c.position}</span>}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-gray-500">{c.nickname || '-'}</span>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${LEVEL_COLORS[c.level]}`}>{LEVEL_NAMES[c.level]}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Section>
 
               {/* 等级调整 */}
               <Section title="等级调整" open={openSections.level} onToggle={() => toggleSection('level')}>
@@ -916,74 +834,6 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                 </div>
               </Section>
 
-              {/* 密码重置 */}
-              <Section title="密码重置" open={openSections.password} onToggle={() => toggleSection('password')}>
-                <div className="space-y-4">
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-xs text-yellow-700">⚠️ 重置后用户需使用新密码登录，请务必通知用户。</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">新密码（8-20 位，必须包含字母和数字）</label>
-                    <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)}
-                      placeholder="请输入新密码"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">重置原因（至少 5 字）</label>
-                    <textarea value={passwordReason} onChange={e => setPasswordReason(e.target.value)} rows={2}
-                      placeholder="请输入重置原因..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
-                  </div>
-                  <button onClick={handleResetPassword} disabled={savingPassword || !resetPassword || passwordReason.trim().length < 5 || !canApprove}
-                    title={!canApprove ? '无审批权限' : '重置用户密码'}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPassword || !resetPassword || passwordReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
-                    {savingPassword ? '处理中...' : '确认重置密码'}
-                  </button>
-                </div>
-              </Section>
-
-              {/* 资金调整 */}
-              <Section title="资金调整" open={openSections.balance} onToggle={() => toggleSection('balance')}>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">调整字段</label>
-                      <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance' | 'earnings_add')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
-                        <option value="balance">余额</option>
-                        <option value="frozenBalance">冻结余额</option>
-                        <option value="earnings_add">可用收益</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : '可用收益'}</label>
-                      <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : balanceType === 'frozenBalance' ? detailUser.frozenBalance : (detailUser.earningsAvailable ?? 0)).toFixed(2)}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">{balanceType === 'earnings_add' ? '增加金额（只允许正数）' : '调整金额（正数=增加，负数=扣减）'}</label>
-                    <input type="number" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)}
-                      placeholder={balanceType === 'earnings_add' ? '例如：100' : '例如：100 或 -50'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
-                    {balanceType === 'earnings_add' && (
-                      <p className="text-xs text-orange-600 mt-1">⚠️ 本次只允许增加可用收益，不可减少或作废。</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">调整原因（至少 5 字）</label>
-                    <textarea value={balanceReason} onChange={e => setBalanceReason(e.target.value)} rows={2}
-                      placeholder="请输入调整原因..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
-                  </div>
-                  <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5 || !canApprove}
-                    title={!canApprove ? '无审批权限' : '余额调整'}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 || !canApprove ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
-                    {savingBalance ? '处理中...' : '确认调整'}
-                  </button>
-                </div>
-              </Section>
-
-
               {/* 基础资料修改 */}
               <Section title="基础资料修改" open={openSections.profile} onToggle={() => toggleSection('profile')}>
                 <div className="space-y-4">
@@ -1041,7 +891,6 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                 </div>
               </Section>
 
-
               {/* 状态管理 */}
               <Section title="状态管理" open={openSections.status} onToggle={() => toggleSection('status')}>
                 <div className="space-y-4">
@@ -1076,13 +925,221 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                 </div>
               </Section>
 
-              {/* 推荐树按钮 */}
-              <div className="flex justify-center">
-                <button onClick={() => { setTreeUserId(detailUser.id); setTreeUserName(detailUser.nickname || detailUser.phone.slice(-4)) }}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm">
-                  <Network className="w-4 h-4" />查看推荐关系树
-                </button>
-              </div>
+              {/* 密码重置 */}
+              <Section title="密码重置" open={openSections.password} onToggle={() => toggleSection('password')}>
+                <div className="space-y-4">
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-xs text-yellow-700">⚠️ 重置后用户需使用新密码登录，请务必通知用户。</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">新密码（8-20 位，必须包含字母和数字）</label>
+                    <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)}
+                      placeholder="请输入新密码"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">重置原因（至少 5 字）</label>
+                    <textarea value={passwordReason} onChange={e => setPasswordReason(e.target.value)} rows={2}
+                      placeholder="请输入重置原因..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                  </div>
+                  <button onClick={handleResetPassword} disabled={savingPassword || !resetPassword || passwordReason.trim().length < 5 || !canApprove}
+                    title={!canApprove ? '无审批权限' : '重置用户密码'}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPassword || !resetPassword || passwordReason.trim().length < 5 ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 shadow-sm'}`}>
+                    {savingPassword ? '处理中...' : '确认重置密码'}
+                  </button>
+                </div>
+              </Section>
+                </>
+              )}
+
+              {/* === 资金账户 === */}
+              {detailTab === 'finance' && (
+                <>
+                  {/* 余额账户 */}
+                  <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Wallet className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-semibold text-gray-900">余额账户</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      <div>
+                        <span className="text-xs text-gray-400">余额</span>
+                        <p className="text-sm font-medium text-gray-900">¥{detailUser.balance.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400">冻结余额</span>
+                        <p className="text-sm font-medium text-gray-700">¥{detailUser.frozenBalance.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400">消费余额</span>
+                        <p className="text-sm font-medium text-gray-700">¥{formatMoney(detailUser.consumeBalance ?? 0)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 收益账户 */}
+                  <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Wallet className="w-4 h-4 text-orange-600" />
+                      <span className="text-sm font-semibold text-gray-900">收益账户</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div>
+                        <span className="text-xs text-gray-400">可用收益</span>
+                        <p className="text-sm font-medium text-green-600">¥{formatMoney(detailUser.earningsAvailable ?? 0)}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400">冻结收益</span>
+                        <p className="text-sm font-medium text-gray-700">¥{formatMoney(detailUser.earningsFrozen ?? 0)}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400">待结算收益</span>
+                        <p className="text-sm font-medium text-gray-700">¥{formatMoney(detailUser.earningsPending ?? 0)}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400">作废收益</span>
+                        <p className="text-sm font-medium text-red-600">¥{formatMoney(detailUser.earningsVoided ?? 0)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 资金调整 */}
+                  <Section title="资金调整" open={openSections.balance} onToggle={() => toggleSection('balance')}>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">调整字段</label>
+                          <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance' | 'earnings_add')}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
+                            <option value="balance">余额</option>
+                            <option value="frozenBalance">冻结余额</option>
+                            <option value="earnings_add">可用收益</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : '可用收益'}</label>
+                          <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : balanceType === 'frozenBalance' ? detailUser.frozenBalance : (detailUser.earningsAvailable ?? 0)).toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">{balanceType === 'earnings_add' ? '增加金额（只允许正数）' : '调整金额（正数=增加，负数=扣减）'}</label>
+                        <input type="number" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)}
+                          placeholder={balanceType === 'earnings_add' ? '例如：100' : '例如：100 或 -50'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                        {balanceType === 'earnings_add' && (
+                          <p className="text-xs text-orange-600 mt-1">⚠️ 本次只允许增加可用收益，不可减少或作废。</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">调整原因（至少 5 字）</label>
+                        <textarea value={balanceReason} onChange={e => setBalanceReason(e.target.value)} rows={2}
+                          placeholder="请输入调整原因..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                      </div>
+                      <button onClick={handleAdjustBalance} disabled={savingBalance || !balanceAmount || balanceReason.trim().length < 5 || !canApprove}
+                        title={!canApprove ? '无审批权限' : '余额调整'}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingBalance || !balanceAmount || balanceReason.trim().length < 5 || !canApprove ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm'}`}>
+                        {savingBalance ? '处理中...' : '确认调整'}
+                      </button>
+                    </div>
+                  </Section>
+                </>
+              )}
+
+              {/* === 经营统计 === */}
+              {detailTab === 'stats' && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div><span className="text-xs text-gray-400">升级产品累计</span><p className="text-sm font-medium text-gray-900">{detailUser.upgradeProductCount} 件</p></div>
+                  <div><span className="text-xs text-gray-400">直推销售额</span><p className="text-sm font-medium text-gray-900">¥{detailUser.directSalesAmount.toFixed(2)}</p></div>
+                  <div><span className="text-xs text-gray-400">直推经销商数</span><p className="text-sm font-medium text-gray-900">{detailUser.directDistributorCount}</p></div>
+                  <div><span className="text-xs text-gray-400">直推会员数</span><p className="text-sm font-medium text-gray-900">{detailUser.directReferralCount}</p></div>
+                  <div><span className="text-xs text-gray-400">订单总数</span><p className="text-sm font-medium text-gray-900">{detailUser.orderCount}</p></div>
+                  <div><span className="text-xs text-gray-400">订单总额</span><p className="text-sm font-medium text-gray-900">¥{detailUser.totalOrderAmount.toFixed(2)}</p></div>
+                </div>
+              )}
+
+              {/* === 推荐关系 === */}
+              {detailTab === 'relation' && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-xs text-gray-400">推荐人（上级）</span>
+                      {detailUser.referrer ? (
+                        <p className="text-sm text-gray-900">{detailUser.referrer.phone} <span className="text-gray-400">({detailUser.referrer.nickname || '-'})</span>
+                          <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${LEVEL_COLORS[detailUser.referrer.level]}`}>{LEVEL_NAMES[detailUser.referrer.level]}</span>
+                        </p>
+                      ) : <p className="text-sm text-gray-400">无</p>}
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-400">安置上级</span>
+                      {detailUser.parent ? (
+                        <p className="text-sm text-gray-900">{detailUser.parent.phone} <span className="text-gray-400">({detailUser.parent.nickname || '-'})</span>
+                          <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${LEVEL_COLORS[detailUser.parent.level]}`}>{LEVEL_NAMES[detailUser.parent.level]}</span>
+                        </p>
+                      ) : <p className="text-sm text-gray-400">无</p>}
+                    </div>
+                  </div>
+
+                  <Section title={`安置下级 (${detailUser.children.length})`} open={openSections.children} onToggle={() => toggleSection('children')}>
+                    {detailUser.children.length === 0 ? (
+                      <p className="text-sm text-gray-400 py-2">暂无安置下级</p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-3">
+                        {detailUser.children.map(c => (
+                          <div key={c.id} className="p-3 border border-gray-100 rounded-lg bg-gray-50">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-900">{c.phone}</span>
+                              {c.position != null && <span className="text-xs text-gray-400">位{c.position}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-gray-500">{c.nickname || '-'}</span>
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${LEVEL_COLORS[c.level]}`}>{LEVEL_NAMES[c.level]}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Section>
+
+                  <div className="flex justify-center">
+                    <button onClick={() => { setTreeUserId(detailUser.id); setTreeUserName(detailUser.nickname || detailUser.phone.slice(-4)) }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm">
+                      <Network className="w-4 h-4" />查看推荐关系树
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* === 直推列表 === */}
+              {detailTab === 'referrals' && (
+                <>
+                  {detailUser.referrals.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-2">暂无直推会员</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-gray-100">
+                          <th className="py-2 text-left text-xs font-semibold text-gray-500">手机号</th>
+                          <th className="py-2 text-left text-xs font-semibold text-gray-500">昵称</th>
+                          <th className="py-2 text-left text-xs font-semibold text-gray-500">等级</th>
+                          <th className="py-2 text-left text-xs font-semibold text-gray-500">注册时间</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {detailUser.referrals.map(r => (
+                            <tr key={r.id}>
+                              <td className="py-1.5 text-gray-900">{r.phone}</td>
+                              <td className="py-1.5 text-gray-700">{r.nickname || '-'}</td>
+                              <td className="py-1.5"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[r.level]}`}>{LEVEL_NAMES[r.level]}</span></td>
+                              <td className="py-1.5 text-gray-500">{formatTime(r.createdAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* 底部 */}
