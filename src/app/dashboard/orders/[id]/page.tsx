@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
+import { EarningsTransferModal } from '@/components/EarningsTransferModal'
 
 // ---- 类型 ----
 
@@ -98,6 +99,12 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [showRefundSuccess, setShowRefundSuccess] = useState(false)
+  // 用户资金信息（用于收益转余额弹窗）
+  const [userBalance, setUserBalance] = useState(0)
+  const [userEarningsAvailable, setUserEarningsAvailable] = useState(0)
+  // 收益转余额弹窗
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferInitialAmount, setTransferInitialAmount] = useState<number | undefined>(undefined)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -106,7 +113,26 @@ export default function OrderDetailPage() {
       return
     }
     fetchOrder(storedToken)
+    fetchUserBalance(storedToken)
   }, [router])
+
+  // 读取用户资金信息（balance + earningsAvailable）
+  const fetchUserBalance = async (authToken: string) => {
+    try {
+      const res = await fetch('/api/users/me', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) {
+          setUserBalance(data.data.balance ?? 0)
+          setUserEarningsAvailable(data.data.earningsAvailable ?? 0)
+        }
+      }
+    } catch {
+      // 静默失败，不影响页面主流程
+    }
+  }
 
   const fetchOrder = async (authToken: string) => {
     try {
@@ -157,7 +183,20 @@ export default function OrderDetailPage() {
           toast.warning(`您还未购买升级品，本次推荐奖 ¥${data.data.unlockAmount.toFixed(2)} 未发放。购买升级品即可解锁。`)
         }
         await fetchOrder(token)
-      } else toast.error(data.message || '支付失败')
+      } else if (
+        // 主判断：结构化错误码
+        data.code === 'INSUFFICIENT_BALANCE' ||
+        // 兜底字符串判断（防旧版后端）
+        (typeof data.error === 'string' && data.error.includes('余额不足'))
+      ) {
+        // 余额不足：打开收益转余额弹窗
+        const shortage = data.data?.shortage ?? (order.payAmount - userBalance)
+        const suggestedAmount = Math.min(shortage, userEarningsAvailable)
+        setTransferInitialAmount(suggestedAmount > 0 ? suggestedAmount : undefined)
+        setShowTransferModal(true)
+      } else {
+        toast.error(data.error || data.message || '支付失败')
+      }
     } catch { toast.error('网络错误') }
   }
 
@@ -474,6 +513,27 @@ export default function OrderDetailPage() {
             去支付
           </button>
         )}
+
+        {/* 收益转余额弹窗（支付余额不足时触发） */}
+        <EarningsTransferModal
+          open={showTransferModal}
+          onClose={() => {
+            setShowTransferModal(false)
+            setTransferInitialAmount(undefined)
+          }}
+          earningsAvailable={userEarningsAvailable}
+          balance={userBalance}
+          initialAmount={transferInitialAmount}
+          onSuccess={() => {
+            // 刷新用户资金信息
+            const storedToken = localStorage.getItem('token')
+            if (storedToken) {
+              fetchUserBalance(storedToken)
+            }
+            // 提示用户重新支付（不自动重试，因为支付需要密码确认）
+            toast.success('余额已补充，请重新点击支付')
+          }}
+        />
         {(order.status === 'paid' || order.status === 'shipped') && (
           (() => {
             const hasPendingRefund = order.refundRequests?.some(r => r.status === 'pending')

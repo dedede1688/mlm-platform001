@@ -14,6 +14,8 @@ interface EarningsTransferModalProps {
   balance: number
   /** 转入成功后回调（刷新数据） */
   onSuccess: () => void
+  /** 打开弹窗时默认填入的建议转入金额（如支付余额不足时的差额） */
+  initialAmount?: number
 }
 
 export function EarningsTransferModal({
@@ -22,6 +24,7 @@ export function EarningsTransferModal({
   earningsAvailable,
   balance,
   onSuccess,
+  initialAmount,
 }: EarningsTransferModalProps) {
   const [amount, setAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -30,11 +33,17 @@ export function EarningsTransferModal({
   // 弹窗打开时重置状态
   useEffect(() => {
     if (open) {
-      setAmount('')
+      // 如果传入了 initialAmount，用 min(initialAmount, earningsAvailable) 作为默认值
+      if (initialAmount && initialAmount > 0) {
+        const capped = Math.min(initialAmount, earningsAvailable)
+        setAmount(String(capped))
+      } else {
+        setAmount('')
+      }
       setSubmitting(false)
       setErrorMsg('')
     }
-  }, [open])
+  }, [open, initialAmount, earningsAvailable])
 
   if (!open) return null
 
