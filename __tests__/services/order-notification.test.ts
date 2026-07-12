@@ -1102,4 +1102,125 @@ describe('OrderNotificationService', () => {
       expect(loggerMock.error).toHaveBeenCalledWith('充值申请提交通知失败', expect.any(Object))
     })
   })
+
+  // ============================================================
+  // notifyEarningsVoid - 收益作废通知 (v005/v006/v007)
+  // ============================================================
+  describe('notifyEarningsVoid', () => {
+    const baseParams = {
+      userId: 'user-ev',
+      amount: 40,
+      earningsAvailable: 60,
+      earningsVoided: 70,
+      reason: '测试作废',
+      operatorId: 'admin-ev',
+      balanceRecordId: 'br-ev-001',
+    }
+
+    it('1. 正常发送 earnings_voided 通知', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'VoidUser',
+        phone: '13900000030',
+      })
+
+      await OrderNotificationService.notifyEarningsVoid(baseParams)
+
+      expect(notifications.batches[0]).toMatchObject({
+        type: 'business',
+        title: '收益作废通知',
+        templateType: 'earnings_voided',
+        recipientCount: 1,
+        senderId: 'admin-ev',
+      })
+      expect(notifications.batches[0].content).toContain('¥40.00 已被后台作废')
+      expect(notifications.sendCalls[0]).toMatchObject({
+        userId: 'user-ev',
+        templateType: 'earnings_voided',
+        senderId: 'admin-ev',
+        batchId: 'batch-1',
+        // v007: 关联本次资金流水编号
+        sourceType: 'balance_record',
+        sourceId: 'br-ev-001',
+      })
+    })
+
+    it('2. 模板变量包含金额、剩余可用收益和累计作废收益', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'VoidUser',
+        phone: '13900000030',
+      })
+
+      await OrderNotificationService.notifyEarningsVoid(baseParams)
+
+      expect(notifications.sendCalls[0].variables).toEqual({
+        userName: 'VoidUser',
+        amount: '40.00',
+        earningsAvailable: '60.00',
+        earningsVoided: '70.00',
+      })
+    })
+
+    it('3. 用户不存在时不发送通知', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null)
+
+      await OrderNotificationService.notifyEarningsVoid(baseParams)
+
+      expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
+      expect(sendInAppMock).not.toHaveBeenCalled()
+    })
+
+    it('4. 用户查询失败时不向调用方抛错', async () => {
+      mockPrisma.user.findUnique.mockRejectedValueOnce(new Error('DB connection lost'))
+
+      await expect(
+        OrderNotificationService.notifyEarningsVoid(baseParams)
+      ).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('收益作废通知失败', { error: expect.any(String) })
+    })
+
+    it('5. 通知批次创建失败时不向调用方抛错', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'VoidUser',
+        phone: '13900000030',
+      })
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('Batch DB down'))
+
+      await expect(
+        OrderNotificationService.notifyEarningsVoid(baseParams)
+      ).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('收益作废通知失败', { error: expect.any(String) })
+    })
+
+    it('6. sendInApp 失败时不向调用方抛错', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'VoidUser',
+        phone: '13900000030',
+      })
+      sendInAppMock.mockRejectedValueOnce(new Error('sendInApp explosion'))
+
+      await expect(
+        OrderNotificationService.notifyEarningsVoid(baseParams)
+      ).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('收益作废通知失败', { error: expect.any(String) })
+    })
+
+    it('7. 失败时调用日志记录', async () => {
+      mockPrisma.user.findUnique.mockRejectedValueOnce(new Error('DB error'))
+
+      await OrderNotificationService.notifyEarningsVoid(baseParams)
+
+      // 必须调了 logger.error
+      expect(loggerMock.error).toHaveBeenCalledTimes(1)
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        '收益作废通知失败',
+        { error: expect.any(String) }
+      )
+    })
+  })
 })

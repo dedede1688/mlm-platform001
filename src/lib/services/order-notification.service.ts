@@ -754,6 +754,63 @@ export class OrderNotificationService {
     }
   }
 
+  // v005: 收益作废通知（admin 把用户可用收益作废时触发）
+  // v006: 完整异常保护覆盖 user.findUnique + batch.create + sendInApp
+  // v007: 关联本次资金流水编号（balanceRecordId）
+  static async notifyEarningsVoid(params: {
+    userId: string
+    amount: number
+    earningsAvailable: number
+    earningsVoided: number
+    reason: string
+    operatorId?: string
+    balanceRecordId: string
+  }) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: params.userId },
+        select: { nickname: true, phone: true },
+      })
+      if (!user) return
+
+      const userName = user.nickname || user.phone || '用户'
+      const variables = {
+        userName,
+        amount: params.amount.toFixed(2),
+        earningsAvailable: params.earningsAvailable.toFixed(2),
+        earningsVoided: params.earningsVoided.toFixed(2),
+      }
+
+      const b = await prisma.notificationBatch.create({
+        data: {
+          type: 'business',
+          title: '收益作废通知',
+          content: `您的可用收益 ¥${params.amount.toFixed(2)} 已被后台作废，原因：${params.reason}`,
+          templateType: 'earnings_voided',
+          recipientCount: 1,
+          senderId: params.operatorId ?? null,
+        },
+      })
+      await sendInApp({
+        userId: params.userId,
+        templateType: 'earnings_voided',
+        variables,
+        batchId: b.id,
+        senderId: params.operatorId,
+        // v007: 关联本次唯一资金流水编号
+        sourceType: 'balance_record',
+        sourceId: params.balanceRecordId,
+      })
+    } catch (err) {
+      console.error('[v006 notifyEarningsVoid]', {
+        error: String(err),
+        code: (err as any)?.code,
+        meta: (err as any)?.meta,
+      })
+      logger.error('收益作废通知失败', { error: String(err) })
+    }
+  }
+
   // 收益转余额通知（用户把可用收益转入购物余额后触发）
   static async notifyEarningsTransferred(params: {
     userId: string

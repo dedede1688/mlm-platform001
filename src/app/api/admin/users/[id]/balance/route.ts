@@ -6,6 +6,7 @@ import { invalidateCache } from '@/lib/utils/stats-cache'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
+import { logger } from '@/lib/logger'
 
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
 type AdjustType = typeof VALID_TYPES[number]
@@ -69,9 +70,17 @@ export async function POST(
 
     const adjustType: AdjustType = type as AdjustType
 
-    if (typeof amount !== 'number' || isNaN(amount) || amount === 0) {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0) {
       return NextResponse.json(
-        { success: false, message: 'amount 必须为非零数字' },
+        { success: false, message: 'amount 必须为非零有限数字' },
+        { status: 400 }
+      )
+    }
+
+    // earnings_void 特殊校验：只允许正数
+    if (adjustType === 'earnings_void' && amount <= 0) {
+      return NextResponse.json(
+        { success: false, message: '作废收益金额必须为正数' },
         { status: 400 }
       )
     }
@@ -89,6 +98,64 @@ export async function POST(
         throw new Error('用户不存在')
       }
 
+      // ===== earnings_void 特殊处理：减可用收益 + 增作废收益 =====
+      if (adjustType === 'earnings_void') {
+        // 并发保护：只有 earningsAvailable >= amount 才能更新
+        const voidResult = await tx.user.updateMany({
+          where: { id, earningsAvailable: { gte: amount } },
+          data: {
+            earningsAvailable: { decrement: amount },
+            earningsVoided: { increment: amount },
+          },
+        })
+        if (voidResult.count === 0) throw new Error('可用收益不足')
+
+        // v006: 读取更新后的真实值，不用 before 伪造快照
+        const updated = await tx.user.findUnique({ where: { id } })
+        if (!updated) throw new Error('用户更新后查询失败')
+
+        // v006: 反推本次操作前的真实值（并发安全）
+        const actualOld = {
+          earningsAvailable: updated.earningsAvailable + amount,
+          earningsVoided: updated.earningsVoided - amount,
+        }
+
+        const after4Field = {
+          consumeBalance: updated.consumeBalance,
+          earningsAvailable: updated.earningsAvailable,
+          earningsPending: updated.earningsPending,
+          earningsVoided: updated.earningsVoided,
+        }
+        const before4Field = {
+          consumeBalance: updated.consumeBalance,
+          earningsAvailable: actualOld.earningsAvailable,
+          earningsPending: updated.earningsPending,
+          earningsVoided: actualOld.earningsVoided,
+        }
+        // v007: 保存资金流水创建结果，带出 balanceRecordId 给通知关联
+        const balanceRecord = await tx.balanceRecord.create({
+          data: {
+            userId: id,
+            type: 'earnings_void',
+            amount,
+            balance: updated.balance,
+            frozenBalance: updated.frozenBalance,
+            sourceType: 'admin',
+            sourceId: admin.id,
+            description: `管理员调账：作废收益 ¥${amount.toFixed(2)}，原因：${reason}${format4FieldDelta(before4Field, after4Field)}`,
+          },
+        })
+
+        return {
+          updated,
+          oldValue: actualOld,
+          adjustType,
+          mapping: TYPE_FIELD_MAP[adjustType],
+          balanceRecordId: balanceRecord.id,
+        }
+      }
+
+      // ===== 通用调账逻辑 =====
       const mapping = TYPE_FIELD_MAP[adjustType]
       const extraSign = TYPE_EXTRA_SIGN[adjustType] ?? 1
 
@@ -154,26 +221,57 @@ export async function POST(
       module: 'user',
       targetId: id,
       oldValue: result.oldValue,
-      newValue: { [result.mapping.main]: result.updated[result.mapping.main] },
+      newValue: adjustType === 'earnings_void'
+        ? { earningsAvailable: result.updated.earningsAvailable, earningsVoided: result.updated.earningsVoided }
+        : { [result.mapping.main]: result.updated[result.mapping.main] },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    // v46.11: 触发余额变动通知（修复调账路由没调 sendInApp 的死代码问题）
-    await OrderNotificationService.notifyBalanceChange({
-      userId: id,
-      adjustType: type as string,
-      amount,
-      newBalance: result.updated.balance,
-      reason: reason.trim(),
-      operatorId: admin.id,
-    })
+    // 通知：earnings_void 用专用模板，其他类型走通用 balance_change
+    // v006: 路由层第二道保护——通知失败不影响资金成功返回
+    if (adjustType === 'earnings_void') {
+      await OrderNotificationService.notifyEarningsVoid({
+        userId: id,
+        amount,
+        earningsAvailable: result.updated.earningsAvailable,
+        earningsVoided: result.updated.earningsVoided,
+        reason: reason.trim(),
+        operatorId: admin.id,
+        balanceRecordId: result.balanceRecordId!,
+      }).catch((err) => {
+        console.error('[v006 notifyEarningsVoid route catch]', { error: String(err) })
+        logger.error('收益作废通知路由层捕获异常', { error: String(err) })
+      })
+    } else {
+      // v46.11: 触发余额变动通知（修复调账路由没调 sendInApp 的死代码问题）
+      await OrderNotificationService.notifyBalanceChange({
+        userId: id,
+        adjustType: type as string,
+        amount,
+        newBalance: result.updated.balance,
+        reason: reason.trim(),
+        operatorId: admin.id,
+      })
+    }
 
     const fieldLabel = result.mapping.label
     const actionLabel = amount > 0 ? '增加' : '扣减'
     console.log(
       `[BalanceAdjust] 用户 ${id} 的${fieldLabel}已${actionLabel} ¥${Math.abs(amount).toFixed(2)}，原因：${reason}`
     )
+
+    // earnings_void 返回双字段（可用收益 + 累计作废）
+    if (adjustType === 'earnings_void') {
+      return NextResponse.json({
+        success: true,
+        data: {
+          earningsAvailable: result.updated.earningsAvailable,
+          earningsVoided: result.updated.earningsVoided,
+        },
+        message: `收益作废成功：可用收益减少 ¥${amount.toFixed(2)}，累计作废 ¥${result.updated.earningsVoided.toFixed(2)}`,
+      })
+    }
 
     const responseData: Record<string, number> = {
       [result.mapping.main]: result.updated[result.mapping.main] as number,
@@ -190,9 +288,11 @@ export async function POST(
   } catch (error) {
     console.error('Adjust balance error:', error)
     const message = error instanceof Error ? error.message : '资金调整失败'
+    // v007: 可用收益不足属于业务校验失败，返回 400 而非 500
+    const isBusinessError = message === '可用收益不足'
     return NextResponse.json(
       { success: false, message },
-      { status: 500 }
+      { status: isBusinessError ? 400 : 500 }
     )
   }
 }

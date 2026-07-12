@@ -150,7 +150,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   const [savingLevel, setSavingLevel] = useState(false)
 
   // 资金调整
-  const [balanceType, setBalanceType] = useState<'balance' | 'frozenBalance' | 'earnings_add'>('balance')
+  const [balanceType, setBalanceType] = useState<'balance' | 'frozenBalance' | 'earnings_add' | 'earnings_void'>('balance')
   const [balanceAmount, setBalanceAmount] = useState<string>('')
   const [balanceReason, setBalanceReason] = useState('')
   const [savingBalance, setSavingBalance] = useState(false)
@@ -314,6 +314,14 @@ const [treeUserName, setTreeUserName] = useState<string>('')
     // 可用收益只允许增加(正数),不允许减少或为0
     if (balanceType === 'earnings_add' && amount <= 0) {
       showMessage('error', '本次只允许增加可用收益'); return
+    }
+    // 作废收益只允许正数
+    if (balanceType === 'earnings_void' && amount <= 0) {
+      showMessage('error', '作废收益金额必须为正数'); return
+    }
+    // 作废收益不能超过当前可用收益
+    if (balanceType === 'earnings_void' && amount > (detailUser.earningsAvailable ?? 0)) {
+      showMessage('error', `可用收益不足，当前仅剩 ¥${(detailUser.earningsAvailable ?? 0).toFixed(2)}`); return
     }
     if (balanceReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
     // v68.7:大额(≥1000)弹二次确认
@@ -1010,25 +1018,29 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs text-gray-400 mb-1">调整字段</label>
-                          <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance' | 'earnings_add')}
+                          <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance' | 'earnings_add' | 'earnings_void')}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
                             <option value="balance">余额</option>
                             <option value="frozenBalance">冻结余额</option>
-                            <option value="earnings_add">可用收益</option>
+                            <option value="earnings_add">可用收益（增加）</option>
+                            <option value="earnings_void">作废收益</option>
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : '可用收益'}</label>
+                          <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : balanceType === 'earnings_void' ? '可用收益' : '可用收益'}</label>
                           <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : balanceType === 'frozenBalance' ? detailUser.frozenBalance : (detailUser.earningsAvailable ?? 0)).toFixed(2)}</p>
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">{balanceType === 'earnings_add' ? '增加金额（只允许正数）' : '调整金额（正数=增加，负数=扣减）'}</label>
+                        <label className="block text-xs text-gray-400 mb-1">{balanceType === 'earnings_add' ? '增加金额（只允许正数）' : balanceType === 'earnings_void' ? '作废金额（只允许正数）' : '调整金额（正数=增加，负数=扣减）'}</label>
                         <input type="number" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)}
-                          placeholder={balanceType === 'earnings_add' ? '例如：100' : '例如：100 或 -50'}
+                          placeholder={balanceType === 'earnings_add' ? '例如：100' : balanceType === 'earnings_void' ? '例如：40' : '例如：100 或 -50'}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
                         {balanceType === 'earnings_add' && (
                           <p className="text-xs text-orange-600 mt-1">⚠️ 本次只允许增加可用收益，不可减少或作废。</p>
+                        )}
+                        {balanceType === 'earnings_void' && (
+                          <p className="text-xs text-red-600 mt-1">⚠️ 作废收益将从可用收益中扣除并计入累计作废，不可逆操作。</p>
                         )}
                       </div>
                       <div>
@@ -1150,35 +1162,46 @@ const [treeUserName, setTreeUserName] = useState<string>('')
         </div>
       )}
 
-      {/* v68.7:大额余额调整二次确认 */}
-      <ConfirmDialog
-        open={balanceConfirm !== null}
-        title="大额余额调整确认"
-        mode="emphasize"
-        message={
-          <div className="space-y-3">
-            <p className="leading-relaxed">
-              你正在调整用户 <span className="font-semibold text-blue-600">{detailUser?.nickname || detailUser?.phone}</span> 的余额:
-            </p>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-1">
-              <p>调整字段: <span className="font-semibold text-gray-900">{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : '可用收益'}</span></p>
-              <p>调整金额: <span className="font-bold text-red-600 text-lg">¥{Math.abs(balanceConfirm || 0).toFixed(2)} {(balanceConfirm || 0) > 0 ? '增加' : '扣减'}</span></p>
-              <p>调整前: <span className="text-gray-700">¥{(balanceType === 'balance' ? (detailUser?.balance ?? 0) : balanceType === 'frozenBalance' ? (detailUser?.frozenBalance ?? 0) : (detailUser?.earningsAvailable ?? 0)).toFixed(2)}</span></p>
-              <p>调整后: <span className="font-semibold text-orange-600">¥{((balanceType === 'balance' ? (detailUser?.balance ?? 0) : balanceType === 'frozenBalance' ? (detailUser?.frozenBalance ?? 0) : (detailUser?.earningsAvailable ?? 0)) + (balanceConfirm || 0)).toFixed(2)}</span></p>
-              <p>原因: <span className="text-gray-700">{balanceReason}</span></p>
-            </div>
-            <p className="text-red-600 text-xs">⚠️ 余额调整会在用户账上直接生效,请确认无误后再提交。</p>
-          </div>
-        }
-        confirmText="我已确认,执行调整"
-        loading={savingBalance}
-        onConfirm={async () => {
-          const amt = balanceConfirm!
-          setBalanceConfirm(null)
-          await doAdjustBalance(amt)
-        }}
-        onCancel={() => setBalanceConfirm(null)}
-      />
+{/* v68.7:大额余额调整二次确认 */}
+<ConfirmDialog
+open={balanceConfirm !== null}
+title={balanceType === 'earnings_void' ? '大额收益作废确认' : '大额余额调整确认'}
+mode="emphasize"
+message={
+<div className="space-y-3">
+<p className="leading-relaxed">
+你正在调整用户 <span className="font-semibold text-blue-600">{detailUser?.nickname || detailUser?.phone}</span> 的资金:
+</p>
+<div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-1">
+<p>调整字段: <span className="font-semibold text-gray-900">{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : balanceType === 'earnings_void' ? '作废收益' : '可用收益'}</span></p>
+{balanceType === 'earnings_void' ? (
+<>
+<p>作废金额: <span className="font-bold text-red-600 text-lg">¥{Math.abs(balanceConfirm || 0).toFixed(2)}</span></p>
+<p>当前可用收益: <span className="text-gray-700">¥{(detailUser?.earningsAvailable ?? 0).toFixed(2)}</span></p>
+<p>作废后可用收益: <span className="font-semibold text-orange-600">¥{((detailUser?.earningsAvailable ?? 0) - Math.abs(balanceConfirm || 0)).toFixed(2)}</span></p>
+<p>作废后累计作废: <span className="font-semibold text-red-600">¥{((detailUser?.earningsVoided ?? 0) + Math.abs(balanceConfirm || 0)).toFixed(2)}</span></p>
+</>
+) : (
+<>
+<p>调整金额: <span className="font-bold text-red-600 text-lg">¥{Math.abs(balanceConfirm || 0).toFixed(2)} {(balanceConfirm || 0) > 0 ? '增加' : '扣减'}</span></p>
+<p>调整前: <span className="text-gray-700">¥{(balanceType === 'balance' ? (detailUser?.balance ?? 0) : balanceType === 'frozenBalance' ? (detailUser?.frozenBalance ?? 0) : (detailUser?.earningsAvailable ?? 0)).toFixed(2)}</span></p>
+<p>调整后: <span className="font-semibold text-orange-600">¥{((balanceType === 'balance' ? (detailUser?.balance ?? 0) : balanceType === 'frozenBalance' ? (detailUser?.frozenBalance ?? 0) : (detailUser?.earningsAvailable ?? 0)) + (balanceConfirm || 0)).toFixed(2)}</span></p>
+</>
+)}
+<p>原因: <span className="text-gray-700">{balanceReason}</span></p>
+</div>
+<p className="text-red-600 text-xs">⚠️ {balanceType === 'earnings_void' ? '收益作废会从可用收益中扣除并计入累计作废,不可逆操作,请确认无误后再提交。' : '余额调整会在用户账上直接生效,请确认无误后再提交。'}</p>
+</div>
+}
+confirmText={balanceType === 'earnings_void' ? '我已确认,执行作废' : '我已确认,执行调整'}
+loading={savingBalance}
+onConfirm={async () => {
+const amt = balanceConfirm!
+setBalanceConfirm(null)
+await doAdjustBalance(amt)
+}}
+onCancel={() => setBalanceConfirm(null)}
+/>
 
       {/* v68.7:大额积分调整二次确认 */}
       <ConfirmDialog

@@ -222,6 +222,14 @@ async function main() {
       enabled: true,
     },
     {
+      id: 'seed-tpl-earnings_voided-in_app',
+      type: 'earnings_voided',
+      channel: 'in_app',
+      subject: '收益作废通知',
+      content: '【敏维科技】{{userName}} 您好，您的可用收益 ¥{{amount}} 已被后台作废。剩余可用收益：¥{{earningsAvailable}}，累计作废收益：¥{{earningsVoided}}。如有疑问请联系客服。',
+      enabled: true,
+    },
+    {
       id: 'seed-tpl-earnings_transferred-in_app',
       type: 'earnings_transferred',
       channel: 'in_app',
