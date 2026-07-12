@@ -6,6 +6,7 @@ export interface ApiResponse<T = unknown> {
   data?: T
   message?: string
   error?: string
+  code?: string
 }
 
 export function successResponse<T>(data: T, message?: string): NextResponse<ApiResponse<T>> {
@@ -16,11 +17,17 @@ export function successResponse<T>(data: T, message?: string): NextResponse<ApiR
   })
 }
 
-export function errorResponse(error: string, status: number = 400): NextResponse<ApiResponse<null>> {
+export function errorResponse(
+  error: string,
+  status: number = 400,
+  options?: { code?: string; data?: unknown }
+): NextResponse<ApiResponse> {
   return NextResponse.json(
     {
       success: false,
       error,
+      ...(options?.code && { code: options.code }),
+      ...(options?.data !== undefined && { data: options.data }),
     },
     { status }
   )

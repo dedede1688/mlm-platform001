@@ -17,6 +17,9 @@ export async function POST(
 ) {
   const orderId = (await params).id
 
+  // 事务外声明：捕获余额信息供 catch 块结构化错误使用（ref 对象避免 TS 控制流窄化为 null）
+  const paymentContextRef = { current: null as { balance: number; payAmount: number } | null }
+
   try {
     invalidateCache('admin-stats')  // v51.5: 支付成功后 stats 失效
 
@@ -103,6 +106,9 @@ export async function POST(
           throw new Error('用户不存在')
         }
 
+        // 捕获余额信息供 catch 块结构化错误使用
+        paymentContextRef.current = { balance: freshUser.balance, payAmount: order.payAmount }
+
         // 原子扣减余额（条件 balance >= payAmount 防止透支）
         const balanceUpdated = await tx.user.updateMany({
           where: {
@@ -154,6 +160,21 @@ export async function POST(
     )
   } catch (error: any) {
     console.error('验证支付失败:', error)
+
+    // 余额不足：返回结构化错误（前端可据此弹收益转余额浮窗）
+    if (error.message === '可用余额不足' && paymentContextRef.current) {
+      const ctx = paymentContextRef.current
+      const shortage = ctx.payAmount - ctx.balance
+      return errorResponse('可用余额不足', 400, {
+        code: 'INSUFFICIENT_BALANCE',
+        data: {
+          balance: ctx.balance,
+          payAmount: ctx.payAmount,
+          shortage,
+        },
+      })
+    }
+
     const msg =
       error.message === '支付密码错误'
         ? '支付密码错误'
