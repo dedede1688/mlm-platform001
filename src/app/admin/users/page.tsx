@@ -26,6 +26,7 @@ interface UserRow {
   consumeBalance: number
   earningsPending: number
   earningsAvailable: number
+  earningsFrozen: number
   earningsVoided: number
   totalPoints: number
   unlockedPoints: number
@@ -139,7 +140,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   const [savingLevel, setSavingLevel] = useState(false)
 
   // 资金调整
-  const [balanceType, setBalanceType] = useState<'balance' | 'frozenBalance'>('balance')
+  const [balanceType, setBalanceType] = useState<'balance' | 'frozenBalance' | 'earnings_add'>('balance')
   const [balanceAmount, setBalanceAmount] = useState<string>('')
   const [balanceReason, setBalanceReason] = useState('')
   const [savingBalance, setSavingBalance] = useState(false)
@@ -296,6 +297,10 @@ const [treeUserName, setTreeUserName] = useState<string>('')
     if (!canApprove) { showMessage('error', '你没有审批权限,请联系超级管理员'); return }
     const amount = Number(balanceAmount)
     if (!amount || isNaN(amount)) { showMessage('error', '请输入有效的金额'); return }
+    // 可用收益只允许增加(正数),不允许减少或为0
+    if (balanceType === 'earnings_add' && amount <= 0) {
+      showMessage('error', '本次只允许增加可用收益'); return
+    }
     if (balanceReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
     // v68.7:大额(≥1000)弹二次确认
     if (Math.abs(amount) >= LARGE_BALANCE_THRESHOLD) {
@@ -730,6 +735,32 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                 <div><span className="text-xs text-gray-400">可用/锁定</span><p className="text-sm text-gray-900">{detailUser.unlockedPoints} / {detailUser.lockedPoints}</p></div>
               </div>
 
+              {/* 收益账户 */}
+              <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Wallet className="w-4 h-4 text-orange-600" />
+                  <span className="text-sm font-semibold text-gray-900">收益账户</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div>
+                    <span className="text-xs text-gray-400">可用收益</span>
+                    <p className="text-sm font-medium text-green-600">¥{formatMoney(detailUser.earningsAvailable ?? 0)}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400">冻结收益</span>
+                    <p className="text-sm font-medium text-gray-700">¥{formatMoney(detailUser.earningsFrozen ?? 0)}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400">待结算收益</span>
+                    <p className="text-sm font-medium text-gray-700">¥{formatMoney(detailUser.earningsPending ?? 0)}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-400">作废收益</span>
+                    <p className="text-sm font-medium text-red-600">¥{formatMoney(detailUser.earningsVoided ?? 0)}</p>
+                  </div>
+                </div>
+              </div>
+
               {/* 统计信息 */}
               <Section title="经营统计" open={openSections.stats} onToggle={() => toggleSection('stats')}>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -917,22 +948,26 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-400 mb-1">调整字段</label>
-                      <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance')}
+                      <select value={balanceType} onChange={e => setBalanceType(e.target.value as 'balance' | 'frozenBalance' | 'earnings_add')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors">
                         <option value="balance">余额</option>
                         <option value="frozenBalance">冻结余额</option>
+                        <option value="earnings_add">可用收益</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : '冻结余额'}</label>
-                      <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : detailUser.frozenBalance).toFixed(2)}</p>
+                      <label className="block text-xs text-gray-400 mb-1">当前{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : '可用收益'}</label>
+                      <p className="text-sm font-medium text-gray-900 py-2">¥{(balanceType === 'balance' ? detailUser.balance : balanceType === 'frozenBalance' ? detailUser.frozenBalance : (detailUser.earningsAvailable ?? 0)).toFixed(2)}</p>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">调整金额（正数=增加，负数=扣减）</label>
+                    <label className="block text-xs text-gray-400 mb-1">{balanceType === 'earnings_add' ? '增加金额（只允许正数）' : '调整金额（正数=增加，负数=扣减）'}</label>
                     <input type="number" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)}
-                      placeholder="例如：100 或 -50"
+                      placeholder={balanceType === 'earnings_add' ? '例如：100' : '例如：100 或 -50'}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                    {balanceType === 'earnings_add' && (
+                      <p className="text-xs text-orange-600 mt-1">⚠️ 本次只允许增加可用收益，不可减少或作废。</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">调整原因（至少 5 字）</label>
@@ -1069,10 +1104,10 @@ const [treeUserName, setTreeUserName] = useState<string>('')
               你正在调整用户 <span className="font-semibold text-blue-600">{detailUser?.nickname || detailUser?.phone}</span> 的余额:
             </p>
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-1">
-              <p>调整字段: <span className="font-semibold text-gray-900">{balanceType === 'balance' ? '余额' : '冻结余额'}</span></p>
+              <p>调整字段: <span className="font-semibold text-gray-900">{balanceType === 'balance' ? '余额' : balanceType === 'frozenBalance' ? '冻结余额' : '可用收益'}</span></p>
               <p>调整金额: <span className="font-bold text-red-600 text-lg">¥{Math.abs(balanceConfirm || 0).toFixed(2)} {(balanceConfirm || 0) > 0 ? '增加' : '扣减'}</span></p>
-              <p>调整前: <span className="text-gray-700">¥{(balanceType === 'balance' ? (detailUser?.balance ?? 0) : (detailUser?.frozenBalance ?? 0)).toFixed(2)}</span></p>
-              <p>调整后: <span className="font-semibold text-orange-600">¥{((balanceType === 'balance' ? (detailUser?.balance ?? 0) : (detailUser?.frozenBalance ?? 0)) + (balanceConfirm || 0)).toFixed(2)}</span></p>
+              <p>调整前: <span className="text-gray-700">¥{(balanceType === 'balance' ? (detailUser?.balance ?? 0) : balanceType === 'frozenBalance' ? (detailUser?.frozenBalance ?? 0) : (detailUser?.earningsAvailable ?? 0)).toFixed(2)}</span></p>
+              <p>调整后: <span className="font-semibold text-orange-600">¥{((balanceType === 'balance' ? (detailUser?.balance ?? 0) : balanceType === 'frozenBalance' ? (detailUser?.frozenBalance ?? 0) : (detailUser?.earningsAvailable ?? 0)) + (balanceConfirm || 0)).toFixed(2)}</span></p>
               <p>原因: <span className="text-gray-700">{balanceReason}</span></p>
             </div>
             <p className="text-red-600 text-xs">⚠️ 余额调整会在用户账上直接生效,请确认无误后再提交。</p>
