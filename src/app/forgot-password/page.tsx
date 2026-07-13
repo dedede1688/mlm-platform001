@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Eye, EyeOff, Loader2, Phone, ShieldCheck, KeyRound } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Phone, ShieldCheck, KeyRound } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 
 type Step = 'phone' | 'code' | 'reset' | 'success'

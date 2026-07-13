@@ -31,7 +31,7 @@ export default function Header() {
   const [logoError, setLogoError] = useState(false)
   const [showPhone, setShowPhone] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
-  const { user, logout, syncFromStorage } = useAuthStore()
+  const { user, logout } = useAuthStore()
 
   useEffect(() => {
     // 加载站点设置（禁用缓存确保获取最新数据）

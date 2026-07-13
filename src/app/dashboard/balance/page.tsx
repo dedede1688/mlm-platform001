@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Wallet, Loader2,
+  ArrowLeft, Wallet,
   ShoppingCart, Undo2, Gift, Lock, Unlock, Settings2, Banknote,
   PlusCircle, Info, ArrowRightLeft
 } from 'lucide-react'

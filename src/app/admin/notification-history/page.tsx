@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Inbox, Eye, Loader2, Search, User } from 'lucide-react'
+import { Inbox, Eye, Loader2, User } from 'lucide-react'
 import Link from 'next/link'
 
 interface NotificationBatch {

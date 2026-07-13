@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   LogOut, Menu, X, ChevronRight, Loader2,
-  FileText, ShieldAlert
+  ShieldAlert
 } from 'lucide-react'
 import { MENU_ITEMS, ROLE_MENUS } from '@/lib/admin-menu'
 

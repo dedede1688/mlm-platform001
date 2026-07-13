@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   BarChart3, Users, ShoppingCart, DollarSign,
   TrendingUp, Package, Clock, RefreshCw,
-  AlertTriangle, Receipt, Calendar, FileText, Wallet, Truck, Box
+  AlertTriangle, Receipt, Calendar, Wallet, Truck, Box
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { formatMoney } from '@/lib/utils/format'

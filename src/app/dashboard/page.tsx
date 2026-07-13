@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Legend,
+      LineChart, Line, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 import { formatMoney } from '@/lib/utils/format'
 import AvatarUploadModal from '@/components/dashboard/AvatarUploadModal'

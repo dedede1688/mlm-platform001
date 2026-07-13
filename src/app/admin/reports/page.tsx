@@ -303,7 +303,7 @@ export default function ReportsPage() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">5 级转化漏斗</h2>
             <div className="space-y-4">
-              {funnel.funnel.map((step, i) => {
+              {funnel.funnel.map((step) => {
                 const max = funnel.funnel[0].count
                 const widthPct = max > 0 ? (step.count / max) * 100 : 0
                 const parentStep = step.parent ? funnel.funnel.find(s => s.key === step.parent) : null
@@ -363,7 +363,7 @@ export default function ReportsPage() {
 // ---- 子组件 ----
 
 function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
-  const [textColor, bgColor] = color.split(' ')
+  const [textColor] = color.split(' ')
   return (
     <div className="bg-white rounded-xl shadow-sm p-5">
       <p className="text-sm text-gray-500 mb-1">{label}</p>

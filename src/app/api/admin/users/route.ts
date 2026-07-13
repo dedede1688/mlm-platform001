@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
     const data = users.map(u => {
       const orderCount = u.orders?.length || 0
       const totalOrderAmount = u.orders?.reduce((sum, o) => sum + (o.payAmount || 0), 0) || 0
-      const { orders, _count, referrerId, ...rest } = u
+      const { orders: _orders, _count, referrerId: _referrerId, ...rest } = u
       return {
         ...rest,
         referrer: u.referrer

@@ -4,8 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
-import { WithdrawalAuditLogService } from '@/lib/services/withdrawal-audit-log.service'
-import { NotificationService } from '@/lib/services/notification.service'
 
 // GET /api/admin/withdrawals — 获取提现申请列表（管理员）
 export async function GET(request: NextRequest) {

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { logOperation } from '@/lib/utils/operation-log'
-import { WITHDRAWAL_STATUS } from '@/lib/constants'
 
 export async function POST(request: NextRequest) {
   try {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Wallet, Search, Loader2, ChevronLeft, ChevronRight,
   X, CheckCircle, XCircle, DollarSign, Gift,
-  ListChecks, FileText, History, Bell, SquareCheck, Square,
+  ListChecks, History,
   ArrowDownCircle, ZoomIn, ZoomOut, Maximize2, Minimize2, ImageOff
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
