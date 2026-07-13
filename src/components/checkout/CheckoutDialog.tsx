@@ -68,6 +68,16 @@ interface CheckoutDialogProps {
     district: string
     detailAddress: string
   }) => Promise<boolean>
+  /** v013: 当前余额不足差额（> 0 时显示余额不足提示区） */
+  shortage?: number
+  /** v013: 当前可用收益 */
+  earningsAvailable?: number
+  /** v013: 是否已存在待支付订单 */
+  hasPendingOrder?: boolean
+  /** v013: 打开收益转余额弹窗的回调 */
+  onOpenEarningsTransfer?: () => void
+  /** v013: 去充值的回调 */
+  onGoRecharge?: () => void
 }
 
 const NEW_ADDRESS_VALUE = '__new__'
@@ -81,6 +91,11 @@ export function CheckoutDialog({
   hasPaymentPassword = false,
   existingAddresses = [],
   onSaveAddress,
+  shortage = 0,
+  earningsAvailable = 0,
+  hasPendingOrder = false,
+  onOpenEarningsTransfer,
+  onGoRecharge,
 }: CheckoutDialogProps) {
   const [recipientName, setRecipientName] = useState('')
   const [recipientPhone, setRecipientPhone] = useState(defaultPhone)
@@ -345,7 +360,34 @@ export function CheckoutDialog({
             </label>
           )}
 
-          {/* 支付密码 */}
+          {/* v013: 余额不足提示区 */}
+        {shortage > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+            <p className="text-sm text-red-600 font-medium">
+              购物余额不足，还差 ¥{shortage.toFixed(2)}
+            </p>
+            {earningsAvailable > 0 && onOpenEarningsTransfer && (
+              <button
+                type="button"
+                onClick={onOpenEarningsTransfer}
+                disabled={submitting}
+                className="w-full py-2 rounded-lg text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                收益转入余额
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onGoRecharge}
+              disabled={submitting}
+              className="w-full py-2 rounded-lg text-sm font-medium text-blue-600 border border-blue-300 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              去充值
+            </button>
+          </div>
+        )}
+
+        {/* 支付密码 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               <Lock className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
@@ -399,6 +441,8 @@ export function CheckoutDialog({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 处理中...
               </span>
+            ) : hasPendingOrder ? (
+              '重新确认支付'
             ) : (
               '确认下单'
             )}

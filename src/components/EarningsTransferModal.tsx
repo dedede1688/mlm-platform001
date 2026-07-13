@@ -12,8 +12,8 @@ interface EarningsTransferModalProps {
   earningsAvailable: number
   /** 当前购物余额 */
   balance: number
-  /** 转入成功后回调（刷新数据） */
-  onSuccess: () => void
+  /** 转入成功后回调（刷新数据），传入实际转入金额 */
+  onSuccess: (amount?: number) => void
   /** 打开弹窗时默认填入的建议转入金额（如支付余额不足时的差额） */
   initialAmount?: number
 }
@@ -95,7 +95,7 @@ export function EarningsTransferModal({
 
       if (res.ok && data.success) {
         toast.success(`收益 ¥${formatMoney(numAmount)} 已成功转入购物余额`)
-        onSuccess()
+        onSuccess(numAmount)
         onClose()
       } else {
         // 失败：弹窗不关闭，显示后端错误

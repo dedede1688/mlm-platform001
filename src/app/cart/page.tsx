@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { ShoppingCart, Trash2, ShoppingBag, ArrowRight, Loader2, Coins } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress } from '@/components/checkout/CheckoutDialog'
+import { EarningsTransferModal } from '@/components/EarningsTransferModal'
 
 interface CartProduct {
   id: string
@@ -29,8 +30,16 @@ interface CartItem {
 
 interface UserInfo {
   unlockedPoints: number
+  balance: number
+  earningsAvailable: number
   phone?: string              // v43-4-修复-2: 默认填到弹窗手机号
   hasPaymentPassword?: boolean // v43-4-修复-2: 决定弹窗显示"去设置"还是"去修改"
+}
+
+// v015: 按商品索引的待支付记录（orderId + shortage 一体保存）
+interface PendingCartPayment {
+  orderId: string
+  shortage: number
 }
 
 export default function CartPage() {
@@ -48,6 +57,18 @@ export default function CartPage() {
   const [checkoutItem, setCheckoutItem] = useState<CartItem | null>(null)
   // v43-5: 用户地址簿
   const [addresses, setAddresses] = useState<SavedAddress[]>([])
+
+  // v015: 按购物车项目索引的待支付订单 + 余额缺口
+  const [pendingPayments, setPendingPayments] = useState<Record<string, PendingCartPayment>>({})
+  // v013: 收益转余额弹窗
+  const [showEarningsTransfer, setShowEarningsTransfer] = useState(false)
+
+  // v015: 当前商品的待支付记录
+  const currentPendingPayment = checkoutItem
+    ? pendingPayments[checkoutItem.id]
+    : undefined
+
+  const currentShortage = currentPendingPayment?.shortage ?? 0
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -71,6 +92,8 @@ export default function CartPage() {
         if (data.success) {
           setUserInfo({
             unlockedPoints: data.data.unlockedPoints || 0,
+            balance: Number(data.data.balance) || 0,
+            earningsAvailable: Number(data.data.earningsAvailable) || 0,
             phone: data.data.phone,
             hasPaymentPassword: data.data.hasPaymentPassword,
           })
@@ -171,43 +194,64 @@ export default function CartPage() {
       return
     }
 
+    // v015: 缺口已按商品隔离（pendingPayments 字典），无需手动清除
+    // 无论打开哪个商品：先关闭旧的收益转余额弹窗，避免悬空
+    setShowEarningsTransfer(false)
+
     setCheckoutItem(item)
   }
 
-  // v43-4-修复: CheckoutDialog 提交回调（创建订单 + 验证支付密码 + 删购物车项 + 跳转）
+  // v015: CheckoutDialog 提交回调（创建/复用订单 + 验证支付密码 + 余额不足识别）
   const handleCheckoutConfirm = async (input: CheckoutInput): Promise<{ orderId: string } | null> => {
     if (!checkoutItem || !token) return null
 
     const pointsUsed = pointsMap[checkoutItem.id] || 0
+    let orderId: string | null = null
 
-    // 1. 创建订单（带收货信息）
-    const orderRes = await fetch('/api/orders', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        items: [{ productId: checkoutItem.product.id, quantity: 1 }],
-        pointsUsed,
-        recipientName: input.recipientName,
-        recipientPhone: input.recipientPhone,
-        shippingAddress: input.shippingAddress,
-      }),
-    })
+    // v015: 从按商品索引的字典读取待支付记录
+    const existingPayment = pendingPayments[checkoutItem.id]
+    if (existingPayment) {
+      orderId = existingPayment.orderId
+    } else {
+      // 1. 创建订单（带收货信息）
+      const orderRes = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          items: [{ productId: checkoutItem.product.id, quantity: 1 }],
+          pointsUsed,
+          recipientName: input.recipientName,
+          recipientPhone: input.recipientPhone,
+          shippingAddress: input.shippingAddress,
+        }),
+      })
 
-    if (!orderRes.ok) {
-      const errData = await orderRes.json()
-      toast.error(errData.error || '创建订单失败')
-      return null
-    }
+      if (!orderRes.ok) {
+        const errData = await orderRes.json()
+        toast.error(errData.error || '创建订单失败')
+        return null
+      }
 
-    const orderData = await orderRes.json()
-    const orderId = orderData.data?.id
+      const orderData = await orderRes.json()
+      orderId = orderData.data?.id
 
-    if (!orderId) {
-      toast.error('创建订单失败：未获取到订单ID')
-      return null
+      if (!orderId) {
+        toast.error('创建订单失败：未获取到订单ID')
+        return null
+      }
+
+      // v015: 创建订单成功后立即保存 orderId（函数式更新，保留其他商品记录）
+      const confirmedOrderId = orderId
+      setPendingPayments(prev => ({
+        ...prev,
+        [checkoutItem.id]: {
+          orderId: confirmedOrderId,
+          shortage: 0,
+        },
+      }))
     }
 
     // 2. 验证支付密码 + 标记已支付
@@ -222,7 +266,35 @@ export default function CartPage() {
 
     if (!verifyRes.ok) {
       const verifyErr = await verifyRes.json()
-      toast.error(verifyErr.error || '支付验证失败')
+      // v015: 识别余额不足
+      if (verifyErr.code === 'INSUFFICIENT_BALANCE' || (verifyErr.error && verifyErr.error.includes('余额不足'))) {
+        const apiShortage = verifyErr.data?.shortage
+        const currentBalance = userInfo?.balance ?? 0
+        const payAmount = checkoutItem.product.memberPrice - pointsUsed
+        const actualShortage = typeof apiShortage === 'number' ? apiShortage : Math.max(0, payAmount - currentBalance)
+
+        // v015: 只更新当前商品记录的 shortage，保留其他商品
+        setPendingPayments(prev => ({
+          ...prev,
+          [checkoutItem.id]: {
+            orderId,
+            shortage: actualShortage,
+          },
+        }))
+
+        const earningsAvailable = userInfo?.earningsAvailable ?? 0
+        if (earningsAvailable > 0) {
+          // 有可用收益：打开收益转余额弹窗
+          setShowEarningsTransfer(true)
+          toast.info('购物余额不足，可转入收益后继续支付')
+        } else {
+          // 无可用收益：提示去充值
+          toast.info('购物余额不足，请充值后继续支付')
+        }
+        toast.error(verifyErr.error || '支付验证失败')
+      } else {
+        toast.error(verifyErr.error || '支付验证失败')
+      }
       return null
     }
 
@@ -245,6 +317,12 @@ export default function CartPage() {
       delete next[checkoutItem.id]
       return next
     })
+    // v015: 支付成功后只删除当前商品记录，保留其他商品
+    setPendingPayments(prev => {
+      const next = { ...prev }
+      delete next[checkoutItem.id]
+      return next
+    })
     fetchUserInfo(token)
     setCheckoutItem(null)
     toast.success('购买成功！')
@@ -252,8 +330,56 @@ export default function CartPage() {
     return { orderId }
   }
 
+  // v015: 收益转入成功回调（只更新当前商品缺口，不自动支付）
+  const handleEarningsTransferSuccess = (transferredAmount?: number) => {
+    // checkoutItem 为空时安全返回，只刷新资金
+    if (!checkoutItem) {
+      if (token) fetchUserInfo(token)
+      return
+    }
+    // 刷新用户资金信息
+    if (token) {
+      fetchUserInfo(token)
+    }
+    // 计算剩余差额
+    const transferred = transferredAmount ?? 0
+    const existingShortage = pendingPayments[checkoutItem.id]?.shortage ?? 0
+    const remainingShortage = Math.max(0, existingShortage - transferred)
+
+    // v016: 只更新当前商品对应记录的 shortage（记录不存在时不新增伪记录）
+    setPendingPayments(prev => {
+      const current = prev[checkoutItem.id]
+      if (!current) return prev
+
+      return {
+        ...prev,
+        [checkoutItem.id]: {
+          ...current,
+          shortage: remainingShortage,
+        },
+      }
+    })
+
+    if (remainingShortage === 0) {
+      toast.success('余额已补足，请再次确认支付')
+    } else {
+      toast.info(`收益已转入，支付仍差 ¥${remainingShortage.toFixed(2)}，请充值后继续支付`)
+    }
+  }
+
   const handleCheckoutClose = () => {
+    // v015: 关闭弹窗时如果当前商品有待支付记录，提示用户
+    if (checkoutItem && pendingPayments[checkoutItem.id]) {
+      toast.info('订单已创建，可在我的订单中继续支付')
+    }
+    // v014: 关闭收益转余额弹窗，但保留所有 pendingPayments 记录
+    setShowEarningsTransfer(false)
     setCheckoutItem(null)
+  }
+
+  // v013: 去充值
+  const handleGoRecharge = () => {
+    router.push('/dashboard/recharge')
   }
 
   // v43-5: 下单成功后保存地址到地址簿
@@ -490,6 +616,21 @@ export default function CartPage() {
         hasPaymentPassword={userInfo?.hasPaymentPassword || false}
         existingAddresses={addresses}
         onSaveAddress={handleSaveAddress}
+        shortage={currentShortage}
+        earningsAvailable={userInfo?.earningsAvailable ?? 0}
+        hasPendingOrder={!!currentPendingPayment}
+        onOpenEarningsTransfer={() => setShowEarningsTransfer(true)}
+        onGoRecharge={handleGoRecharge}
+      />
+
+      {/* v013: 收益转余额弹窗（层级高于 CheckoutDialog） */}
+      <EarningsTransferModal
+        open={showEarningsTransfer}
+        onClose={() => setShowEarningsTransfer(false)}
+        earningsAvailable={userInfo?.earningsAvailable ?? 0}
+        balance={userInfo?.balance ?? 0}
+        initialAmount={Math.min(currentShortage, userInfo?.earningsAvailable ?? 0)}
+        onSuccess={handleEarningsTransferSuccess}
       />
     </div>
   )
