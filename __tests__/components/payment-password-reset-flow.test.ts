@@ -225,6 +225,113 @@ describe('后台会员详情"支付安全"区域', () => {
   })
 })
 
+// ---- v022: 支付密码重置手机号后四位前端校验 ----
+describe('v022: 支付密码重置手机号后四位前端校验', () => {
+
+  // ---- 1. handleResetPaymentPassword 会比较真实后四位 ----
+  describe('1. handleResetPaymentPassword 比较真实后四位', () => {
+    it('handleResetPaymentPassword 包含真实后四位比较逻辑（actualPhoneSuffix 或 detailUser.phone.slice(-4)）', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const funcMatch = source.match(/const handleResetPaymentPassword[\s\S]*?=>[\s\S]*?\n  \}/)
+      expect(funcMatch).not.toBeNull()
+      const body = funcMatch![0]
+      expect(body.includes('detailUser.phone.slice(-4)') || body.includes('actualPhoneSuffix')).toBe(true)
+    })
+
+    it('不匹配时调用 showMessage error 手机号后 4 位不匹配', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const funcMatch = source.match(/const handleResetPaymentPassword[\s\S]*?=>[\s\S]*?\n  \}/)
+      expect(funcMatch).not.toBeNull()
+      expect(funcMatch![0]).toContain("showMessage('error', '手机号后 4 位不匹配，请核对后重试')")
+    })
+
+    it('不匹配分支在 setShowPayPwdConfirm(true) 之前 return', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const funcMatch = source.match(/const handleResetPaymentPassword[\s\S]*?=>[\s\S]*?\n  \}/)
+      expect(funcMatch).not.toBeNull()
+      const body = funcMatch![0]
+      const mismatchIdx = body.indexOf('手机号后 4 位不匹配，请核对后重试')
+      const confirmIdx = body.indexOf('setShowPayPwdConfirm(true)')
+      expect(mismatchIdx).toBeGreaterThan(0)
+      expect(confirmIdx).toBeGreaterThan(0)
+      expect(mismatchIdx).toBeLessThan(confirmIdx)
+    })
+  })
+
+  // ---- 2. doResetPaymentPassword 再次校验后四位 ----
+  describe('2. doResetPaymentPassword 再次校验后四位', () => {
+    it('doResetPaymentPassword 在 fetch 前再次比较后四位（actualPhoneSuffix 或 detailUser.phone.slice(-4)）', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const funcMatch = source.match(/const doResetPaymentPassword[\s\S]*?=>[\s\S]*?finally[\s\S]*?\}/)
+      expect(funcMatch).not.toBeNull()
+      const body = funcMatch![0]
+      expect(body.includes('detailUser.phone.slice(-4)') || body.includes('actualPhoneSuffix')).toBe(true)
+    })
+
+    it('不匹配时不调用 fetch 也不进入 saving 状态', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const funcMatch = source.match(/const doResetPaymentPassword[\s\S]*?=>[\s\S]*?finally[\s\S]*?\}/)
+      expect(funcMatch).not.toBeNull()
+      const body = funcMatch![0]
+      const mismatchIdx = body.indexOf('手机号后 4 位不匹配，请核对后重试')
+      const savingIdx = body.indexOf('setSavingPayPwdReset(true)')
+      const fetchIdx = body.indexOf('fetch(')
+      expect(mismatchIdx).toBeGreaterThan(0)
+      expect(savingIdx).toBeGreaterThan(0)
+      expect(fetchIdx).toBeGreaterThan(0)
+      expect(mismatchIdx).toBeLessThan(savingIdx)
+      expect(mismatchIdx).toBeLessThan(fetchIdx)
+    })
+  })
+
+  // ---- 3. 按钮禁用条件包含后四位匹配 ----
+  describe('3. 按钮禁用条件包含后四位匹配', () => {
+    it('重置按钮 disabled 包含后四位匹配条件（suffixMatches 或 detailUser.phone.slice(-4)）', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const btnMatch = source.match(/onClick=\{handleResetPaymentPassword\}[^>]*disabled=\{[^}]*\}/)
+      expect(btnMatch).not.toBeNull()
+      const btn = btnMatch![0]
+      expect(btn.includes('suffixMatches') || btn.includes('detailUser.phone.slice(-4)')).toBe(true)
+    })
+  })
+
+  // ---- 4. 输入满 4 位但不匹配时显示红色提示 ----
+  describe('4. 输入满 4 位但不匹配时显示红色提示', () => {
+    it('页面包含手机号后 4 位不匹配的红色提示文案', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      expect(source).toContain('手机号后 4 位不匹配，请核对后重试')
+    })
+
+    it('红色提示仅在输入满 4 位且不匹配时出现', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const tipIdx = source.indexOf('<p className="mt-1 text-xs text-red-500">手机号后 4 位不匹配，请核对后重试</p>')
+      expect(tipIdx).toBeGreaterThan(0)
+      const before = source.slice(Math.max(0, tipIdx - 300), tipIdx)
+      expect(before).toMatch(/normalizedSuffix\.length\s*===\s*4/)
+    })
+  })
+
+  // ---- 5. 接口失败时优先读取 data.error ----
+  describe('5. 接口失败时优先读取 data.error', () => {
+    it('doResetPaymentPassword 错误分支使用 data.error || data.message', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const funcMatch = source.match(/const doResetPaymentPassword[\s\S]*?=>[\s\S]*?finally[\s\S]*?\}/)
+      expect(funcMatch).not.toBeNull()
+      expect(funcMatch![0]).toMatch(/data\.error\s*\|\|\s*data\.message/)
+    })
+  })
+
+  // ---- 6. 正确后四位仍允许打开二次确认 ----
+  describe('6. 正确后四位仍允许打开二次确认', () => {
+    it('handleResetPaymentPassword 在匹配时仍调用 setShowPayPwdConfirm(true)', () => {
+      const source = read('src/app/admin/users/page.tsx')
+      const funcMatch = source.match(/const handleResetPaymentPassword[\s\S]*?=>[\s\S]*?\n  \}/)
+      expect(funcMatch).not.toBeNull()
+      expect(funcMatch![0]).toContain('setShowPayPwdConfirm(true)')
+    })
+  })
+})
+
 // ---- v019: 后台状态隔离测试 ----
 describe('v019: 后台支付密码重置状态隔离', () => {
 

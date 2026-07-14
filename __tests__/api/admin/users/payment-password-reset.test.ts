@@ -205,7 +205,10 @@ describe('POST /api/admin/users/[id]/payment-password/reset', () => {
     expect(res.status).toBe(400)
     const data = await res.json()
     expect(data.success).toBe(false)
+    expect(data.error).toBe('手机号后 4 位不匹配')
     expect(prisma.user.updateMany).not.toHaveBeenCalled()
+    expect(logOperation).not.toHaveBeenCalled()
+    expect(OrderNotificationService.notifyPaymentPasswordReset).not.toHaveBeenCalled()
   })
 
   // ===== 场景 7: 用户不存在返回 404 =====

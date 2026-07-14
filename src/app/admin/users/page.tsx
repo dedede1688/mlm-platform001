@@ -202,25 +202,36 @@ const [treeUserName, setTreeUserName] = useState<string>('')
     setDetailUser(null)
   }
 
+  // v022: 手机号后四位匹配校验
+  const actualPhoneSuffix = detailUser?.phone ? detailUser.phone.slice(-4) : ''
+  const normalizedSuffix = payPwdResetSuffix.trim()
+  const suffixMatches = /^\d{4}$/.test(normalizedSuffix) && normalizedSuffix === actualPhoneSuffix
+
   // v018: 支付密码重置处理
   const handleResetPaymentPassword = async () => {
     if (!token || !detailUser) return
     if (userRole !== 'super_admin') { showMessage('error', '只有超级管理员可以重置支付密码'); return }
     if (payPwdResetReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
-    if (!/^\d{4}$/.test(payPwdResetSuffix)) { showMessage('error', '请输入手机号后 4 位'); return }
+    if (!/^\d{4}$/.test(normalizedSuffix)) { showMessage('error', '请输入手机号后 4 位'); return }
+    if (normalizedSuffix !== actualPhoneSuffix) { showMessage('error', '手机号后 4 位不匹配，请核对后重试'); return }
     setShowPayPwdConfirm(true)
   }
 
   // 实际执行支付密码重置（二次确认后）
   const doResetPaymentPassword = async () => {
     if (!token || !detailUser) return
+    if (normalizedSuffix !== actualPhoneSuffix) {
+      showMessage('error', '手机号后 4 位不匹配，请核对后重试')
+      setShowPayPwdConfirm(false)
+      return
+    }
     setSavingPayPwdReset(true)
     setShowPayPwdConfirm(false)
     try {
       const res = await fetch(`/api/admin/users/${detailUser.id}/payment-password/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ reason: payPwdResetReason.trim(), phoneSuffix: payPwdResetSuffix.trim() }),
+        body: JSON.stringify({ reason: payPwdResetReason.trim(), phoneSuffix: normalizedSuffix }),
       })
       const data = await res.json()
       if (data.success) {
@@ -228,7 +239,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
         setDetailUser(prev => prev ? { ...prev, hasPaymentPassword: false } : null)
         setPayPwdResetReason('')
         setPayPwdResetSuffix('')
-      } else { showMessage('error', data.message || '重置失败') }
+      } else { showMessage('error', data.error || data.message || '重置失败') }
     } catch { showMessage('error', '网络错误') }
     finally { setSavingPayPwdReset(false) }
   }
@@ -1140,11 +1151,14 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                             <input type="text" value={payPwdResetSuffix} onChange={e => setPayPwdResetSuffix(e.target.value.replace(/\D/g, '').slice(0, 4))}
                               placeholder={detailUser.phone ? `用户手机号后 4 位: ${detailUser.phone.slice(-4)}` : '请输入 4 位数字'}
                               maxLength={4}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                              className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors ${normalizedSuffix.length === 4 && normalizedSuffix !== actualPhoneSuffix ? 'border-red-400' : 'border-gray-300'}`} />
+                            {normalizedSuffix.length === 4 && normalizedSuffix !== actualPhoneSuffix && (
+                              <p className="mt-1 text-xs text-red-500">手机号后 4 位不匹配，请核对后重试</p>
+                            )}
                           </div>
                           {userRole === 'super_admin' ? (
-                            <button onClick={handleResetPaymentPassword} disabled={savingPayPwdReset || !payPwdResetReason.trim() || payPwdResetReason.trim().length < 5 || !payPwdResetSuffix || payPwdResetSuffix.length !== 4}
-                              className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPayPwdReset || !payPwdResetReason.trim() || payPwdResetReason.trim().length < 5 || !payPwdResetSuffix || payPwdResetSuffix.length !== 4 ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 shadow-sm'}`}>
+                            <button onClick={handleResetPaymentPassword} disabled={savingPayPwdReset || !payPwdResetReason.trim() || payPwdResetReason.trim().length < 5 || !suffixMatches}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPayPwdReset || !payPwdResetReason.trim() || payPwdResetReason.trim().length < 5 || !suffixMatches ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 shadow-sm'}`}>
                               {savingPayPwdReset ? '处理中...' : '重置支付密码'}
                             </button>
                           ) : (
