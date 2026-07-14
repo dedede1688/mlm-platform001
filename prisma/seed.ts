@@ -214,6 +214,14 @@ async function main() {
       enabled: true,
     },
     {
+      id: 'seed-tpl-payment_password_reset-in_app',
+      type: 'payment_password_reset',
+      channel: 'in_app',
+      subject: '支付密码重置通知',
+      content: '【敏维科技】{{userName}} 您好，您的支付密码已被管理员重置。请尽快前往个人中心设置新的支付密码，以确保账户安全。',
+      enabled: true,
+    },
+    {
       id: 'seed-tpl-recharge_rejected-in_app',
       type: 'recharge_rejected',
       channel: 'in_app',

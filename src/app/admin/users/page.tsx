@@ -44,6 +44,8 @@ interface UserRow {
   role: string
   createdAt: string
   updatedAt: string
+  // v018: 支付密码状态（布尔值，不泄露哈希）
+  hasPaymentPassword: boolean
 }
 
 interface RelatedUser {
@@ -78,6 +80,8 @@ interface UserDetail extends UserRow {
   children: ChildItem[]
   orderCount: number
   totalOrderAmount: number
+  // v018: 支付密码状态（继承自 UserRow）
+  hasPaymentPassword: boolean
 }
 
 interface Pagination {
@@ -174,10 +178,60 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   const [profileReason, setProfileReason] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
 
-  // 密码重置
+  // 密码重置（登录密码）
   const [resetPassword, setResetPassword] = useState<string>('')
   const [passwordReason, setPasswordReason] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+
+  // v018: 支付密码重置
+  const [payPwdResetReason, setPayPwdResetReason] = useState<string>('')
+  const [payPwdResetSuffix, setPayPwdResetSuffix] = useState<string>('')
+  const [savingPayPwdReset, setSavingPayPwdReset] = useState(false)
+  const [showPayPwdConfirm, setShowPayPwdConfirm] = useState(false)
+
+  // v019: 清空支付密码重置表单状态（防止切换/关闭会员详情时串台）
+  const resetPaymentPasswordResetState = () => {
+    setPayPwdResetReason('')
+    setPayPwdResetSuffix('')
+    setShowPayPwdConfirm(false)
+  }
+
+  // v019: 统一关闭会员详情弹窗（同时清空 detailUser 和支付密码重置状态）
+  const closeDetailModal = () => {
+    resetPaymentPasswordResetState()
+    setDetailUser(null)
+  }
+
+  // v018: 支付密码重置处理
+  const handleResetPaymentPassword = async () => {
+    if (!token || !detailUser) return
+    if (userRole !== 'super_admin') { showMessage('error', '只有超级管理员可以重置支付密码'); return }
+    if (payPwdResetReason.trim().length < 5) { showMessage('error', '原因至少 5 个字'); return }
+    if (!/^\d{4}$/.test(payPwdResetSuffix)) { showMessage('error', '请输入手机号后 4 位'); return }
+    setShowPayPwdConfirm(true)
+  }
+
+  // 实际执行支付密码重置（二次确认后）
+  const doResetPaymentPassword = async () => {
+    if (!token || !detailUser) return
+    setSavingPayPwdReset(true)
+    setShowPayPwdConfirm(false)
+    try {
+      const res = await fetch(`/api/admin/users/${detailUser.id}/payment-password/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: payPwdResetReason.trim(), phoneSuffix: payPwdResetSuffix.trim() }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showMessage('success', '支付密码已重置，请通知用户重新设置')
+        setDetailUser(prev => prev ? { ...prev, hasPaymentPassword: false } : null)
+        setPayPwdResetReason('')
+        setPayPwdResetSuffix('')
+      } else { showMessage('error', data.message || '重置失败') }
+    } catch { showMessage('error', '网络错误') }
+    finally { setSavingPayPwdReset(false) }
+  }
 
   // v68.7:操作权限 + 大额二次确认
   const [userRole, setUserRole] = useState<string>('')
@@ -196,6 +250,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
   // 展开区块
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     stats: true, relation: true, referrals: true, children: false, level: false, balance: false, points: true, profile: false, password: true, status: false,
+    paymentPassword: true,  // v018: 支付安全区块
   })
 
   // 详情弹窗标签页
@@ -271,6 +326,8 @@ const [treeUserName, setTreeUserName] = useState<string>('')
     if (!token) return
     setDetailLoading(true)
     setDetailUser(null)
+    // v019: 清空支付密码重置表单状态，防止上一个用户的状态串到新用户
+    resetPaymentPasswordResetState()
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -736,13 +793,13 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       {/* 详情弹窗 */}
       {detailUser && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[5vh]">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setDetailUser(null)} />
+          <div className="absolute inset-0 bg-black/50" onClick={closeDetailModal} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto">
             {/* 标题 + 标签页 */}
             <div className="sticky top-0 bg-white z-10 rounded-t-2xl">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">会员详情</h2>
-                <button onClick={() => setDetailUser(null)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+                <button onClick={closeDetailModal} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
               </div>
               {/* 标签页导航 */}
               <div className="px-6 border-b border-gray-200">
@@ -1056,6 +1113,50 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                       </button>
                     </div>
                   </Section>
+
+                  {/* v018: 支付安全区域 */}
+                  <Section title="支付安全" open={openSections.paymentPassword} onToggle={() => toggleSection('paymentPassword')}>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-6">
+                        <div>
+                          <span className="text-xs text-gray-400">支付密码状态</span>
+                          <p>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${detailUser.hasPaymentPassword ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {detailUser.hasPaymentPassword ? '已设置' : '未设置'}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      {detailUser.hasPaymentPassword && (
+                        <>
+                          <div>
+                            <label className="block text-xs text-gray-400 mb-1">重置原因（至少 5 字）</label>
+                            <textarea value={payPwdResetReason} onChange={e => setPayPwdResetReason(e.target.value)} rows={2}
+                              placeholder="请输入重置原因..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors resize-none" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-400 mb-1">手机号后 4 位（校验用）</label>
+                            <input type="text" value={payPwdResetSuffix} onChange={e => setPayPwdResetSuffix(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                              placeholder={detailUser.phone ? `用户手机号后 4 位: ${detailUser.phone.slice(-4)}` : '请输入 4 位数字'}
+                              maxLength={4}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
+                          </div>
+                          {userRole === 'super_admin' ? (
+                            <button onClick={handleResetPaymentPassword} disabled={savingPayPwdReset || !payPwdResetReason.trim() || payPwdResetReason.trim().length < 5 || !payPwdResetSuffix || payPwdResetSuffix.length !== 4}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ${savingPayPwdReset || !payPwdResetReason.trim() || payPwdResetReason.trim().length < 5 || !payPwdResetSuffix || payPwdResetSuffix.length !== 4 ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 shadow-sm'}`}>
+                              {savingPayPwdReset ? '处理中...' : '重置支付密码'}
+                            </button>
+                          ) : (
+                            <p className="text-xs text-gray-400">✓ 支付密码状态可查看，仅超级管理员可执行重置操作</p>
+                          )}
+                        </>
+                      )}
+                      {!detailUser.hasPaymentPassword && (
+                        <p className="text-xs text-gray-400">用户未设置支付密码，无需重置。</p>
+                      )}
+                    </div>
+                  </Section>
                 </>
               )}
 
@@ -1156,7 +1257,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
 
             {/* 底部 */}
             <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200 flex justify-end rounded-b-2xl">
-              <button onClick={() => setDetailUser(null)} className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">关闭</button>
+              <button onClick={closeDetailModal} className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">关闭</button>
             </div>
           </div>
         </div>
@@ -1259,6 +1360,36 @@ onCancel={() => setBalanceConfirm(null)}
           await doResetPassword()
         }}
         onCancel={() => setPasswordConfirm(false)}
+      />
+
+      {/* v018: 支付密码重置二次确认 */}
+      <ConfirmDialog
+        open={showPayPwdConfirm}
+        title="重置支付密码确认"
+        mode="emphasize"
+        message={
+          <div className="space-y-3">
+            <p className="leading-relaxed">
+              你正在重置用户 <span className="font-semibold text-orange-600">{detailUser?.nickname || detailUser?.phone}</span> 的支付密码。
+            </p>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm space-y-1">
+              <p>用户: <span className="font-mono">{detailUser?.phone}</span></p>
+              <p>原因: <span className="text-gray-700">{payPwdResetReason}</span></p>
+              <p>手机号后 4 位: <span className="font-mono text-gray-900">{payPwdResetSuffix}</span></p>
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
+              <p>⚠️ 重置后用户需要重新设置支付密码。</p>
+              <p className="mt-1">请通过站内信或其他渠道通知用户。</p>
+            </div>
+          </div>
+        }
+        confirmText="我已确认，执行重置"
+        loading={savingPayPwdReset}
+        onConfirm={async () => {
+          setShowPayPwdConfirm(false)
+          await doResetPaymentPassword()
+        }}
+        onCancel={() => setShowPayPwdConfirm(false)}
       />
 
       {/* 加载中遮罩 */}

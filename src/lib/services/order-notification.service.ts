@@ -811,6 +811,52 @@ export class OrderNotificationService {
     }
   }
 
+  // v018: 支付密码重置通知（admin 重置用户支付密码后触发）
+  static async notifyPaymentPasswordReset(params: {
+    userId: string
+    operatorId: string
+  }): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: params.userId },
+        select: { nickname: true, phone: true },
+      })
+      if (!user) return
+
+      const userName = user.nickname || user.phone || '用户'
+
+      const b = await prisma.notificationBatch.create({
+        data: {
+          type: 'business',
+          title: '支付密码重置通知',
+          content: `${userName} 您好，您的支付密码已被管理员重置，请尽快设置新的支付密码。`,
+          templateType: 'payment_password_reset',
+          recipientCount: 1,
+          senderId: params.operatorId,
+        },
+      })
+
+      await sendInApp({
+        userId: params.userId,
+        templateType: 'payment_password_reset',
+        variables: {
+          userName,
+        },
+        batchId: b.id,
+        senderId: params.operatorId,
+        sourceType: 'payment_password',
+        sourceId: params.userId,
+      })
+    } catch (err) {
+      console.error('[v018 notifyPaymentPasswordReset]', {
+        error: String(err),
+        code: (err as any)?.code,
+        meta: (err as any)?.meta,
+      })
+      logger.error('支付密码重置通知失败', { error: String(err) })
+    }
+  }
+
   // 收益转余额通知（用户把可用收益转入购物余额后触发）
   static async notifyEarningsTransferred(params: {
     userId: string

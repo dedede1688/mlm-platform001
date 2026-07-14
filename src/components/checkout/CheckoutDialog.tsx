@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { X, User, Phone, MapPin, Lock, Loader2, ShoppingBag, ChevronDown, BookMarked } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { X, User, Phone, MapPin, Lock, Loader2, ShoppingBag, ChevronDown, BookMarked, HelpCircle } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { AddressPicker, AddressPickerValue } from '@/components/address/AddressPicker'
+import Link from 'next/link'
 
 export interface CheckoutProduct {
   id: string
@@ -47,8 +48,8 @@ interface CheckoutDialogProps {
   defaultPhone?: string
   /**
    * v43-4-修复-2: 用户是否已设置支付密码
-   * - true → 显示"去修改"链接
-   * - false → 显示"去设置"链接
+   * - true → 显示"忘记支付密码？查看帮助"（v018：引导用户联系客服）
+   * - false → 显示"未设置？立即设置"链接
    */
   hasPaymentPassword?: boolean
   /**
@@ -106,6 +107,14 @@ export function CheckoutDialog({
   const [payPassword, setPayPassword] = useState('')
   const [showPayPwd, setShowPayPwd] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  // v018: 忘记支付密码说明弹窗
+  const [showForgotPayPwdModal, setShowForgotPayPwdModal] = useState(false)
+
+  // v018: 关闭忘记密码弹窗（不影响结算弹窗）
+  const handleCloseForgotPayPwdModal = useCallback(() => {
+    setShowForgotPayPwdModal(false)
+  }, [])
 
   // v43-5: 地址簿选择
   const defaultAddr = useMemo(
@@ -413,9 +422,9 @@ export function CheckoutDialog({
             </div>
             <p className="text-xs text-gray-400 mt-1">
               {hasPaymentPassword ? (
-                <>忘记密码？<a href="/dashboard/payment-password" className="text-blue-600 hover:underline">去修改</a></>
+                <>忘记支付密码？<button type="button" onClick={() => setShowForgotPayPwdModal(true)} className="text-blue-600 hover:underline">查看帮助</button></>
               ) : (
-                <>未设置？<a href="/dashboard/payment-password" className="text-blue-600 hover:underline">去设置</a></>
+                <>未设置？<a href="/dashboard/payment-password" className="text-blue-600 hover:underline">立即设置</a></>
               )}
             </p>
           </div>
@@ -449,6 +458,51 @@ export function CheckoutDialog({
           </button>
         </div>
       </div>
+
+      {/* v018: 忘记支付密码说明弹窗 */}
+      {showForgotPayPwdModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900">忘记支付密码</h3>
+              <button
+                type="button"
+                onClick={handleCloseForgotPayPwdModal}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                aria-label="关闭"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <HelpCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-gray-700">
+                  <p className="font-medium text-gray-900 mb-1">请联系客服核验身份后重置</p>
+                  <p>为了保护您的资金安全，支付密码重置需要人工核验。请联系客服完成身份验证后，由管理员清除旧密码，届时您将可以设置新的支付密码。</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/help"
+                  className="flex-1 py-2.5 rounded-lg text-sm font-medium text-center text-orange-600 border border-orange-300 bg-orange-50 hover:bg-orange-100 transition-colors"
+                  onClick={handleCloseForgotPayPwdModal}
+                >
+                  联系客服
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleCloseForgotPayPwdModal}
+                  className="flex-1 py-2.5 rounded-lg text-sm font-medium text-center text-gray-700 border border-gray-300 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

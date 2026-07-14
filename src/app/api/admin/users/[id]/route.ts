@@ -15,16 +15,42 @@ export async function GET(
     const { id } = await params
     const user = await prisma.user.findUnique({
       where: { id },
-      include: {
-        // 推荐人信息
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        nickname: true,
+        avatarUrl: true,
+        level: true,
+        referrerId: true,
+        parentId: true,
+        position: true,
+        balance: true,
+        frozenBalance: true,
+        consumeBalance: true,
+        earningsPending: true,
+        earningsAvailable: true,
+        earningsFrozen: true,
+        earningsVoided: true,
+        totalPoints: true,
+        unlockedPoints: true,
+        lockedPoints: true,
+        upgradeProductCount: true,
+        directSalesAmount: true,
+        directDistributorCount: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        // v019: 用于计算 hasPaymentPassword 布尔值，不泄露哈希
+        paymentPasswordHash: true,
+        // 嵌套关系（安全 select）
         referrer: {
           select: { id: true, phone: true, nickname: true, level: true },
         },
-        // 安置上级
         parent: {
           select: { id: true, phone: true, nickname: true, level: true },
         },
-        // 直推列表
         referrals: {
           select: {
             id: true,
@@ -35,7 +61,6 @@ export async function GET(
           },
           orderBy: { createdAt: 'desc' },
         },
-        // 安置下级
         children: {
           select: {
             id: true,
@@ -63,10 +88,14 @@ export async function GET(
       _count: true,
     })
 
+    // v019: 移除 paymentPasswordHash，只返回布尔值
+    const { paymentPasswordHash, ...safeUser } = user
+
     return NextResponse.json({
       success: true,
       data: {
-        ...user,
+        ...safeUser,
+        hasPaymentPassword: Boolean(paymentPasswordHash),
         orderCount: orderStats._count,
         totalOrderAmount: orderStats._sum.payAmount || 0,
       },

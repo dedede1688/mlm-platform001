@@ -1223,4 +1223,122 @@ describe('OrderNotificationService', () => {
       )
     })
   })
+
+  // ============================================================
+  // v018: notifyPaymentPasswordReset - 支付密码重置通知
+  // ============================================================
+  describe('notifyPaymentPasswordReset (v018)', () => {
+    const baseParams = {
+      userId: 'user-pp',
+      operatorId: 'admin-pp',
+    }
+
+    it('happy path: 正常生成批次和站内通知', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'PayPwdUser',
+        phone: '13900000040',
+      })
+
+      await OrderNotificationService.notifyPaymentPasswordReset(baseParams)
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-pp' },
+        select: { nickname: true, phone: true },
+      })
+      expect(notifications.batches[0]).toMatchObject({
+        type: 'business',
+        title: '支付密码重置通知',
+        templateType: 'payment_password_reset',
+        recipientCount: 1,
+        senderId: 'admin-pp',
+      })
+      expect(notifications.batches[0].content).toContain('已被管理员重置')
+      expect(notifications.sendCalls[0]).toMatchObject({
+        userId: 'user-pp',
+        templateType: 'payment_password_reset',
+        batchId: 'batch-1',
+        senderId: 'admin-pp',
+        variables: {
+          userName: 'PayPwdUser',
+        },
+      })
+    })
+
+    it('sourceType/sourceId 正确: sourceType=payment_password, sourceId=userId', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'TestUser',
+        phone: '13900000041',
+      })
+
+      await OrderNotificationService.notifyPaymentPasswordReset({
+        userId: 'specific-user-id',
+        operatorId: 'admin-pp',
+      })
+
+      const lastCall = notifications.sendCalls[notifications.sendCalls.length - 1]
+      expect(lastCall.sourceType).toBe('payment_password')
+      expect(lastCall.sourceId).toBe('specific-user-id')
+    })
+
+    it('用户不存在时不发送通知', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null)
+
+      await OrderNotificationService.notifyPaymentPasswordReset(baseParams)
+
+      expect(mockPrisma.notificationBatch.create).not.toHaveBeenCalled()
+      expect(sendInAppMock).not.toHaveBeenCalled()
+    })
+
+    it('用户查询失败时不向外抛错', async () => {
+      mockPrisma.user.findUnique.mockRejectedValueOnce(new Error('DB connection lost'))
+
+      await expect(
+        OrderNotificationService.notifyPaymentPasswordReset(baseParams)
+      ).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('支付密码重置通知失败', { error: expect.any(String) })
+    })
+
+    it('批次写入失败时不向外抛错', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'TestUser',
+        phone: '13900000042',
+      })
+      mockPrisma.notificationBatch.create.mockRejectedValueOnce(new Error('Batch DB down'))
+
+      await expect(
+        OrderNotificationService.notifyPaymentPasswordReset(baseParams)
+      ).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('支付密码重置通知失败', { error: expect.any(String) })
+    })
+
+    it('sendInApp 失败时不向外抛错', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: 'TestUser',
+        phone: '13900000043',
+      })
+      sendInAppMock.mockRejectedValueOnce(new Error('sendInApp explosion'))
+
+      await expect(
+        OrderNotificationService.notifyPaymentPasswordReset(baseParams)
+      ).resolves.toBeUndefined()
+
+      expect(consoleErrorSpy).toHaveBeenCalled()
+      expect(loggerMock.error).toHaveBeenCalledWith('支付密码重置通知失败', { error: expect.any(String) })
+    })
+
+    it('昵称缺失时回退到手机号', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nickname: null,
+        phone: '13900000044',
+      })
+
+      await OrderNotificationService.notifyPaymentPasswordReset(baseParams)
+
+      expect(notifications.sendCalls[0].variables.userName).toBe('13900000044')
+    })
+  })
 })

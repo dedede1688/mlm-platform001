@@ -81,6 +81,8 @@ export async function GET(request: NextRequest) {
           role: true,
           createdAt: true,
           updatedAt: true,
+          // v018: 用于返回 hasPaymentPassword 布尔值，不泄露哈希值
+          paymentPasswordHash: true,
           referrer: {
             select: { id: true, nickname: true, phone: true },
           },
@@ -100,9 +102,11 @@ export async function GET(request: NextRequest) {
     const data = users.map(u => {
       const orderCount = u.orders?.length || 0
       const totalOrderAmount = u.orders?.reduce((sum, o) => sum + (o.payAmount || 0), 0) || 0
-      const { orders: _orders, _count, referrerId: _referrerId, ...rest } = u
-      return {
+      const { orders: _orders, _count, referrerId: _referrerId, paymentPasswordHash: _paymentHash, ...rest } = u
+      // v018: 构造返回对象，防御性删除敏感字段（即使底层数据源绕过 Prisma select 返回了 passwordHash）
+      const result: Record<string, unknown> = {
         ...rest,
+        hasPaymentPassword: !!_paymentHash,
         referrer: u.referrer
           ? { id: u.referrer.id, nickname: u.referrer.nickname, phone: u.referrer.phone }
           : null,
@@ -110,6 +114,9 @@ export async function GET(request: NextRequest) {
         orderCount,
         totalOrderAmount,
       }
+      // 确保不泄露 passwordHash（Prisma select 已排除，此处为防御性兜底）
+      delete result.passwordHash
+      return result as typeof rest & { hasPaymentPassword: boolean }
     })
 
     return NextResponse.json({
