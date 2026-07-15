@@ -163,7 +163,7 @@ Authorization: Bearer <token>
 目标接口：
 
 ```text
-POST /api/admin/refunds/[id]/review
+PATCH /api/admin/refunds/[id]/review
 ```
 
 保持现有鉴权、状态校验、状态更新、日志和通知流程，只增加拒绝原因校验：
