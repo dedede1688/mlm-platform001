@@ -53,13 +53,13 @@ export async function POST(
       )
     }
 
-    // 检查是否已有 pending 状态的退款申请（防重复）
-    const existingPending = await prisma.refundRequest.findFirst({
-      where: { orderId, status: 'pending' },
+    // 检查是否已有进行中的退款申请（pending 或 approved，防重复）
+    const existingActiveRefund = await prisma.refundRequest.findFirst({
+      where: { orderId, status: { in: ['pending', 'approved'] } },
     })
-    if (existingPending) {
+    if (existingActiveRefund) {
       return NextResponse.json(
-        { success: false, error: '该订单已有待审核的退款申请' },
+        { success: false, error: '该订单已有进行中的退款申请' },
         { status: 400 }
       )
     }

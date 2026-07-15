@@ -5,12 +5,13 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import {
   ArrowLeft, Package, CreditCard, Truck, CheckCircle2,
-  XCircle, Clock, ImageOff, Loader2, RotateCcw, AlertTriangle,
+  XCircle, Clock, ImageOff, Loader2, RotateCcw,
   MapPin, User, Phone, ShieldCheck
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
+import OrderAfterSalesCard from '@/components/orders/OrderAfterSalesCard'
 
 // ---- 类型 ----
 
@@ -72,12 +73,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
   refunded:  { label: '已退款', color: 'text-orange-600', icon: RotateCcw },
 }
 
-const REFUND_STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
-  pending:   { label: '待审核', color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-200' },
-  approved:  { label: '已通过', color: 'text-blue-700', bgColor: 'bg-blue-50 border-blue-200' },
-  rejected:  { label: '已拒绝', color: 'text-red-700', bgColor: 'bg-red-50 border-red-200' },
-  completed: { label: '已完成', color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
-}
 
 // ---- 工具函数 ----
 
@@ -427,81 +422,20 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* 退款申请状态卡片 */}
-        {order.refundRequests && order.refundRequests.length > 0 && (() => {
-          const latestRefund = order.refundRequests[0]
-          const refundCfg = REFUND_STATUS_CONFIG[latestRefund.status] || {
-            label: latestRefund.status, color: 'text-gray-700', bgColor: 'bg-gray-50 border-gray-200',
-          }
-          return (
-            <div className={`rounded-xl shadow-sm p-5 border ${refundCfg.bgColor}`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <RotateCcw className={`w-4 h-4 ${refundCfg.color}`} />
-                  <span className={`text-sm font-semibold ${refundCfg.color}`}>
-                    退款申请：{refundCfg.label}
-                  </span>
-                </div>
-                <span className="text-xs text-gray-400">{formatTime(latestRefund.createdAt)}</span>
-              </div>
-              <div className="space-y-1 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500">退款原因：</span>
-                  <span className="text-gray-900">{latestRefund.reason}</span>
-                </div>
-                {latestRefund.description && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 flex-shrink-0">补充说明：</span>
-                    <span className="text-gray-700">{latestRefund.description}</span>
-                  </div>
-                )}
-                {latestRefund.adminComment && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 flex-shrink-0">管理员备注：</span>
-                    <span className="text-gray-700">{latestRefund.adminComment}</span>
-                  </div>
-                )}
-                {latestRefund.images && Array.isArray(latestRefund.images) && (latestRefund.images as string[]).length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 flex-shrink-0">凭证图片：</span>
-                    <div className="flex flex-wrap gap-2">
-                      {(latestRefund.images as string[]).map((img: string, idx: number) => (
-                        <a key={idx} href={img} target="_blank" rel="noopener noreferrer">
-                          <div className="relative w-12 h-12">
-                            <Image
-                              src={img}
-                              alt={`凭证${idx + 1}`}
-                              fill
-                              className="object-cover rounded border border-gray-200"
-                            />
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {latestRefund.status === 'pending' && (
-                <div className="mt-3 pt-3 border-t border-gray-200/50">
-                  <div className="flex items-center gap-1.5 text-xs text-yellow-600">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>退款申请审核中，请耐心等待</span>
-                  </div>
-                </div>
-              )}
-              {latestRefund.status === 'rejected' && (
-                <div className="mt-3 pt-3 border-t border-gray-200/50">
-                  <button
-                    onClick={() => router.push(`/dashboard/orders/${order.id}/refund`)}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    重新申请退款
-                  </button>
-                </div>
-              )}
-            </div>
-          )
-        })()}
+        {/* 售后服务卡片 */}
+        <OrderAfterSalesCard
+          orderStatus={order.status}
+          latestRefund={order.refundRequests && order.refundRequests.length > 0 ? {
+            id: order.refundRequests[0].id,
+            reason: order.refundRequests[0].reason,
+            description: order.refundRequests[0].description,
+            images: order.refundRequests[0].images,
+            status: order.refundRequests[0].status,
+            adminComment: order.refundRequests[0].adminComment,
+            createdAt: order.refundRequests[0].createdAt,
+          } : null}
+          onApplyRefund={() => router.push(`/dashboard/orders/${order.id}/refund`)}
+        />
 
         {/* 操作按钮 */}
         {order.status === 'pending' && (
@@ -534,27 +468,7 @@ export default function OrderDetailPage() {
             toast.success('余额已补充，请重新点击支付')
           }}
         />
-        {(order.status === 'paid' || order.status === 'shipped') && (
-          (() => {
-            const hasPendingRefund = order.refundRequests?.some(r => r.status === 'pending')
-            return hasPendingRefund ? (
-              <div className="w-full py-3 rounded-xl text-gray-400 font-medium text-base text-center
-                bg-gray-100 cursor-not-allowed">
-                退款申请审核中
-              </div>
-            ) : (
-              <button
-                onClick={() => router.push(`/dashboard/orders/${order.id}/refund`)}
-                className="w-full py-3 rounded-xl text-white font-semibold text-base transition-all
-                  bg-orange-600 hover:bg-orange-700 active:bg-orange-800 shadow-sm
-                  flex items-center justify-center gap-2"
-              >
-                <RotateCcw className="w-4 h-4" />
-                申请退款
-              </button>
-            )
-          })()
-        )}
+
       </div>
     </div>
   )
