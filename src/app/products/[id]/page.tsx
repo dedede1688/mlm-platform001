@@ -1,15 +1,22 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
   ChevronLeft, ChevronRight, Package, ShoppingCart, Zap, Tag, Shield,
-  X, Loader2, FlaskConical, CheckCircle2
+  X, Loader2, FlaskConical, CheckCircle2, AlertCircle, RefreshCw
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
-import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress } from '@/components/checkout/CheckoutDialog'
+import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress, CheckoutLockedShipping } from '@/components/checkout/CheckoutDialog'
+import { EarningsTransferModal } from '@/components/EarningsTransferModal'
+import {
+  calculatePendingShortage,
+  clearProductPendingPayment,
+  loadProductPendingPayment,
+  saveProductPendingPayment,
+} from '@/lib/utils/pending-payment-session'
 
 // ---- 类型 ----
 
@@ -34,6 +41,25 @@ interface Product {
 }
 
 type TabKey = 'desc' | 'research'
+
+interface ProductPageUser {
+  id: string
+  level: number
+  unlockedPoints: number
+  balance: number
+  earningsAvailable: number
+  phone?: string
+  hasPaymentPassword?: boolean
+}
+
+interface ProductPendingPayment {
+  orderId: string
+  payAmount: number
+  shortage: number
+  shipping: CheckoutLockedShipping
+}
+
+type PendingRestoreStatus = 'idle' | 'validating' | 'restored' | 'validation_error'
 
 // ---- 商品规格展示组件 ----
 
@@ -109,7 +135,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [user, setUser] = useState<{ level: number; unlockedPoints: number; balance: number; phone?: string; hasPaymentPassword?: boolean } | null>(null)
+  const [user, setUser] = useState<ProductPageUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [addingToCart, setAddingToCart] = useState(false)
   const [buying, setBuying] = useState(false)
@@ -117,10 +143,13 @@ export default function ProductDetailPage() {
   const [imageModal, setImageModal] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<TabKey>('desc')
-  // v43-4-修复: checkout 弹窗状态
   const [checkoutOpen, setCheckoutOpen] = useState(false)
-  // v43-5: 用户地址簿
   const [addresses, setAddresses] = useState<SavedAddress[]>([])
+  const [pendingPayment, setPendingPayment] = useState<ProductPendingPayment | null>(null)
+  const [restoreStatus, setRestoreStatus] = useState<PendingRestoreStatus>('idle')
+  const [restoreError, setRestoreError] = useState('')
+  const [showEarningsTransfer, setShowEarningsTransfer] = useState(false)
+  const lastRestoreKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -148,7 +177,7 @@ export default function ProductDetailPage() {
     }
   }
 
-  const fetchUser = async (authToken: string) => {
+  const fetchUser = async (authToken: string): Promise<ProductPageUser | null> => {
     try {
       const res = await fetch('/api/users/me', {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -156,12 +185,14 @@ export default function ProductDetailPage() {
       if (res.ok) {
         const data = await res.json()
         setUser(data.data)
+        return data.data
       } else {
-        // 即使失败也保持 user 为 null，避免 break
         setUser(null)
+        return null
       }
     } catch (err) {
       console.error('获取用户信息失败:', err)
+      return null
     }
   }
 
@@ -192,10 +223,154 @@ export default function ProductDetailPage() {
         user.unlockedPoints
       )
     : 0
-  const pointsDiscount = pointsToUse * 1 // 1积分=1元
+  const pointsDiscount = pointsToUse * 1
   const finalPrice = product
     ? Math.max(0, product.memberPrice - pointsDiscount)
     : 0
+
+  const persistPendingPayment = (
+    orderId: string,
+    shortage: number,
+  ): boolean => {
+    if (!user || !product) return false
+    const result = saveProductPendingPayment({
+      version: 1,
+      userId: user.id,
+      productId: product.id,
+      orderId,
+      shortage,
+    })
+    if (!result.ok) {
+      toast.error(result.error || '待支付订单保存失败，请重试')
+      return false
+    }
+    return true
+  }
+
+  const restorePendingPayment = async (force = false): Promise<void> => {
+    if (!user || !product || !token) return
+    const restoreKey = `${user.id}:${product.id}`
+    if (!force && lastRestoreKeyRef.current === restoreKey) return
+    lastRestoreKeyRef.current = restoreKey
+
+    const loadResult = loadProductPendingPayment(user.id, product.id)
+
+    if (loadResult.status === 'empty') {
+      setRestoreStatus('idle')
+      return
+    }
+    if (loadResult.status === 'invalid') {
+      clearProductPendingPayment(user.id, product.id)
+      setRestoreStatus('idle')
+      toast.info('待支付记录已失效')
+      return
+    }
+    if (loadResult.status === 'unavailable') {
+      setRestoreStatus('validation_error')
+      setRestoreError('浏览器存储不可用')
+      return
+    }
+
+    setRestoreStatus('validating')
+
+    try {
+      const res = await fetch(`/api/orders/${loadResult.value.orderId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (res.status === 401) {
+        router.push('/login')
+        return
+      }
+
+      if (res.status === 403 || res.status === 404) {
+        clearProductPendingPayment(user.id, product.id)
+        setPendingPayment(null)
+        setRestoreStatus('idle')
+        return
+      }
+
+      if (!res.ok) {
+        setRestoreStatus('validation_error')
+        setRestoreError('待支付订单验证失败，请重试')
+        return
+      }
+
+      const body = await res.json()
+      const order = body.data
+
+      if (order.status !== 'pending') {
+        clearProductPendingPayment(user.id, product.id)
+        setPendingPayment(null)
+        setRestoreStatus('idle')
+        return
+      }
+
+      if (!order.items || order.items.length !== 1 || order.items[0].productId !== product.id || order.items[0].quantity !== 1) {
+        clearProductPendingPayment(user.id, product.id)
+        setPendingPayment(null)
+        setRestoreStatus('idle')
+        return
+      }
+
+      const orderPayAmount = Number(order.payAmount)
+      const orderPointsUsed = Number(order.pointsUsed)
+
+      if (!Number.isFinite(orderPayAmount) || orderPayAmount < 0 || !Number.isFinite(orderPointsUsed) || orderPointsUsed < 0) {
+        clearProductPendingPayment(user.id, product.id)
+        setPendingPayment(null)
+        setRestoreStatus('idle')
+        return
+      }
+
+      const shipping: CheckoutLockedShipping = {
+        recipientName: order.recipientName || '',
+        recipientPhone: order.recipientPhone || '',
+        shippingAddress: order.shippingAddress || '',
+      }
+
+      if (!shipping.recipientName || !shipping.recipientPhone || !shipping.shippingAddress) {
+        clearProductPendingPayment(user.id, product.id)
+        setPendingPayment(null)
+        setRestoreStatus('idle')
+        return
+      }
+
+      setPointsToUse(orderPointsUsed)
+
+      const latestUser = await fetchUser(token)
+      if (!latestUser) {
+        setRestoreStatus('validation_error')
+        setRestoreError('资金信息读取失败，请重新验证')
+        return
+      }
+      const shortage = calculatePendingShortage(orderPayAmount, latestUser.balance)
+      if (shortage === null) {
+        setRestoreStatus('validation_error')
+        setRestoreError('资金数据异常，请重新验证')
+        return
+      }
+
+      const nextPendingPayment: ProductPendingPayment = {
+        orderId: loadResult.value.orderId,
+        payAmount: orderPayAmount,
+        shortage,
+        shipping,
+      }
+      setPendingPayment(nextPendingPayment)
+      persistPendingPayment(loadResult.value.orderId, shortage)
+      setRestoreStatus('restored')
+    } catch {
+      setRestoreStatus('validation_error')
+      setRestoreError('网络异常，请重试')
+    }
+  }
+
+  useEffect(() => {
+    if (user && product && token && restoreStatus === 'idle' && !pendingPayment) {
+      restorePendingPayment(false)
+    }
+  }, [user?.id, product?.id, token])
 
   // 立即购买：v43-4-修复改为打开 checkout 弹窗
   const handleBuyNow = () => {
@@ -204,7 +379,7 @@ export default function ProductDetailPage() {
       return
     }
     if (!product || product.stock <= 0) return
-    // 积分预校验（弹窗内还会再校验一次）
+    if (restoreStatus === 'validating' || restoreStatus === 'validation_error') return
     const pointsUsed = pointsToUse
     if (pointsUsed < 0 || !Number.isInteger(pointsUsed)) {
       toast.error('积分数量必须为非负整数')
@@ -223,41 +398,84 @@ export default function ProductDetailPage() {
 
   // v43-4-修复: CheckoutDialog 提交回调
   const handleCheckoutConfirm = async (input: CheckoutInput): Promise<{ orderId: string } | null> => {
-    if (!product || !token) return null
+    if (!product || !token || !user) return null
 
     setBuying(true)
     try {
-      // 1. 创建订单（带收货信息）
-      const orderRes = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          items: [{ productId: product.id, quantity: 1 }],
-          pointsUsed: pointsToUse > 0 ? pointsToUse : undefined,
-          recipientName: input.recipientName,
-          recipientPhone: input.recipientPhone,
-          shippingAddress: input.shippingAddress,
-        }),
-      })
-
-      if (!orderRes.ok) {
-        const errData = await orderRes.json()
-        toast.error(errData.error || '创建订单失败')
-        return null
-      }
-
-      const orderData = await orderRes.json()
-      const orderId = orderData.data?.id
+      let orderId = pendingPayment?.orderId ?? null
+      let currentPayAmount = pendingPayment?.payAmount ?? null
+      let currentPendingPayment = pendingPayment
 
       if (!orderId) {
-        toast.error('创建订单失败：未获取到订单ID')
+        const preCreateShortage = calculatePendingShortage(finalPrice, user.balance)
+
+        if (preCreateShortage === null) {
+          setRestoreStatus('validation_error')
+          setRestoreError('资金数据异常，无法创建订单')
+          toast.error('资金数据异常，无法创建订单')
+          return null
+        }
+
+        const orderRes = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            items: [{ productId: product.id, quantity: 1 }],
+            pointsUsed: pointsToUse > 0 ? pointsToUse : undefined,
+            recipientName: input.recipientName,
+            recipientPhone: input.recipientPhone,
+            shippingAddress: input.shippingAddress,
+          }),
+        })
+
+        if (!orderRes.ok) {
+          const errorData = await orderRes.json()
+          toast.error(errorData.error || '创建订单失败')
+          return null
+        }
+
+        const orderData = await orderRes.json()
+        orderId = String(orderData.data?.id || '')
+        if (!orderId) {
+          toast.error('创建订单失败：未获取到订单ID')
+          return null
+        }
+        const rawCreatedPayAmount = orderData.data?.payAmount
+        currentPayAmount = (
+          typeof rawCreatedPayAmount === 'number' &&
+          Number.isFinite(rawCreatedPayAmount) &&
+          rawCreatedPayAmount >= 0
+        )
+          ? rawCreatedPayAmount
+          : finalPrice
+
+        const recalculatedShortage = calculatePendingShortage(currentPayAmount, user.balance)
+        const initialShortage = recalculatedShortage === null
+          ? preCreateShortage
+          : recalculatedShortage
+
+        currentPendingPayment = {
+          orderId,
+          payAmount: currentPayAmount,
+          shortage: initialShortage,
+          shipping: {
+            recipientName: input.recipientName,
+            recipientPhone: input.recipientPhone,
+            shippingAddress: input.shippingAddress,
+          },
+        }
+        setPendingPayment(currentPendingPayment)
+        persistPendingPayment(orderId, initialShortage)
+      }
+
+      if (!currentPendingPayment || currentPayAmount === null) {
+        toast.error('待支付订单状态不完整，请重新打开结算窗口')
         return null
       }
 
-      // 2. 验证支付密码 + 标记已支付
       const verifyRes = await fetch(`/api/orders/${orderId}/verify-payment`, {
         method: 'POST',
         headers: {
@@ -269,17 +487,53 @@ export default function ProductDetailPage() {
 
       if (!verifyRes.ok) {
         const verifyErr = await verifyRes.json()
+
+        const isInsufficient = verifyErr.code === 'INSUFFICIENT_BALANCE'
+          || String(verifyErr.error || '').includes('余额不足')
+
+        if (isInsufficient) {
+          const rawApiShortage = verifyErr.data?.shortage
+          const paymentAmount = currentPayAmount
+          let actualShortage: number | null = null
+
+          if (typeof rawApiShortage === 'number' && Number.isFinite(rawApiShortage) && rawApiShortage >= 0) {
+            actualShortage = rawApiShortage
+          } else {
+            const calculatedShortage = calculatePendingShortage(paymentAmount, user.balance)
+            if (calculatedShortage === null) {
+              setRestoreStatus('validation_error')
+              setRestoreError('资金数据异常，请重新验证')
+              return null
+            }
+            actualShortage = calculatedShortage
+          }
+
+          const nextPendingPayment = {
+            ...currentPendingPayment,
+            payAmount: paymentAmount,
+            shortage: actualShortage,
+          }
+          setPendingPayment(nextPendingPayment)
+          persistPendingPayment(orderId!, actualShortage)
+          if (user.earningsAvailable > 0) {
+            setShowEarningsTransfer(true)
+          } else {
+            toast.info('购物余额不足，请充值后重新确认支付')
+          }
+          return null
+        }
+
         toast.error(verifyErr.error || '支付验证失败')
         return null
       }
 
-      // v50 F：检查推荐奖未解锁提示
       const verifyData = await verifyRes.json()
       if (verifyData.data?.unlockRequired && verifyData.data?.unlockAmount) {
         toast.warning(`您还未购买升级品，本次推荐奖 ¥${verifyData.data.unlockAmount.toFixed(2)} 未发放。购买升级品即可解锁。`)
       }
 
-      // 3. 成功：关闭弹窗 + 跳转订单详情
+      if (user) clearProductPendingPayment(user.id, product.id)
+      setPendingPayment(null)
       setCheckoutOpen(false)
       toast.success('购买成功！')
       router.push(`/dashboard/orders/${orderId}`)
@@ -290,6 +544,46 @@ export default function ProductDetailPage() {
     } finally {
       setBuying(false)
     }
+  }
+
+  const handleEarningsTransferSuccess = async () => {
+    if (!pendingPayment || !token) return
+    const latestUser = await fetchUser(token)
+    if (!latestUser) {
+      setShowEarningsTransfer(false)
+      setRestoreStatus('validation_error')
+      setRestoreError('收益已转入，请重新验证资金信息')
+      return
+    }
+    const remainingShortage = calculatePendingShortage(pendingPayment.payAmount, latestUser.balance)
+    if (remainingShortage === null) {
+      setShowEarningsTransfer(false)
+      setRestoreStatus('validation_error')
+      setRestoreError('资金数据异常，请重新验证')
+      return
+    }
+
+    const next = { ...pendingPayment, shortage: remainingShortage }
+    setPendingPayment(next)
+    persistPendingPayment(next.orderId, remainingShortage)
+    setShowEarningsTransfer(false)
+    toast.success('余额已补充，请重新确认支付')
+  }
+
+  const handleGoRecharge = () => {
+    if (!user || !product) return
+    const result = saveProductPendingPayment({
+      version: 1,
+      userId: user.id,
+      productId: product.id,
+      orderId: pendingPayment?.orderId || '',
+      shortage: pendingPayment?.shortage || 0,
+    })
+    if (!result.ok) {
+      toast.error(result.error || '保存待支付状态失败')
+      return
+    }
+    router.push('/dashboard/recharge')
   }
 
   // v43-5: 下单成功后保存地址到地址簿
@@ -601,6 +895,34 @@ export default function ProductDetailPage() {
               {/* 商品规格 */}
               <ProductSpecsDisplay specs={product.specs} />
 
+              {restoreStatus === 'validating' && (
+                <div className="mb-3 sm:mb-5 flex items-center gap-2 bg-blue-50 text-blue-700 rounded-xl p-3 sm:p-4 text-xs sm:text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  <span>正在验证待支付订单</span>
+                </div>
+              )}
+              {restoreStatus === 'validation_error' && (
+                <div className="mb-3 sm:mb-5 flex items-start gap-2 bg-red-50 text-red-700 rounded-xl p-3 sm:p-4 text-xs sm:text-sm">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p>{restoreError || '待支付订单验证失败，请重试'}</p>
+                    <button
+                      onClick={() => restorePendingPayment(true)}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-800"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      重新验证
+                    </button>
+                  </div>
+                </div>
+              )}
+              {restoreStatus === 'restored' && pendingPayment && (
+                <div className="mb-3 sm:mb-5 flex items-center gap-2 bg-amber-50 text-amber-700 rounded-xl p-3 sm:p-4 text-xs sm:text-sm">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <span>已恢复待支付订单，不会重复下单</span>
+                </div>
+              )}
+
               {/* 操作按钮 - 移动端sticky底部 */}
               <div className="flex gap-2 sm:gap-3 sticky bottom-0 bg-white/80 backdrop-blur-sm py-3 -mx-3 px-3 sm:mx-0 sm:px-0 sm:relative sm:bg-transparent sm:backdrop-blur-none sm:py-0 sm:mt-0">
                 <button
@@ -613,7 +935,7 @@ export default function ProductDetailPage() {
                 </button>
                 <button
                   onClick={handleBuyNow}
-                  disabled={product.stock === 0 || buying}
+                  disabled={product.stock === 0 || buying || restoreStatus === 'validating' || restoreStatus === 'validation_error'}
                   className="flex-1 py-3 px-3 sm:px-4 rounded-xl font-medium text-white bg-primary hover:bg-primary-600 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                 >
                   {buying ? (
@@ -779,7 +1101,24 @@ export default function ProductDetailPage() {
         hasPaymentPassword={user?.hasPaymentPassword || false}
         existingAddresses={addresses}
         onSaveAddress={handleSaveAddress}
+        hasPendingOrder={!!pendingPayment}
+        shortage={pendingPayment?.shortage ?? 0}
+        earningsAvailable={user?.earningsAvailable ?? 0}
+        pendingOrderShipping={pendingPayment?.shipping ?? null}
+        onOpenEarningsTransfer={() => setShowEarningsTransfer(true)}
+        onGoRecharge={handleGoRecharge}
       />
+
+      {showEarningsTransfer && user && (
+        <EarningsTransferModal
+          open={showEarningsTransfer}
+          onClose={() => setShowEarningsTransfer(false)}
+          earningsAvailable={user.earningsAvailable ?? 0}
+          balance={user.balance ?? 0}
+          onSuccess={handleEarningsTransferSuccess}
+          initialAmount={Math.min(pendingPayment?.shortage ?? 0, user.earningsAvailable ?? 0)}
+        />
+      )}
     </div>
   )
 }

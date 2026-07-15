@@ -311,19 +311,98 @@ describe('OrderService', () => {
 
   // ============ getOrderDetail ============
   describe('getOrderDetail', () => {
-    it('returns order with relations', async () => {
-      const order = { id: 'o1', user: {}, items: [], rewards: [], refundRequests: [] }
+    it('uses explicit select without user relation', async () => {
+      const order = {
+        id: 'o1',
+        userId: 'user-1',
+        orderNo: 'NO001',
+        totalAmount: 500,
+        pointsUsed: 0,
+        pointsDiscount: 0,
+        payAmount: 500,
+        status: 'pending',
+        trackingNumber: null,
+        paidAt: null,
+        shippedAt: null,
+        completedAt: null,
+        cancelledAt: null,
+        createdAt: new Date(),
+        recipientName: null,
+        recipientPhone: null,
+        shippingAddress: null,
+        items: [],
+        refundRequests: [],
+      }
       mocks.order.findUnique.mockResolvedValueOnce(order as any)
       const result = await OrderService.getOrderDetail('o1')
       expect(result).toEqual(order)
+
+      expect(mocks.order.findUnique).toHaveBeenCalledWith({
+        where: { id: 'o1' },
+        select: expect.objectContaining({
+          id: true,
+          userId: true,
+          orderNo: true,
+          totalAmount: true,
+          pointsUsed: true,
+          pointsDiscount: true,
+          payAmount: true,
+          status: true,
+          recipientName: true,
+          recipientPhone: true,
+          shippingAddress: true,
+          items: expect.objectContaining({
+            select: expect.objectContaining({
+              id: true,
+              productId: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              product: {
+                select: { id: true, name: true, imageUrl: true },
+              },
+            }),
+          }),
+          refundRequests: expect.objectContaining({
+            orderBy: { createdAt: 'desc' },
+          }),
+        }),
+      })
+
+      const query = mocks.order.findUnique.mock.calls[0][0] as any
+      expect(query).not.toHaveProperty('include.user')
+      expect(query.select).not.toHaveProperty('user')
+      expect(query.select).not.toHaveProperty('rewards')
+    })
+
+    it('includes paymentVerified in select (P0-2)', async () => {
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'o1',
+        userId: 'user-1',
+        orderNo: 'NO001',
+        totalAmount: 500,
+        pointsUsed: 0,
+        pointsDiscount: 0,
+        payAmount: 500,
+        status: 'pending',
+        trackingNumber: null,
+        paidAt: null,
+        shippedAt: null,
+        completedAt: null,
+        cancelledAt: null,
+        createdAt: new Date(),
+        recipientName: null,
+        recipientPhone: null,
+        shippingAddress: null,
+        paymentVerified: false,
+        items: [],
+        refundRequests: [],
+      } as any)
+      await OrderService.getOrderDetail('o1')
       expect(mocks.order.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'o1' },
-          include: expect.objectContaining({
-            user: true,
-            items: expect.objectContaining({ include: { product: true } }),
-            rewards: true,
-            refundRequests: expect.objectContaining({ orderBy: { createdAt: 'desc' } }),
+          select: expect.objectContaining({
+            paymentVerified: true,
           }),
         })
       )

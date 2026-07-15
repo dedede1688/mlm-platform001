@@ -32,6 +32,12 @@ export interface SavedAddress {
   isDefault: boolean
 }
 
+export interface CheckoutLockedShipping {
+  recipientName: string
+  recipientPhone: string
+  shippingAddress: string
+}
+
 interface CheckoutDialogProps {
   open: boolean
   onClose: () => void
@@ -79,6 +85,8 @@ interface CheckoutDialogProps {
   onOpenEarningsTransfer?: () => void
   /** v013: 去充值的回调 */
   onGoRecharge?: () => void
+  /** 待支付订单的收货快照（优先于组件内部快照） */
+  pendingOrderShipping?: CheckoutLockedShipping | null
 }
 
 const NEW_ADDRESS_VALUE = '__new__'
@@ -97,10 +105,12 @@ export function CheckoutDialog({
   hasPendingOrder = false,
   onOpenEarningsTransfer,
   onGoRecharge,
+  pendingOrderShipping,
 }: CheckoutDialogProps) {
   const [recipientName, setRecipientName] = useState('')
   const [recipientPhone, setRecipientPhone] = useState(defaultPhone)
   const [_shippingAddress, setShippingAddress] = useState('')
+  const [submittedShipping, setSubmittedShipping] = useState<CheckoutLockedShipping | null>(null)
   // v43-5-修复: 省市区三级联动 + 详细地址
   const [addressPca, setAddressPca] = useState<AddressPickerValue>({ province: '', city: '', district: '' })
   const [detailAddress, setDetailAddress] = useState('')
@@ -177,21 +187,34 @@ export function CheckoutDialog({
   const pointsUsed = product.pointsUsed || 0
   const finalPrice = Math.max(0, product.memberPrice - pointsUsed)
   const showAddressPicker = existingAddresses.length > 0
+  const lockedShipping = pendingOrderShipping ?? submittedShipping
+  const hasCompleteLockedShipping = Boolean(
+    lockedShipping?.recipientName.trim() &&
+    lockedShipping?.recipientPhone.trim() &&
+    lockedShipping?.shippingAddress.trim()
+  )
 
   const handleConfirm = async () => {
-    // 校验
-    if (!recipientName.trim()) {
-      toast.error('请输入收件人姓名')
-      return
+    if (hasPendingOrder) {
+      if (!hasCompleteLockedShipping) {
+        toast.error('订单收货信息缺失，请联系客服')
+        return
+      }
+    } else {
+      if (!recipientName.trim()) {
+        toast.error('请输入收件人姓名')
+        return
+      }
+      if (!recipientPhone.trim() || !/^1\d{10}$/.test(recipientPhone.trim())) {
+        toast.error('请输入正确的手机号')
+        return
+      }
+      if (!addressPca.province || !addressPca.city || !addressPca.district || !detailAddress.trim()) {
+        toast.error('请选择完整的省/市/区并填写详细地址')
+        return
+      }
     }
-    if (!recipientPhone.trim() || !/^1\d{10}$/.test(recipientPhone.trim())) {
-      toast.error('请输入正确的手机号')
-      return
-    }
-    if (!addressPca.province || !addressPca.city || !addressPca.district || !detailAddress.trim()) {
-      toast.error('请选择完整的省/市/区并填写详细地址')
-      return
-    }
+
     if (!/^\d{6}$/.test(payPassword)) {
       toast.error('支付密码必须为 6 位数字')
       return
@@ -199,15 +222,30 @@ export function CheckoutDialog({
 
     setSubmitting(true)
     try {
+      const shippingSnapshot = hasPendingOrder
+        ? {
+            recipientName: lockedShipping!.recipientName.trim(),
+            recipientPhone: lockedShipping!.recipientPhone.trim(),
+            shippingAddress: lockedShipping!.shippingAddress.trim(),
+          }
+        : (() => {
+            const shippingAddress = `${addressPca.province} ${addressPca.city} ${addressPca.district} ${detailAddress}`.trim()
+            return {
+              recipientName: recipientName.trim(),
+              recipientPhone: recipientPhone.trim(),
+              shippingAddress,
+            }
+          })()
+      setSubmittedShipping(shippingSnapshot)
+
       const result = await onConfirm({
-        recipientName: recipientName.trim(),
-        recipientPhone: recipientPhone.trim(),
-        shippingAddress: `${addressPca.province} ${addressPca.city} ${addressPca.district} ${detailAddress}`.trim(),
+        recipientName: shippingSnapshot.recipientName,
+        recipientPhone: shippingSnapshot.recipientPhone,
+        shippingAddress: shippingSnapshot.shippingAddress,
         payPassword,
       })
       if (result?.orderId) {
-        // v43-5: 下单成功后保存到地址簿
-        if (selectedAddressId === NEW_ADDRESS_VALUE && saveToBook && onSaveAddress) {
+        if (!hasPendingOrder && selectedAddressId === NEW_ADDRESS_VALUE && saveToBook && onSaveAddress) {
           try {
             const ok = await onSaveAddress({
               recipientName: recipientName.trim(),
@@ -274,100 +312,121 @@ export function CheckoutDialog({
             </div>
           </div>
 
-          {/* v43-5: 地址簿选择器（仅当有地址时显示） */}
-          {showAddressPicker && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                <BookMarked className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
-                选择收货地址
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedAddressId}
-                  onChange={(e) => setSelectedAddressId(e.target.value)}
-                  disabled={submitting}
-                  className="w-full px-3.5 py-2.5 pr-10 border border-orange-300 bg-orange-50/50 rounded-lg text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                >
-                  {existingAddresses.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.isDefault ? '★ 默认 · ' : ''}{a.recipientName} {a.phone} · {a.province} {a.city} {a.district}
-                    </option>
-                  ))}
-                  <option value={NEW_ADDRESS_VALUE}>+ 使用新地址</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          {/* 待支付订单锁定收货信息 */}
+          {hasPendingOrder ? (
+            hasCompleteLockedShipping && lockedShipping ? (
+            <div className="border border-amber-200 bg-amber-50 p-3 rounded-xl">
+              <p className="font-medium text-amber-800">订单已创建，收货信息以首次提交为准</p>
+              <div className="mt-2 text-sm text-gray-700">
+                <p>收货人：{lockedShipping.recipientName}</p>
+                <p>手机号：{lockedShipping.recipientPhone}</p>
+                <p>收货地址：{lockedShipping.shippingAddress}</p>
               </div>
             </div>
+            ) : (
+            <div className="border border-red-200 bg-red-50 p-3 rounded-xl">
+              <p className="font-medium text-red-800">订单收货信息缺失，请联系客服</p>
+            </div>
+            )
+          ) : (
+            <>
+              {/* v43-5: 地址簿选择器（仅当有地址时显示） */}
+              {showAddressPicker && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    <BookMarked className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                    选择收货地址
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedAddressId}
+                      onChange={(e) => setSelectedAddressId(e.target.value)}
+                      disabled={submitting}
+                      className="w-full px-3.5 py-2.5 pr-10 border border-orange-300 bg-orange-50/50 rounded-lg text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    >
+                      {existingAddresses.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.isDefault ? '★ 默认 · ' : ''}{a.recipientName} {a.phone} · {a.province} {a.city} {a.district}
+                        </option>
+                      ))}
+                      <option value={NEW_ADDRESS_VALUE}>+ 使用新地址</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {/* 收件人姓名 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <User className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                  收件人姓名
+                </label>
+                <input
+                  type="text"
+                  value={recipientName}
+                  onChange={(e) => setRecipientName(e.target.value)}
+                  placeholder="请输入收件人姓名"
+                  maxLength={20}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+
+              {/* 手机号 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <Phone className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                  手机号码
+                </label>
+                <input
+                  type="tel"
+                  value={recipientPhone}
+                  onChange={(e) => setRecipientPhone(e.target.value.replace(/[^\d]/g, '').slice(0, 11))}
+                  placeholder="请输入手机号"
+                  maxLength={11}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+
+              {/* v43-5-修复: 省市区三级联动 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <MapPin className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
+                  所在地区
+                </label>
+                <AddressPicker value={addressPca} onChange={setAddressPca} disabled={submitting} />
+              </div>
+
+              {/* 街道/门牌号 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  详细地址
+                </label>
+                <textarea
+                  value={detailAddress}
+                  onChange={(e) => setDetailAddress(e.target.value)}
+                  placeholder="街道、楼栋、门牌号"
+                  rows={2}
+                  maxLength={200}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+
+              {/* v43-5: 保存到地址簿 checkbox（仅在选"新地址"时显示） */}
+              {selectedAddressId === NEW_ADDRESS_VALUE && onSaveAddress && (
+                <label className="flex items-center gap-2 cursor-pointer p-2.5 bg-orange-50/50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={saveToBook}
+                    onChange={(e) => setSaveToBook(e.target.checked)}
+                    className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500"
+                  />
+                  <span className="text-xs text-gray-700">下单成功后保存到我的地址簿</span>
+                </label>
+              )}
+            </>
           )}
 
-          {/* 收件人姓名 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              <User className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
-              收件人姓名
-            </label>
-            <input
-              type="text"
-              value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
-              placeholder="请输入收件人姓名"
-              maxLength={20}
-              className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            />
-          </div>
-
-          {/* 手机号 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              <Phone className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
-              手机号码
-            </label>
-            <input
-              type="tel"
-              value={recipientPhone}
-              onChange={(e) => setRecipientPhone(e.target.value.replace(/[^\d]/g, '').slice(0, 11))}
-              placeholder="请输入手机号"
-              maxLength={11}
-              className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            />
-          </div>
-
-          {/* v43-5-修复: 省市区三级联动 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              <MapPin className="w-3.5 h-3.5 inline mr-1 text-gray-400" />
-              所在地区
-            </label>
-            <AddressPicker value={addressPca} onChange={setAddressPca} disabled={submitting} />
-          </div>
-
-          {/* 街道/门牌号 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              详细地址
-            </label>
-            <textarea
-              value={detailAddress}
-              onChange={(e) => setDetailAddress(e.target.value)}
-              placeholder="街道、楼栋、门牌号"
-              rows={2}
-              maxLength={200}
-              className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            />
-          </div>
-
-          {/* v43-5: 保存到地址簿 checkbox（仅在选"新地址"时显示） */}
-          {selectedAddressId === NEW_ADDRESS_VALUE && onSaveAddress && (
-            <label className="flex items-center gap-2 cursor-pointer p-2.5 bg-orange-50/50 rounded-lg">
-              <input
-                type="checkbox"
-                checked={saveToBook}
-                onChange={(e) => setSaveToBook(e.target.checked)}
-                className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500"
-              />
-              <span className="text-xs text-gray-700">下单成功后保存到我的地址簿</span>
-            </label>
-          )}
 
           {/* v013: 余额不足提示区 */}
         {shortage > 0 && (
@@ -438,7 +497,7 @@ export function CheckoutDialog({
           </div>
           <button
             onClick={handleConfirm}
-            disabled={submitting}
+            disabled={submitting || (hasPendingOrder && !hasCompleteLockedShipping)}
             className={`w-full py-3 rounded-xl font-semibold text-base text-white transition-all ${
               submitting
                 ? 'bg-orange-400 cursor-not-allowed'

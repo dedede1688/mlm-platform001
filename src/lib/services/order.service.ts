@@ -219,17 +219,51 @@ export class OrderService {
     }
   }
 
-  // 获取订单详情
+  // 获取订单详情（显式 select 白名单，不查询 user 和 rewards）
   static async getOrderDetail(orderId: string) {
     return prisma.order.findUnique({
       where: { id: orderId },
-      include: {
-        user: true,
+      select: {
+        id: true,
+        userId: true,
+        orderNo: true,
+        totalAmount: true,
+        pointsUsed: true,
+        pointsDiscount: true,
+        payAmount: true,
+        status: true,
+        trackingNumber: true,
+        paidAt: true,
+        shippedAt: true,
+        completedAt: true,
+        cancelledAt: true,
+        createdAt: true,
+        recipientName: true,
+        recipientPhone: true,
+        shippingAddress: true,
+        paymentVerified: true,
         items: {
-          include: { product: true },
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+            product: {
+              select: { id: true, name: true, imageUrl: true },
+            },
+          },
         },
-        rewards: true,
         refundRequests: {
+          select: {
+            id: true,
+            reason: true,
+            description: true,
+            images: true,
+            status: true,
+            adminComment: true,
+            createdAt: true,
+          },
           orderBy: { createdAt: 'desc' },
         },
       },

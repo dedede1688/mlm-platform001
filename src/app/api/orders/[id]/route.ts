@@ -35,9 +35,50 @@ export async function GET(
       )
     }
 
+    const publicOrder = {
+      id: order.id,
+      orderNo: order.orderNo,
+      totalAmount: order.totalAmount,
+      pointsUsed: order.pointsUsed,
+      pointsDiscount: order.pointsDiscount,
+      payAmount: order.payAmount,
+      status: order.status,
+      trackingNumber: order.trackingNumber,
+      paidAt: order.paidAt,
+      shippedAt: order.shippedAt,
+      completedAt: order.completedAt,
+      cancelledAt: order.cancelledAt,
+      createdAt: order.createdAt,
+      recipientName: order.recipientName,
+      recipientPhone: order.recipientPhone,
+      shippingAddress: order.shippingAddress,
+      paymentVerified: order.paymentVerified,
+      items: order.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        product: {
+          id: item.product.id,
+          name: item.product.name,
+          imageUrl: item.product.imageUrl,
+        },
+      })),
+      refundRequests: order.refundRequests.map((refund) => ({
+        id: refund.id,
+        reason: refund.reason,
+        description: refund.description,
+        images: refund.images,
+        status: refund.status,
+        adminComment: refund.adminComment,
+        createdAt: refund.createdAt,
+      })),
+    }
+
     return NextResponse.json({
       success: true,
-      data: order,
+      data: publicOrder,
     })
   } catch (error) {
     console.error('Get order error:', error)
