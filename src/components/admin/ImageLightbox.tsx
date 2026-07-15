@@ -93,12 +93,13 @@ export default function ImageLightbox({ src, alt = '', children }: ImageLightbox
 
   return (
     <>
-      {/* 触发元素 */}
-      <div
-        onClick={() => setOpen(true)}
-        className="cursor-pointer"
-        title="点击放大查看"
-      >
+      {/* 触发元素：透明层覆盖 children，确保无论 children 是什么都能捕获点击 */}
+      <div className="relative">
+        <div
+          className="absolute inset-0 z-20 cursor-pointer"
+          onClick={() => setOpen(true)}
+          title="点击放大查看"
+        />
         {children}
       </div>
 

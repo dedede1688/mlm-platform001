@@ -214,13 +214,14 @@ export default function AdminRefundsPage() {
 
   // ---- 审核操作 ----
 
-  const handleReview = async () => {
+  const handleReview = async (overrideAction?: 'approve' | 'reject') => {
     if (!token || !reviewModal) return
     if (reviewHistoryLoading || reviewHistoryError) {
       showMessage('error', '请先成功加载完整历史申请')
       return
     }
-    if (reviewAction === 'reject' && adminComment.trim().length < 5) {
+    const action = overrideAction || reviewAction
+    if (action === 'reject' && adminComment.trim().length < 5) {
       showMessage('error', '拒绝原因至少填写5个字符')
       return
     }
@@ -233,13 +234,13 @@ export default function AdminRefundsPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          action: reviewAction,
+          action,
           adminComment: adminComment.trim() || undefined,
         }),
       })
       const data = await res.json()
       if (data.success) {
-        showMessage('success', reviewAction === 'approve' ? '退款申请已通过' : '退款申请已拒绝')
+        showMessage('success', action === 'approve' ? '退款申请已通过' : '退款申请已拒绝')
         closeReviewModal()
         fetchRefunds(token, pagination.page)
       } else {
@@ -621,7 +622,7 @@ export default function AdminRefundsPage() {
                 </div>
               </div>
 
-              {/* 弹窗底部 - 同意 + 拒绝 */}
+              {/* v69.1: 弹窗底部 - 取消 + 拒绝 + 同意（修复：按钮直接执行对应操作，不再依赖 reviewAction 全局状态） */}
               <div className="flex gap-3 px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
                 <button
                   onClick={closeReviewModal}
@@ -632,9 +633,13 @@ export default function AdminRefundsPage() {
                 </button>
                 <button
                   onClick={() => {
+                    if (reviewAction === 'reject') {
+                      void handleReview('reject')
+                      return
+                    }
                     setReviewAction('reject')
                   }}
-                  disabled={reviewing}
+                  disabled={reviewing || (reviewAction === 'reject' && adminComment.trim().length < 5)}
                   className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm
                     transition-colors disabled:opacity-50 disabled:cursor-not-allowed
                     ${reviewAction === 'reject'
@@ -642,30 +647,22 @@ export default function AdminRefundsPage() {
                       : 'bg-red-50 text-red-600 hover:bg-red-100'
                     }`}
                 >
-                  拒绝
+                  {reviewAction === 'reject' ? '确认拒绝' : '拒绝'}
                 </button>
                 <button
                   onClick={async () => {
-                    if (reviewAction === 'approve') {
-                      // 大额退款二次确认
-                      if (reviewModal.amount >= LARGE_REFUND_THRESHOLD) {
-                        setLargeRefundConfirm({ item: reviewModal, action: 'approve' })
-                        return
-                      }
-                      await handleReview()
-                    } else {
-                      await handleReview()
+                    if (reviewModal.amount >= LARGE_REFUND_THRESHOLD) {
+                      setLargeRefundConfirm({ item: reviewModal, action: 'approve' })
+                      return
                     }
+                    await handleReview('approve')
                   }}
-                  disabled={reviewing || reviewUnavailable || rejectionReasonInvalid}
+                  disabled={reviewing || reviewUnavailable}
                   className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm
                     transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                    ${reviewAction === 'approve'
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                    }`}
+                    bg-blue-600 text-white hover:bg-blue-700`}
                 >
-                  {reviewing ? '处理中...' : reviewAction === 'approve' ? '同意' : '同意'}
+                  {reviewing ? '处理中...' : '同意'}
                 </button>
               </div>
             </div>
@@ -807,7 +804,7 @@ export default function AdminRefundsPage() {
           if (!largeRefundConfirm) return
           setLargeRefundConfirm(null)
           // 确认后执行审核
-          await handleReview()
+          await handleReview(largeRefundConfirm.action)
         }}
         onCancel={() => setLargeRefundConfirm(null)}
         message={
