@@ -7,6 +7,11 @@ import {
   ArrowLeft, Loader2, AlertCircle, Upload, X
 } from 'lucide-react'
 import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
+import {
+  refundReasonRequiresDescription,
+  refundReasonRequiresImages,
+  validateRefundApplication,
+} from '@/lib/refunds/refund-validation'
 
 // ---- 类型 ----
 
@@ -49,6 +54,11 @@ export default function RefundApplyPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadingIndex, setUploadingIndex] = useState(-1)
+
+  const imagesRequired = refundReasonRequiresImages(form.reason)
+  const descriptionRequired = refundReasonRequiresDescription(form.reason)
+  const currentValidation = validateRefundApplication(form)
+  const formInvalid = !currentValidation.success
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
@@ -136,8 +146,10 @@ export default function RefundApplyPage() {
   // 提交退款申请
   const handleSubmit = async () => {
     if (!token) return
-    if (!form.reason) {
-      setError('请选择退款原因')
+
+    const validation = validateRefundApplication(form)
+    if (!validation.success) {
+      setError(validation.error)
       return
     }
 
@@ -152,9 +164,9 @@ export default function RefundApplyPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          reason: form.reason,
-          description: form.description || undefined,
-          images: form.images.length > 0 ? form.images : undefined,
+          reason: validation.data.reason,
+          description: validation.data.description || undefined,
+          images: validation.data.images.length > 0 ? validation.data.images : undefined,
         }),
       })
 
@@ -217,6 +229,7 @@ export default function RefundApplyPage() {
         <div className="bg-white rounded-xl shadow-sm p-5">
           <label className="block text-sm font-semibold text-gray-900 mb-2">
             补充说明
+            {descriptionRequired && <span className="text-red-500 ml-1">*</span>}
           </label>
           <textarea
             value={form.description}
@@ -234,7 +247,13 @@ export default function RefundApplyPage() {
         <div className="bg-white rounded-xl shadow-sm p-5">
           <label className="block text-sm font-semibold text-gray-900 mb-2">
             上传凭证
+            {imagesRequired && <span className="text-red-500 ml-1">*</span>}
           </label>
+          {imagesRequired && (
+            <p className="text-xs text-red-500 mb-2">
+              该退款原因至少需要上传1张凭证图片
+            </p>
+          )}
           <p className="text-xs text-gray-400 mb-3">最多上传5张图片，支持 JPG、PNG，单张最大5MB</p>
 
           <div className="flex flex-wrap gap-3">
@@ -298,7 +317,7 @@ export default function RefundApplyPage() {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || formInvalid}
             className="flex-1 py-3 rounded-xl text-white font-semibold text-base transition-all
               bg-blue-600 hover:bg-blue-700 active:bg-blue-800 shadow-sm
               disabled:opacity-50 disabled:cursor-not-allowed

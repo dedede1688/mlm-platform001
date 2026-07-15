@@ -27,6 +27,17 @@ export async function PATCH(
       )
     }
 
+    const normalizedAdminComment = typeof adminComment === 'string'
+      ? adminComment.trim()
+      : ''
+
+    if (action === 'reject' && normalizedAdminComment.length < 5) {
+      return NextResponse.json(
+        { success: false, message: '拒绝原因至少填写5个字符' },
+        { status: 400 }
+      )
+    }
+
     // 查询退款申请
     const refundRequest = await prisma.refundRequest.findUnique({ where: { id } })
     if (!refundRequest) {
@@ -44,12 +55,13 @@ export async function PATCH(
     }
 
     const newStatus = action === 'approve' ? 'approved' : 'rejected'
+    const commentForStorage = normalizedAdminComment || null
 
     const updated = await prisma.refundRequest.update({
       where: { id },
       data: {
         status: newStatus,
-        adminComment: adminComment?.trim() || null,
+        adminComment: commentForStorage,
       },
     })
 
@@ -59,7 +71,7 @@ export async function PATCH(
       action: action === 'approve' ? 'APPROVE' : 'REJECT',
       module: 'refund',
       targetId: id,
-      newValue: { status: newStatus, adminComment: adminComment?.trim() || null },
+      newValue: { status: newStatus, adminComment: commentForStorage },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })
@@ -69,7 +81,7 @@ export async function PATCH(
       userId: refundRequest.userId,
       refundId: id,
       action,
-      adminComment: adminComment?.trim(),
+      adminComment: normalizedAdminComment || undefined,
       operatorId: admin.id,
     })
 

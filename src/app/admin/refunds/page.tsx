@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import {
   Receipt, Search, Loader2, ChevronLeft, ChevronRight,
@@ -9,6 +9,10 @@ import {
 import { formatMoney } from '@/lib/utils/format'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
+import RefundApplicationHistory, {
+  buildRefundAttemptView,
+  type RefundHistoryRecord,
+} from '@/components/admin/refunds/RefundApplicationHistory'
 
 // v68:大额退款阈值,超过需要二次确认
 const LARGE_REFUND_THRESHOLD = 1000
@@ -88,6 +92,12 @@ export default function AdminRefundsPage() {
   // v68:大额退款二次确认
   const [largeRefundConfirm, setLargeRefundConfirm] = useState<{ item: RefundItem; action: 'approve' | 'reject' } | null>(null)
 
+  // 历次申请
+  const [reviewHistory, setReviewHistory] = useState<RefundHistoryRecord[]>([])
+  const [reviewHistoryLoading, setReviewHistoryLoading] = useState(false)
+  const [reviewHistoryError, setReviewHistoryError] = useState('')
+  const reviewHistoryRequestRef = useRef(0)
+
   // v68:操作权限
   const canApprove = hasPermission(userRole, 'approve')
 
@@ -117,6 +127,52 @@ export default function AdminRefundsPage() {
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text })
     setTimeout(() => setMessage(null), 3000)
+  }
+
+  const closeReviewModal = () => {
+    reviewHistoryRequestRef.current += 1
+    setReviewModal(null)
+    setAdminComment('')
+    setReviewHistory([])
+    setReviewHistoryError('')
+    setReviewHistoryLoading(false)
+  }
+
+  const fetchReviewHistory = async (item: RefundItem, authToken: string) => {
+    const requestId = reviewHistoryRequestRef.current + 1
+    reviewHistoryRequestRef.current = requestId
+    setReviewHistoryLoading(true)
+    setReviewHistoryError('')
+    setReviewHistory([])
+    try {
+      const res = await fetch(`/api/orders/${item.orderId}/refund`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success || !Array.isArray(data.data)) {
+        throw new Error(data.error || '历史申请加载失败')
+      }
+      const records = data.data as RefundHistoryRecord[]
+      if (!records.some(record => record.id === item.id)) {
+        throw new Error('历史申请数据不完整')
+      }
+      if (reviewHistoryRequestRef.current !== requestId) return
+      setReviewHistory(records)
+    } catch (error) {
+      if (reviewHistoryRequestRef.current !== requestId) return
+      setReviewHistoryError(error instanceof Error ? error.message : '历史申请加载失败')
+    } finally {
+      if (reviewHistoryRequestRef.current === requestId) {
+        setReviewHistoryLoading(false)
+      }
+    }
+  }
+
+  const openReviewModal = (item: RefundItem, action: 'approve' | 'reject') => {
+    if (!token) return
+    setReviewModal({ item, action })
+    setAdminComment('')
+    void fetchReviewHistory(item, token)
   }
 
   // ---- 列表 API ----
@@ -154,6 +210,14 @@ export default function AdminRefundsPage() {
 
   const handleReview = async () => {
     if (!token || !reviewModal) return
+    if (reviewHistoryLoading || reviewHistoryError) {
+      showMessage('error', '请先成功加载完整历史申请')
+      return
+    }
+    if (reviewModal.action === 'reject' && adminComment.trim().length < 5) {
+      showMessage('error', '拒绝原因至少填写5个字符')
+      return
+    }
     setReviewing(true)
     try {
       const res = await fetch(`/api/admin/refunds/${reviewModal.item.id}/review`, {
@@ -170,8 +234,7 @@ export default function AdminRefundsPage() {
       const data = await res.json()
       if (data.success) {
         showMessage('success', reviewModal.action === 'approve' ? '退款申请已通过' : '退款申请已拒绝')
-        setReviewModal(null)
-        setAdminComment('')
+        closeReviewModal()
         fetchRefunds(token, pagination.page)
       } else {
         showMessage('error', data.message || '操作失败')
@@ -384,7 +447,7 @@ export default function AdminRefundsPage() {
                                   if (r.amount >= LARGE_REFUND_THRESHOLD) {
                                     setLargeRefundConfirm({ item: r, action: 'approve' })
                                   } else {
-                                    setReviewModal({ item: r, action: 'approve' }); setAdminComment('')
+                                    openReviewModal(r, 'approve')
                                   }
                                 }}
                                 disabled={!canApprove}
@@ -396,7 +459,7 @@ export default function AdminRefundsPage() {
                               <button
                                 onClick={() => {
                                   if (!canApprove) { showMessage('error', '您没有审批权限,请联系超级管理员'); return }
-                                  setReviewModal({ item: r, action: 'reject' }); setAdminComment('')
+                                  openReviewModal(r, 'reject')
                                 }}
                                 disabled={!canApprove}
                                 className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
@@ -450,96 +513,135 @@ export default function AdminRefundsPage() {
       )}
 
       {/* ---- 审核弹窗 ---- */}
-      {reviewModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {reviewModal.action === 'approve' ? '通过退款申请' : '拒绝退款申请'}
-              </h3>
-              <button onClick={() => setReviewModal(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-6 py-4 space-y-3">
-              <div className="text-sm">
-                <span className="text-gray-500">订单号：</span>
-                <span className="text-gray-900 font-mono">{reviewModal.item.order?.orderNo}</span>
+      {reviewModal && (() => {
+        const attemptView = buildRefundAttemptView(reviewHistory, reviewModal.item.id)
+        const rejectionReasonInvalid = reviewModal.action === 'reject'
+          && adminComment.trim().length < 5
+        const reviewUnavailable = reviewHistoryLoading || Boolean(reviewHistoryError)
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {reviewModal.action === 'approve' ? '通过退款申请' : '拒绝退款申请'}
+                </h3>
+                <button onClick={closeReviewModal} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <div className="text-sm">
-                <span className="text-gray-500">用户：</span>
-                <span className="text-gray-900">{reviewModal.item.user?.nickname || '-'} ({reviewModal.item.user?.phone})</span>
-              </div>
-              <div className="text-sm">
-                <span className="text-gray-500">退款金额：</span>
-                <span className="text-orange-600 font-medium">¥{formatMoney(reviewModal.item.amount)}</span>
-              </div>
-              <div className="text-sm">
-                <span className="text-gray-500">退款原因：</span>
-                <span className="text-gray-900">{reviewModal.item.reason}</span>
-              </div>
-              {reviewModal.item.description && (
-                <div className="text-sm">
-                  <span className="text-gray-500">补充说明：</span>
-                  <span className="text-gray-700">{reviewModal.item.description}</span>
+              <div className="px-6 py-4 space-y-3">
+                <div className="text-sm text-gray-500">
+                  第 {attemptView.currentAttemptNumber} 次申请
                 </div>
-              )}
-              {parseImages(reviewModal.item.images).length > 0 && (
                 <div className="text-sm">
-                  <span className="text-gray-500 block mb-2">凭证图片：</span>
-                  <div className="flex flex-wrap gap-2">
-                    {parseImages(reviewModal.item.images).map((img, idx) => (
-                      <a key={idx} href={img as string} target="_blank" rel="noopener noreferrer">
-                        <div className="relative w-16 h-16">
-                          <Image
-                            src={img as string}
-                            alt=""
-                            fill
-                            className="object-cover rounded-lg border border-gray-200"
-                          />
-                        </div>
-                      </a>
-                    ))}
+                  <span className="text-gray-500">订单号：</span>
+                  <span className="text-gray-900 font-mono">{reviewModal.item.order?.orderNo}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-gray-500">用户：</span>
+                  <span className="text-gray-900">{reviewModal.item.user?.nickname || '-'} ({reviewModal.item.user?.phone})</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-gray-500">退款金额：</span>
+                  <span className="text-orange-600 font-medium">¥{formatMoney(reviewModal.item.amount)}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-gray-500">退款原因：</span>
+                  <span className="text-gray-900">{reviewModal.item.reason}</span>
+                </div>
+                {reviewModal.item.description && (
+                  <div className="text-sm">
+                    <span className="text-gray-500">补充说明：</span>
+                    <span className="text-gray-700">{reviewModal.item.description}</span>
                   </div>
+                )}
+                {parseImages(reviewModal.item.images).length > 0 && (
+                  <div className="text-sm">
+                    <span className="text-gray-500 block mb-2">凭证图片：</span>
+                    <div className="flex flex-wrap gap-2">
+                      {parseImages(reviewModal.item.images).map((img, idx) => (
+                        <a key={idx} href={img as string} target="_blank" rel="noopener noreferrer">
+                          <div className="relative w-16 h-16">
+                            <Image
+                              src={img as string}
+                              alt=""
+                              fill
+                              className="object-cover rounded-lg border border-gray-200"
+                            />
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {reviewHistoryLoading && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    正在加载历史申请
+                  </div>
+                )}
+
+                {reviewHistoryError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <p>{reviewHistoryError}</p>
+                    <button type="button" onClick={() => token && fetchReviewHistory(reviewModal.item, token)} className="mt-1 underline">
+                      重新获取
+                    </button>
+                  </div>
+                )}
+
+                {!reviewHistoryLoading && !reviewHistoryError && (
+                  <RefundApplicationHistory
+                    records={reviewHistory}
+                    currentRefundId={reviewModal.item.id}
+                    formatTime={formatTime}
+                  />
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {reviewModal.action === 'reject' ? '拒绝原因（至少 5 个字符）' : '管理员备注'}
+                  </label>
+                  <textarea
+                    value={adminComment}
+                    onChange={e => setAdminComment(e.target.value)}
+                    rows={3}
+                    placeholder={reviewModal.action === 'reject' ? '填写拒绝原因（至少5个字符）...' : '填写审核备注（可选）...'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg
+                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                      text-sm text-gray-900 placeholder-gray-400 resize-none"
+                  />
+                  {rejectionReasonInvalid && adminComment.length > 0 && (
+                    <p className="text-xs text-red-500 mt-1">拒绝原因至少填写5个字符</p>
+                  )}
                 </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">管理员备注</label>
-                <textarea
-                  value={adminComment}
-                  onChange={e => setAdminComment(e.target.value)}
-                  rows={3}
-                  placeholder="填写审核备注（可选）..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    text-sm text-gray-900 placeholder-gray-400 resize-none"
-                />
               </div>
-            </div>
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
-              <button
-                onClick={() => setReviewModal(null)}
-                className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700
-                  hover:bg-gray-50 transition-colors font-medium text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleReview}
-                disabled={reviewing}
-                className={`flex-1 px-4 py-2.5 rounded-lg text-white font-medium text-sm
-                  transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                  ${reviewModal.action === 'approve'
-                    ? 'bg-blue-600 hover:bg-blue-700'
-                    : 'bg-red-600 hover:bg-red-700'
-                  }`}
-              >
-                {reviewing ? '处理中...' : reviewModal.action === 'approve' ? '确认通过' : '确认拒绝'}
-              </button>
+              <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
+                <button
+                  onClick={closeReviewModal}
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700
+                    hover:bg-gray-50 transition-colors font-medium text-sm"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleReview}
+                  disabled={reviewing || reviewUnavailable || rejectionReasonInvalid}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-white font-medium text-sm
+                    transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                    ${reviewModal.action === 'approve'
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                    }`}
+                >
+                  {reviewing ? '处理中...' : reviewModal.action === 'approve' ? '确认通过' : '确认拒绝'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ---- 确认退款弹窗 ---- */}
       {completeModal && (
@@ -677,8 +779,7 @@ export default function AdminRefundsPage() {
           setReviewing(true)
           try {
             const item = largeRefundConfirm.item
-            setReviewModal({ item, action: largeRefundConfirm.action })
-            setAdminComment('')
+            openReviewModal(item, largeRefundConfirm.action)
             setLargeRefundConfirm(null)
             // 注意:ConfirmDialog 关闭后,reviewModal 接管审核流程
             // 实际提交由 reviewModal 的"确认通过"按钮触发

@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { validateRefundApplication } from '@/lib/refunds/refund-validation'
 
 // POST /api/orders/[id]/refund — 用户申请退款
 export async function POST(
@@ -64,20 +65,22 @@ export async function POST(
       )
     }
 
-    // 解析请求体
+    // 解析请求体并执行结构化校验
     const body = await request.json()
-    const { reason, description, images } = body as {
-      reason: string
-      description?: string
-      images?: string[]
-    }
+    const validation = validateRefundApplication({
+      reason: body?.reason,
+      description: body?.description,
+      images: body?.images,
+    })
 
-    if (!reason || !reason.trim()) {
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, error: '退款原因不能为空' },
+        { success: false, error: validation.error },
         { status: 400 }
       )
     }
+
+    const normalized = validation.data
 
     // 创建退款申请
     const refundRequest = await prisma.refundRequest.create({
@@ -85,9 +88,9 @@ export async function POST(
         orderId,
         userId: user.userId,
         amount: order.payAmount,
-        reason: reason.trim(),
-        description: description?.trim() || null,
-        images: images && images.length > 0 ? images : Prisma.JsonNull,
+        reason: normalized.reason,
+        description: normalized.description,
+        images: normalized.images.length > 0 ? normalized.images : Prisma.JsonNull,
         status: 'pending',
       },
     })

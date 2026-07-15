@@ -79,21 +79,8 @@ function ProductSpecsDisplay({ specs }: { specs?: SpecGroup[] | null }) {
     }))
     .filter(s => s.values.length > 0)
 
-  console.log('[ProductSpecsDisplay] 处理后的有效规格:', validSpecs)
-  console.log('[ProductSpecsDisplay] 有效规格数量:', validSpecs.length)
-
-  // 🔍 调试：临时显示所有数据（包括无效的）
   if (validSpecs.length === 0) {
-    console.warn('[ProductSpecsDisplay] ⚠️ 所有规格都被过滤掉了！原始数据:', JSON.stringify(specs, null, 2))
-    // 临时返回：显示原始数据用于调试
-    return (
-      <div className="mb-3 sm:mb-5 border-2 border-red-300 bg-red-50 rounded-xl p-3 sm:p-4">
-        <h3 className="text-xs sm:text-sm font-bold text-red-600 mb-2">🔧 调试：商品规格（原始数据）</h3>
-        <pre className="text-xs text-gray-700 overflow-auto max-h-60 bg-white p-2 rounded">
-          {JSON.stringify(specs, null, 2)}
-        </pre>
-      </div>
-    )
+    return null
   }
 
   return (

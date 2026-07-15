@@ -27,6 +27,7 @@ vi.mock('@/lib/services/order-notification.service', () => ({
 
 import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 function makePostRequest(body: Record<string, unknown>) {
   return {
@@ -40,9 +41,21 @@ function makeParams(id: string) {
   return { params: Promise.resolve({ id }) }
 }
 
+function mockRefundableOrder(userId = 'user-1', orderId = 'order-1') {
+  vi.mocked(verifyToken).mockResolvedValueOnce({ userId } as any)
+  prisma.order.findUnique.mockResolvedValueOnce({
+    id: orderId,
+    userId,
+    status: 'paid',
+    payAmount: 500,
+  } as any)
+  prisma.refundRequest.findFirst.mockResolvedValueOnce(null)
+}
+
 describe('POST /api/orders/[id]/refund', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+    vi.mocked(OrderNotificationService.notifyRefundSubmitted).mockResolvedValue(undefined)
   })
 
   describe('防重复退款申请拦截', () => {
@@ -57,13 +70,13 @@ describe('POST /api/orders/[id]/refund', () => {
         userId,
         status: 'paid',
         payAmount: 100,
-      })
+      } as any)
 
       prisma.refundRequest.findFirst.mockResolvedValueOnce({
         id: 'refund-pending',
         orderId,
         status: 'pending',
-      })
+      } as any)
 
       const { POST } = await import('@/app/api/orders/[id]/refund/route')
       const res = await POST(
@@ -88,13 +101,13 @@ describe('POST /api/orders/[id]/refund', () => {
         userId,
         status: 'paid',
         payAmount: 200,
-      })
+      } as any)
 
       prisma.refundRequest.findFirst.mockResolvedValueOnce({
         id: 'refund-approved',
         orderId,
         status: 'approved',
-      })
+      } as any)
 
       const { POST } = await import('@/app/api/orders/[id]/refund/route')
       const res = await POST(
@@ -119,7 +132,7 @@ describe('POST /api/orders/[id]/refund', () => {
         userId,
         status: 'paid',
         payAmount: 300,
-      })
+      } as any)
 
       prisma.refundRequest.findFirst.mockResolvedValueOnce(null)
 
@@ -128,7 +141,7 @@ describe('POST /api/orders/[id]/refund', () => {
         orderId,
         status: 'pending',
         reason: '重新申请',
-      })
+      } as any)
 
       const { POST } = await import('@/app/api/orders/[id]/refund/route')
       const res = await POST(
@@ -181,7 +194,7 @@ describe('POST /api/orders/[id]/refund', () => {
         userId: 'user-b',
         status: 'paid',
         payAmount: 100,
-      })
+      } as any)
 
       const { POST } = await import('@/app/api/orders/[id]/refund/route')
       const res = await POST(
@@ -202,7 +215,7 @@ describe('POST /api/orders/[id]/refund', () => {
         userId: 'user-c',
         status: 'pending',
         payAmount: 100,
-      })
+      } as any)
 
       const { POST } = await import('@/app/api/orders/[id]/refund/route')
       const res = await POST(
@@ -214,6 +227,107 @@ describe('POST /api/orders/[id]/refund', () => {
       expect(res.status).toBe(400)
       expect(data.success).toBe(false)
       expect(data.error).toBe('当前订单状态不可申请退款')
+    })
+  })
+
+  describe('退款凭证校验', () => {
+    it.each(['质量问题', '商品损坏'])(
+      '%s 无图片返回400且无副作用',
+      async (reason) => {
+        mockRefundableOrder()
+        const { POST } = await import('@/app/api/orders/[id]/refund/route')
+        const res = await POST(
+          makePostRequest({ reason, images: [] }),
+          makeParams('order-1')
+        )
+        expect(res.status).toBe(400)
+        expect((await res.json()).error).toBe('该退款原因至少需要上传1张凭证图片')
+        expect(prisma.refundRequest.create).not.toHaveBeenCalled()
+        expect(OrderNotificationService.notifyRefundSubmitted).not.toHaveBeenCalled()
+      }
+    )
+
+    it('其他原因无补充说明返回400且无副作用', async () => {
+      mockRefundableOrder()
+      const { POST } = await import('@/app/api/orders/[id]/refund/route')
+      const res = await POST(
+        makePostRequest({ reason: '其他', description: '  ' }),
+        makeParams('order-1')
+      )
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toBe('选择其他原因时请填写补充说明')
+      expect(prisma.refundRequest.create).not.toHaveBeenCalled()
+      expect(OrderNotificationService.notifyRefundSubmitted).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { images: 'https://example.com/a.jpg', error: '凭证图片格式不正确' },
+      { images: [123], error: '凭证图片格式不正确' },
+      { images: [''], error: '凭证图片不能为空' },
+      { images: ['1', '2', '3', '4', '5', '6'], error: '凭证图片最多上传5张' },
+    ])('非法图片输入返回400且无副作用 %#', async ({ images, error }) => {
+      mockRefundableOrder()
+      const { POST } = await import('@/app/api/orders/[id]/refund/route')
+      const res = await POST(
+        makePostRequest({ reason: '未按约定时间发货', images }),
+        makeParams('order-1')
+      )
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toBe(error)
+      expect(prisma.refundRequest.create).not.toHaveBeenCalled()
+      expect(OrderNotificationService.notifyRefundSubmitted).not.toHaveBeenCalled()
+    })
+
+    it('未按约定时间发货无图可创建', async () => {
+      mockRefundableOrder()
+      prisma.refundRequest.create.mockResolvedValueOnce({
+        id: 'refund-1',
+        orderId: 'order-1',
+        userId: 'user-1',
+        amount: 500,
+        reason: '未按约定时间发货',
+        description: null,
+        images: null,
+        status: 'pending',
+      } as any)
+      const { POST } = await import('@/app/api/orders/[id]/refund/route')
+      const res = await POST(
+        makePostRequest({ reason: '未按约定时间发货' }),
+        makeParams('order-1')
+      )
+      expect(res.status).toBe(200)
+      expect(prisma.refundRequest.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          reason: '未按约定时间发货',
+          description: null,
+          status: 'pending',
+        }),
+      })
+    })
+
+    it('质量问题有1张图片可创建且只保存本次图片', async () => {
+      mockRefundableOrder()
+      prisma.refundRequest.create.mockResolvedValueOnce({
+        id: 'refund-2',
+        orderId: 'order-1',
+        userId: 'user-1',
+        amount: 500,
+        reason: '质量问题',
+        description: null,
+        images: ['https://example.com/new.jpg'],
+        status: 'pending',
+      } as any)
+      const { POST } = await import('@/app/api/orders/[id]/refund/route')
+      const res = await POST(
+        makePostRequest({ reason: '质量问题', images: ['https://example.com/new.jpg'] }),
+        makeParams('order-1')
+      )
+      expect(res.status).toBe(200)
+      expect(prisma.refundRequest.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          images: ['https://example.com/new.jpg'],
+        }),
+      })
     })
   })
 })
