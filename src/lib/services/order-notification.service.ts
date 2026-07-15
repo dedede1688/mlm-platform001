@@ -249,39 +249,48 @@ export class OrderNotificationService {
   }
 
   // v46.12: 抽公共方法 - 退款审核通知（admin 通过/拒绝退款申请时触发）
+  // v69: 不再依赖 sendInApp（模板可能不存在导致静默失败），直接创建 notification 记录
+  // v69: sourceId 设为 orderId，sourceType 设为 refund，支持用户点击跳转订单详情
   static async notifyRefundReview(params: {
     userId: string
     refundId: string
+    orderId: string
+    orderNo: string
     action: 'approve' | 'reject'
     adminComment?: string
     operatorId?: string
   }) {
     const result = params.action === 'approve' ? '通过' : '拒绝'
-    const variables: Record<string, string> = {
-      result,
-      refundId: params.refundId,
-      refundReason: params.action === 'reject' && params.adminComment
-        ? `，原因：${params.adminComment}`
-        : '',
-    }
+    const reasonSuffix = params.action === 'reject' && params.adminComment
+      ? `，原因：${params.adminComment}`
+      : ''
+    const title = `退款审核${result}通知`
+    const content = `订单 ${params.orderNo} 的退款申请已${result}${reasonSuffix}`
+
     await (async () => {
       try {
         const b = await prisma.notificationBatch.create({
           data: {
             type: 'business',
-            title: `退款审核${result}通知`,
-            content: `退款申请已${result}${variables.refundReason}`,
+            title,
+            content,
             templateType: 'refund_review',
             recipientCount: 1,
             senderId: params.operatorId ?? null,
           },
         })
-        await sendInApp({
-          userId: params.userId,
-          templateType: 'refund_review',
-          variables,
-          batchId: b.id,
-          senderId: params.operatorId,
+        // v69: 直接创建 notification 记录，不依赖 notificationTemplate 表
+        await prisma.notification.create({
+          data: {
+            userId: params.userId,
+            type: 'refund_review',
+            title,
+            content,
+            sourceType: 'refund',
+            sourceId: params.orderId,
+            batchId: b.id,
+            senderId: params.operatorId ?? null,
+          },
         })
       } catch (err) {
         console.error('[v46.12 notifyRefundReview]', {
@@ -295,6 +304,8 @@ export class OrderNotificationService {
   }
 
   // v46.12: 抽公共方法 - 退款完成通知（admin 确认退款完成时触发）
+  // v69: 不再依赖 sendInApp，直接创建 notification 记录
+  // v69: sourceId 设为 orderId，支持用户点击跳转订单详情
   static async notifyRefundCompleted(params: {
     userId: string
     orderId: string
@@ -302,28 +313,33 @@ export class OrderNotificationService {
     amount: number
     operatorId?: string
   }) {
-    const variables = {
-      orderNo: params.orderNo,
-      amount: params.amount.toFixed(2),
-    }
+    const title = '退款完成通知'
+    const content = `订单 ${params.orderNo} 退款 ¥${params.amount.toFixed(2)} 已完成`
+
     await (async () => {
       try {
         const b = await prisma.notificationBatch.create({
           data: {
             type: 'business',
-            title: '退款完成通知',
-            content: `订单 ${params.orderNo} 退款 ¥${params.amount.toFixed(2)} 已完成`,
+            title,
+            content,
             templateType: 'refund_completed',
             recipientCount: 1,
             senderId: params.operatorId ?? null,
           },
         })
-        await sendInApp({
-          userId: params.userId,
-          templateType: 'refund_completed',
-          variables,
-          batchId: b.id,
-          senderId: params.operatorId,
+        // v69: 直接创建 notification 记录
+        await prisma.notification.create({
+          data: {
+            userId: params.userId,
+            type: 'refund_completed',
+            title,
+            content,
+            sourceType: 'refund',
+            sourceId: params.orderId,
+            batchId: b.id,
+            senderId: params.operatorId ?? null,
+          },
         })
       } catch (err) {
         console.error('[v46.12 notifyRefundCompleted]', {

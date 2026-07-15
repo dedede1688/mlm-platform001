@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, CheckCircle, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Bell, CheckCircle, Loader2, ChevronRight } from 'lucide-react'
 
 interface Notification {
   id: string
@@ -10,10 +11,12 @@ interface Notification {
   content: string
   isRead: boolean
   sourceType: string | null
+  sourceId: string | null
   createdAt: string
 }
 
 export default function NotificationsPage() {
+  const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -84,8 +87,20 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {notifications.map(n => (
-            <div key={n.id} className={`bg-white rounded-xl shadow-sm p-5 transition-colors ${n.isRead ? 'border border-gray-200' : 'border-l-4 border-l-blue-500 border border-blue-100 bg-blue-50/30'}`}>
+          {notifications.map(n => {
+            // v69: 支持点击通知跳转到对应订单详情
+            const canNavigate = n.sourceType === 'refund' && n.sourceType
+            const handleClick = () => {
+              if (canNavigate && n.sourceId) {
+                router.push(`/dashboard/orders/${n.sourceId}`)
+              }
+            }
+            return (
+            <div
+              key={n.id}
+              className={`bg-white rounded-xl shadow-sm p-5 transition-colors ${n.isRead ? 'border border-gray-200' : 'border-l-4 border-l-blue-500 border border-blue-100 bg-blue-50/30'} ${canNavigate ? 'cursor-pointer hover:shadow-md hover:border-blue-200' : ''}`}
+              onClick={handleClick}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -93,16 +108,30 @@ export default function NotificationsPage() {
                     {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{n.content}</p>
-                  <span className="text-xs text-gray-400">{formatTime(n.createdAt)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">{formatTime(n.createdAt)}</span>
+                    {canNavigate && (
+                      <span className="inline-flex items-center gap-0.5 text-xs text-blue-500 font-medium">
+                        查看订单
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {!n.isRead && (
-                  <button onClick={() => handleMarkRead(n.id)} className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
-                    <CheckCircle className="w-3.5 h-3.5" /> 标记已读
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {!n.isRead && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id) }}
+                      className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> 标记已读
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          ))}
+            )
+          })}
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-3 py-4">

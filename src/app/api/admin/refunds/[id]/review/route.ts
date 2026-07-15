@@ -38,8 +38,11 @@ export async function PATCH(
       )
     }
 
-    // 查询退款申请
-    const refundRequest = await prisma.refundRequest.findUnique({ where: { id } })
+    // 查询退款申请（含订单信息，用于通知跳转）
+    const refundRequest = await prisma.refundRequest.findUnique({
+      where: { id },
+      include: { order: { select: { id: true, orderNo: true } } },
+    })
     if (!refundRequest) {
       return NextResponse.json(
         { success: false, message: '退款申请不存在' },
@@ -76,10 +79,12 @@ export async function PATCH(
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    // v46.12: 触发退款审核通知（修复 review 路由没调 sendInApp 的死代码）
+    // v46.12: 触发退款审核通知（v69: 含 orderId/orderNo，支持用户点击跳转订单详情）
     await OrderNotificationService.notifyRefundReview({
       userId: refundRequest.userId,
       refundId: id,
+      orderId: refundRequest.order.id,
+      orderNo: refundRequest.order.orderNo,
       action,
       adminComment: normalizedAdminComment || undefined,
       operatorId: admin.id,

@@ -40,10 +40,14 @@ const { mockPrisma, notifications } = vi.hoisted(() => {
       notificationBatch: {
         create: vi.fn(),
       },
+      notification: {
+        create: vi.fn(),
+      },
     },
     notifications: {
       batches: [] as any[],
       sendCalls: [] as any[],
+      records: [] as any[],
     },
   }
 })
@@ -64,6 +68,7 @@ describe('OrderNotificationService', () => {
     mockPrisma.notificationBatch.create.mockResolvedValue({ id: 'batch-1' })
     notifications.batches.length = 0
     notifications.sendCalls.length = 0
+    notifications.records.length = 0
     sendInAppMock.mockImplementation(async (args: any) => {
       notifications.sendCalls.push(args)
       return { id: 'notification-1', success: true }
@@ -72,6 +77,11 @@ describe('OrderNotificationService', () => {
     mockPrisma.notificationBatch.create.mockImplementation(async ({ data }: any) => {
       notifications.batches.push(data)
       return { id: 'batch-1' }
+    })
+    // v69: notification.create 跟踪（refund_review / refund_completed 不再走 sendInApp）
+    mockPrisma.notification.create.mockImplementation(async ({ data }: any) => {
+      notifications.records.push(data)
+      return { id: 'notification-1', ...data }
     })
   })
 
@@ -404,20 +414,28 @@ describe('OrderNotificationService', () => {
   // notifyRefundReview - 退款审核 approve/reject
   // ============================================================
   describe('notifyRefundReview', () => {
-    it('approve action: result=通过, no refundReason', async () => {
+    it('approve action: result=通过, content has orderNo prefix', async () => {
       await OrderNotificationService.notifyRefundReview({
         userId: 'user-r',
         refundId: 'refund-1',
+        orderId: 'order-1',
+        orderNo: 'ORD-1',
         action: 'approve',
         operatorId: 'admin-r',
       })
 
       expect(notifications.batches[0].title).toBe('退款审核通过通知')
-      expect(notifications.batches[0].content).toBe('退款申请已通过')
-      expect(notifications.sendCalls[0].variables).toEqual({
-        result: '通过',
-        refundId: 'refund-1',
-        refundReason: '',
+      expect(notifications.batches[0].content).toBe('订单 ORD-1 的退款申请已通过')
+      expect(notifications.batches[0].templateType).toBe('refund_review')
+      // v69: notification.create 记录
+      expect(notifications.records[0]).toMatchObject({
+        userId: 'user-r',
+        type: 'refund_review',
+        title: '退款审核通过通知',
+        content: '订单 ORD-1 的退款申请已通过',
+        sourceType: 'refund',
+        sourceId: 'order-1',
+        senderId: 'admin-r',
       })
     })
 
@@ -425,24 +443,29 @@ describe('OrderNotificationService', () => {
       await OrderNotificationService.notifyRefundReview({
         userId: 'user-r',
         refundId: 'refund-2',
+        orderId: 'order-2',
+        orderNo: 'ORD-2',
         action: 'reject',
         adminComment: '凭证不足',
         operatorId: 'admin-r',
       })
 
       expect(notifications.batches[0].title).toBe('退款审核拒绝通知')
-      expect(notifications.batches[0].content).toBe('退款申请已拒绝，原因：凭证不足')
-      expect(notifications.sendCalls[0].variables.refundReason).toBe('，原因：凭证不足')
+      expect(notifications.batches[0].content).toBe('订单 ORD-2 的退款申请已拒绝，原因：凭证不足')
+      expect(notifications.records[0].content).toContain('凭证不足')
+      expect(notifications.records[0].sourceId).toBe('order-2')
     })
 
     it('reject action without adminComment: empty refundReason', async () => {
       await OrderNotificationService.notifyRefundReview({
         userId: 'user-r',
         refundId: 'refund-3',
+        orderId: 'order-3',
+        orderNo: 'ORD-3',
         action: 'reject',
       })
 
-      expect(notifications.sendCalls[0].variables.refundReason).toBe('')
+      expect(notifications.records[0].content).toBe('订单 ORD-3 的退款申请已拒绝')
     })
 
     // v60.3 batch 7: 补 line 287-292 - refund review catch handler
@@ -451,7 +474,7 @@ describe('OrderNotificationService', () => {
 
       await expect(
         OrderNotificationService.notifyRefundReview({
-          userId: 'user-r', refundId: 'refund-err', action: 'approve',
+          userId: 'user-r', refundId: 'refund-err', orderId: 'order-err', orderNo: 'ORD-ERR', action: 'approve',
         })
       ).resolves.toBeUndefined()
       expect(loggerMock.error).toHaveBeenCalledWith('退款审核通知失败', { error: expect.any(String) })
@@ -477,9 +500,15 @@ describe('OrderNotificationService', () => {
         senderId: 'admin-rc',
       })
       expect(notifications.batches[0].content).toBe('订单 ORD-RC 退款 ¥99.90 已完成')
-      expect(notifications.sendCalls[0].variables).toEqual({
-        orderNo: 'ORD-RC',
-        amount: '99.90',
+      // v69: notification.create 记录
+      expect(notifications.records[0]).toMatchObject({
+        userId: 'user-rc',
+        type: 'refund_completed',
+        title: '退款完成通知',
+        content: '订单 ORD-RC 退款 ¥99.90 已完成',
+        sourceType: 'refund',
+        sourceId: 'order-rc',
+        senderId: 'admin-rc',
       })
     })
 

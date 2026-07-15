@@ -18,11 +18,11 @@ interface OrderAfterSalesCardProps {
   onApplyRefund: () => void
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
-  pending: { label: '审核中', color: 'text-yellow-700', bgColor: 'bg-yellow-50' },
-  approved: { label: '退款处理中', color: 'text-blue-700', bgColor: 'bg-blue-50' },
-  completed: { label: '退款已完成', color: 'text-green-700', bgColor: 'bg-green-50' },
-  rejected: { label: '申请未通过', color: 'text-red-700', bgColor: 'bg-red-50' },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+  pending: { label: '审核中', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200' },
+  approved: { label: '退款处理中', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
+  completed: { label: '退款已完成', color: 'text-green-700', bgColor: 'bg-green-50', borderColor: 'border-green-200' },
+  rejected: { label: '申请未通过', color: 'text-red-700', bgColor: 'bg-red-50', borderColor: 'border-red-200' },
 }
 
 export default function OrderAfterSalesCard({
@@ -72,42 +72,55 @@ export default function OrderAfterSalesCard({
 
       {latestRefund && statusConfig && (
         <div className="mt-3">
-          <div className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${statusConfig.color} ${statusConfig.bgColor}`}>
-            {statusConfig.label}
-          </div>
-
-          <details className="mt-2">
-            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
-              查看详情
-            </summary>
-            <div className="mt-2 pl-3 border-l-2 border-gray-200 space-y-1.5">
-              <p className="text-xs text-gray-600">
-                <span className="text-gray-400">退款原因：</span>
-                {latestRefund.reason}
-              </p>
-              {latestRefund.description && (
-                <p className="text-xs text-gray-600">
-                  <span className="text-gray-400">补充说明：</span>
-                  {latestRefund.description}
-                </p>
+          {/* v69: 审核结果醒目展示 */}
+          <div className={`rounded-lg border ${statusConfig.borderColor} ${statusConfig.bgColor} px-4 py-3`}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${statusConfig.color} bg-white/60`}>
+                {statusConfig.label}
+              </div>
+              {latestRefund.status === 'rejected' && latestRefund.adminComment && (
+                <span className="text-xs text-red-600 font-medium">原因：{latestRefund.adminComment}</span>
               )}
-              {latestRefund.adminComment && (
-                <p className="text-xs text-gray-600">
-                  <span className="text-gray-400">管理员备注：</span>
-                  {latestRefund.adminComment}
-                </p>
+              {latestRefund.status === 'approved' && (
+                <span className="text-xs text-blue-600">退款正在处理中，请耐心等待</span>
               )}
-              {latestRefund.images && latestRefund.images.length > 0 && (
-                <div className="text-xs text-gray-600">
-                  <span className="text-gray-400">凭证图片：</span>
-                  <span>{latestRefund.images.length} 张</span>
-                </div>
+              {latestRefund.status === 'completed' && (
+                <span className="text-xs text-green-600">退款已到账</span>
               )}
-              <p className="text-xs text-gray-400">
-                申请时间：{new Date(latestRefund.createdAt).toLocaleString('zh-CN')}
-              </p>
             </div>
-          </details>
+            <details className="mt-1">
+              <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+                查看退款详情
+              </summary>
+              <div className="mt-2 pl-3 border-l-2 border-gray-200 space-y-1.5">
+                <p className="text-xs text-gray-600">
+                  <span className="text-gray-400">退款原因：</span>
+                  {latestRefund.reason}
+                </p>
+                {latestRefund.description && (
+                  <p className="text-xs text-gray-600">
+                    <span className="text-gray-400">补充说明：</span>
+                    {latestRefund.description}
+                  </p>
+                )}
+                {latestRefund.adminComment && latestRefund.status !== 'rejected' && (
+                  <p className="text-xs text-gray-600">
+                    <span className="text-gray-400">管理员备注：</span>
+                    {latestRefund.adminComment}
+                  </p>
+                )}
+                {latestRefund.images && latestRefund.images.length > 0 && (
+                  <p className="text-xs text-gray-600">
+                    <span className="text-gray-400">凭证图片：</span>
+                    <span>{latestRefund.images.length} 张</span>
+                  </p>
+                )}
+                <p className="text-xs text-gray-400">
+                  申请时间：{new Date(latestRefund.createdAt).toLocaleString('zh-CN')}
+                </p>
+              </div>
+            </details>
+          </div>
         </div>
       )}
 

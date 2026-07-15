@@ -188,7 +188,7 @@ describe('OrderAfterSalesCard', () => {
 
     it('存在退款记录时显示查看详情控制', () => {
       const html = render({ orderStatus: 'paid', latestRefund: refundWithDetails })
-      expect(html).toContain('查看详情')
+      expect(html).toContain('查看退款详情')
     })
 
     it('使用 details/summary 原生元素', () => {

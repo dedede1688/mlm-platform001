@@ -44,6 +44,7 @@ describe('PATCH /api/admin/refunds/[id]/review', () => {
     })
     mocks.findUnique.mockResolvedValue({
       id: 'refund-1', userId: 'user-1', status: 'pending',
+      order: { id: 'order-1', orderNo: 'ORD-1' },
     })
     mocks.update.mockResolvedValue({
       id: 'refund-1', userId: 'user-1', status: 'rejected',
@@ -91,6 +92,8 @@ describe('PATCH /api/admin/refunds/[id]/review', () => {
       expect.objectContaining({
         action: 'reject',
         adminComment: '凭证无法证明问题',
+        orderId: 'order-1',
+        orderNo: 'ORD-1',
       })
     )
   })
@@ -153,6 +156,7 @@ describe('PATCH /api/admin/refunds/[id]/review', () => {
   it('非pending状态返回400', async () => {
     mocks.findUnique.mockResolvedValueOnce({
       id: 'refund-1', userId: 'user-1', status: 'approved',
+      order: { id: 'order-1', orderNo: 'ORD-1' },
     })
     const { PATCH } = await import('@/app/api/admin/refunds/[id]/review/route')
     const response = await PATCH(
