@@ -24,11 +24,11 @@ apply only to this repo. Anything cross-project belongs in
 - 本地 commit `3f53bc4` 存在
 - 终端显示 `git push` 成功
 - `git log origin/main` 实际还停在 `d9a94d3`（v6 旧版）
-- Vercel 部署的是 v6 旧版，胡子哥看到页面没变化
+- Vercel 部署的是 v6 旧版，胡子老师看到页面没变化
 - 排查 30 分钟才发现 → 重推 `3f53bc4` → Vercel 重新部署
 
 **v7 修复**：
-- 猫爪主动跑了 `git log origin/main --oneline -1` 验证
+- 小猫主动跑了 `git log origin/main --oneline -1` 验证
 - 确认 `bed3802` 在远程 → 部署成功
 - 流程闭环
 
@@ -43,23 +43,23 @@ apply only to this repo. Anything cross-project belongs in
 1. 改完代码后，**必须** `pnpm dev` / `npm run dev` 启 dev server
 2. **必须** 真实浏览器（或 Playwright + Chromium）打开目标页面
 3. **必须** 登录后台 → 访问受保护页面（`/admin/*`）→ **截图**
-4. 截图给胡子哥看 → 通过后 → build + push
+4. 截图给胡子老师看 → 通过后 → build + push
 
 **真实约束（不是借口）**：
 - Playwright **headless 模式** + `/admin/*` **登录拦截** 是真实技术限制
 - Headless 模式无法绕过登录认证，截图会落在 login 页面
-- **这种情况** 接受 "源码级验证 + 胡子哥登录后截图" 替代方案
+- **这种情况** 接受 "源码级验证 + 胡子老师登录后截图" 替代方案
 - **不接受** "build 成功" 就当作 "页面已经变了"
 
 **v6 真实事故**：
-- 猫爪改完代码说"build 成功 + 推送成功"
+- 小猫改完代码说"build 成功 + 推送成功"
 - 实际部署的是 v6 旧版（commit `d9a94d3`，缺 flex-wrap 和 stripHtmlTags）
-- 胡子哥看到页面没变化 → 排查才发现是部署的代码不完整
+- 胡子老师看到页面没变化 → 排查才发现是部署的代码不完整
 
 **v7 修复**：
-- 猫爪在本地 dev server 启起来了
+- 小猫在本地 dev server 启起来了
 - Playwright 截图被 login 拦截，**主动承认限制**
-- **改用源码级验证**（cat file 确认代码改动都在） + **胡子哥登录后截图**
+- **改用源码级验证**（cat file 确认代码改动都在） + **胡子老师登录后截图**
 
 ---
 
@@ -202,7 +202,7 @@ const cleanData = product.gallery  // 后续修改会报错
 ```bash
 # 1. 改代码
 # 2. 本地验证
-pnpm dev  # 必须启 dev server 截图给胡子哥看
+pnpm dev  # 必须启 dev server 截图给胡子老师看
 
 # 3. build 验证
 pnpm build  # 必须 0 错误
@@ -221,7 +221,7 @@ git log origin/main --oneline -1
 # 最新部署的 commit hash 必须 = 你的 commit hash
 # Status 必须是 Ready（绿点）
 
-# 7. 通知胡子哥
+# 7. 通知胡子老师
 "v7 已部署，commit bed3802，Vercel Ready。强刷 /admin/products 验证。"
 ```
 
@@ -256,7 +256,7 @@ rg -n "OrderService\.payOrder|OrderService\.shipOrder|OrderService\.requestRefun
 4. **跨项目层**：这个教训不只是 mlm-platform，是所有"service + 多路由调用"项目通用
 
 **v46.10.3 真实事故时间线**（30 分钟排查）：
-- T+0：胡子哥下了一单 ¥500 后铃铛不增加
+- T+0：胡子老师下了一单 ¥500 后铃铛不增加
 - T+5：直接调 prisma.notificationBatch.create 成功 → schema 没问题
 - T+10：grep OrderService.payOrder 调用 → 只 1 行（pay 路由但已废弃）
 - T+15：发现 verify-payment 路由 inline 事务，没调 payOrder → payOrder 里的 IIFE 是死代码
@@ -272,7 +272,7 @@ rg -n "OrderService\.payOrder|OrderService\.shipOrder|OrderService\.requestRefun
 **核心教训**：admin 给用户改任何状态（调账、退款审核、发货、完成订单），用户端**不会自动收到通知**。这是同类死代码问题的延续——状态变更只写数据库，没调 sendInApp。
 
 **v46.11 真实事故**：
-- 胡子哥给测试账号充值 ¥5000
+- 胡子老师给测试账号充值 ¥5000
 - 测试账号铃铛不增加，notification_batches 没新数据
 - `/api/admin/users/[id]/balance` 路由：写 balance_record 后直接 return，没调 sendInApp
 
@@ -315,92 +315,55 @@ rg -n "verifyPermission|requireAdmin|adminComment" src/app/api/admin/
 
 ---
 
-## 📝 协作角色（v70 升级，2026-07-17 写入）
+## 📝 协作角色与岗位（v71，2026-07-19）
 
-### 总览：4 角色 = 胡子哥 + 3 个 AI
+| 系统身份 | 正式岗位 | 核心职责 | 状态 |
+|---|---|---|---|
+| 胡子老师 | 唯一拍板人 | 业务决策、上岗批准、发布授权、真实环境验收 | 启用 |
+| 所有本项目Codex会话 | 小酷 | 主理、设计、核心实现、协调、验证与发布 | 启用 |
+| mavis / Mavis | 小M | 独立只读复审 | 启用 |
+| coder / Coder | 小猫 | 辅助执行明确任务 | 启用 |
+| verifier / Verifier | 无 | 不再接收项目任务 | 已退役 |
 
-| # | 角色 | 类型 | 业务定位 | 一句话 |
-|---|------|------|---------|--------|
-| ① | **胡子哥** | 人类（拍板人） | 业务决策、授权发布、真实浏览器验收 | "我定方向、拍板、验收" |
-| ② | **小酷** | AI（mavis / Mavis）| 方案 + 代码 + 自审 + commit/push + 协调 | "我接需求，干到底" |
-| ③ | **小M**（小 M）| AI（verifier / Verifier）| 独立只读复审 | "我只看，不动手" |
-| ④ | **猫爪** | AI（coder / Coder）| 辅助执行 | "我跑腿，机械活" |
+### 身份铁律
 
-### 业务角色 ↔ Agent ID 映射表
-
-| 业务角色 | Agent ID | DisplayName | agentRole |
-|---------|---------|-------------|-----------|
-| 小酷 | `mavis` | Mavis | orchestrator |
-| 小M | `verifier` | Verifier | worker |
-| 猫爪 | `coder` | Coder | worker |
-| (备用) | `general` | General | worker |
-
-**注意**：
-- 业务角色名（小酷/小M/猫爪）≠ Agent ID（mavis/verifier/coder），但**业务角色一一对应**。
-- "general" Agent 是 Mavis 系统默认带的备用 sub-agent，**项目里没业务角色名对应**，平时不动。
+- Codex进入本项目即自动担任小酷，并完整读取 `docs/roles/xiaoku/`。
+- mavis / Mavis 只担任小M，旧“小酷”身份废止，并完整读取 `docs/roles/xiaom/`。
+- coder / Coder 只担任小猫，并完整读取 `docs/roles/xiaomao/`。
+- verifier / Verifier 已退役，不得派单。
+- 小M和小猫不得自行宣布上岗，只有胡子老师可以批准。
+- 现行详细岗位制度统一以 `docs/roles/` 为准；`docs/archive/` 仅用于历史审计。
 
 ### 变更分级（S / A / P）
 
 | 级别 | 触发条件 | 流程 |
-|------|---------|------|
-| **S 级** | < 20 行，无业务影响 | 小酷直接改 → commit → push |
-| **A 级** | > 20 行，影响业务逻辑 | 写设计 + TDD + 自审 + commit + push + 小M diff 复审 + 胡子哥验收 |
-| **P 级** | 资金 / 权限 / 数据库结构 | 写设计 + TDD + 自审 + **小M 提交前复审** + 胡子哥验收 + commit + push |
+|---|---|---|
+| S级 | 少于20行且无业务影响 | 小酷实现、自审、提交、发布 |
+| A级 | 超过20行或影响业务逻辑 | 设计、TDD、自审、小M独立复审、胡子老师验收 |
+| P级 | 资金、权限或数据库结构 | 设计、TDD、自审、提交或发布前小M独立复审、胡子老师验收 |
 
-### 角色权限边界速查
+### 权限边界
 
-| 维度 | 小酷 | 小M | 猫爪 |
-|------|-----|-----|------|
-| 改 `src/` 业务 | ✅ | ❌ 绝对不能 | ❌ 默认不能（任务授权除外）|
-| 改 `AGENTS.md` | ✅ | ❌ | ❌ 任务授权除外 |
-| 改 `prisma/schema.prisma` | ✅ | ❌ | ❌ 任务授权除外 |
-| commit | ✅ | ❌ | ⚠️ 任务明确授权 |
-| push | ✅ | ❌ | ⚠️ 任务明确授权 |
-| deploy | ✅ | ❌ | ❌ |
-| 派活给其他 AI | ✅ | ❌ | ❌ |
-| 直接联系胡子哥 | ✅ | ❌ 走小酷转达 | ❌ 走小酷转达 |
+| 维度 | 小酷 | 小M | 小猫 |
+|---|---|---|---|
+| 核心业务实现 | ✅ | ❌ | ❌ 默认禁止 |
+| 独立只读复审 | 协调 | ✅ | ❌ |
+| 修改项目文件 | ✅ | ❌ | ⚠️ 仅任务明确授权 |
+| commit / push | ✅ | ❌ | ⚠️ 仅任务明确授权 |
+| deploy / 数据库写入 | ✅ 按项目授权 | ❌ | ❌ 默认禁止 |
+| 业务拍板与上岗批准 | ❌ | ❌ | ❌ |
+| 直接向胡子老师最终交付 | ✅ | ❌，先交小酷 | ❌，先交小酷 |
 
-### 新人入职流程（Onboarding 5 步 + 胡子哥 5 题考核）
+### 入职与任务入口
 
-新会话 / 新模型 / 真人入职，按以下 5 步自动 + 1 步人工：
+- 小M完整入职提示词：`docs/roles/onboarding/xiaom-copy-prompt.md`
+- 小猫完整入职提示词：`docs/roles/onboarding/xiaomao-copy-prompt.md`
+- 小M任务：`docs/roles/tasks/xiaom/`
+- 小猫任务：`docs/roles/tasks/xiaomao/`
+- 任务、结果和复审模板：`docs/roles/templates/`
+- 旧任务与结果：`docs/archive/agent-tasks-v70/`，仅供审计，不得用于现行派单。
 
-```
-【自动】
-1. 加载 system_prompt（agent 启动时）
-2. 读项目根 AGENTS.md
-3. 读自己岗位的 岗位说明.md
-4. 看 3-5 个最近 done/ 真实案例
-
-【人工】
-5. 胡子哥当面 5 题考核（详见各角色 System Prompt 末尾）
-   - 答对 ≥ 4 题 = 上岗
-   - 答错 ≥ 2 题 = 重读 5 份文件 + 重考
-```
-
-**硬规则**：
-- 小酷 / 小M / 猫爪 **不得自行判定新人是否合格**
-- **只有胡子哥**有权判定"上岗"
-- 未通过考核的新人 **不得接活**
-
-### 详细岗位说明 + System Prompt 文件位置
-
-| 角色 | 详细岗位说明 | System Prompt（双保险）|
-|------|------------|---------------------|
-| 小酷 | `docs/agent-tasks/xiaoku/小酷岗位说明.md` | `agents/mavis/project-prompt.md` + `docs/agent-tasks/xiaoku/小酷system-prompt.md` |
-| 小M | `docs/agent-tasks/xiaom/小M复审岗位说明.md` | `agents/verifier/project-prompt.md` + `docs/agent-tasks/xiaom/小M-system-prompt.md` |
-| 猫爪 | `docs/agent-tasks/catpaw/猫爪执行岗位说明.md` | `agents/coder/project-prompt.md` + `docs/agent-tasks/catpaw/猫爪-system-prompt.md` |
-
-**双保险机制**：
-- `~/.mavis/agents/<id>/project-prompt.md` —— Agent 启动自动加载（运行时）
-- `docs/agent-tasks/<角色>/<角色>system-prompt.md` —— 项目 git 历史（追溯用）
-
-### 协作流程（旧"执行单"已升级为"任务文件"机制）
-
-| 旧（v3-v68）| 新（v70+）|
-|------------|----------|
-| 执行单格式：见 `~/.mavis/agents/mavis/memory/MEMORY.md` 第 17 行 | 任务文件：`docs/agent-tasks/{catpaw,xiaom}/todo/<角色>_NNN号任务.md` |
-| mavis 写执行单 → 猫爪执行 | 小酷写任务文件 → 派给猫爪/小M → 写结果到 done/ |
-| 3 角色（胡子哥 + mavis + 猫爪）| 4 角色（胡子哥 + 小酷 + 小M + 猫爪）|
+独立AI上岗必须经过：小酷准备完整提示词 → 胡子老师复制给目标AI → 目标AI提交只读入职报告 → 小酷核对 → 胡子老师明确批准。未获批准前不得接正式任务。
 
 ---
 
@@ -508,7 +471,7 @@ Prisma 6 的 `$queryRaw` 和 `$queryRawUnsafe` 在 Vercel + Supabase (PostgreSQL
 
 1. **默认禁止使用 `$queryRaw` / `$queryRawUnsafe`**
    - 只有当 Prisma 原生 ORM **完全无法实现**时才考虑原始 SQL
-   - 使用前必须：记录原因、review 通过、胡子哥确认
+   - 使用前必须：记录原因、review 通过、胡子老师确认
 
 2. **原子操作用 `updateMany` + 条件 where 替代 `$queryRawUnsafe`**
    ```typescript
@@ -528,7 +491,7 @@ Prisma 6 的 `$queryRaw` 和 `$queryRawUnsafe` 在 Vercel + Supabase (PostgreSQL
    - 如果未来数据量增长到百万级，再考虑用数据库视图或存储过程
 
 **v17 真实事故**：
-- v3 到 v6 共 4 次推送全部失败，每次都让胡子哥测试注册看到 500
+- v3 到 v6 共 4 次推送全部失败，每次都让胡子老师测试注册看到 500
 - 最终 v7 彻底换 ORM 方案，一次成功
 - 教训：**方向错了越努力越浪费**
 
@@ -536,7 +499,7 @@ Prisma 6 的 `$queryRaw` 和 `$queryRawUnsafe` 在 Vercel + Supabase (PostgreSQL
 
 ### 铁律 6：支付/订单类派单必须走完整链路测试（v43-4-修复-2 实战总结，2026-06-19 写入）
 
-**核心教训**：v43-4 我自己没走通"立即购买→verify-payment→跳转"完整链路，**只验了 build 0 错误 + 看代码逻辑**，导致 verify-payment **100% 失败的 P0 bug** 流到胡子哥面前。
+**核心教训**：v43-4 我自己没走通"立即购买→verify-payment→跳转"完整链路，**只验了 build 0 错误 + 看代码逻辑**，导致 verify-payment **100% 失败的 P0 bug** 流到胡子老师面前。
 
 **真实 bug**：
 ```ts
@@ -578,7 +541,7 @@ const paidOrder = await OrderService.payOrder(orderId)
 **v43-4-修复-2 真实事故**：
 - 派单后我（mavis）做 v43-4-修复时只验证了 build 0 错误 + 看代码逻辑
 - 没走真实"立即购买"流程
-- 胡子哥测出报"订单不存在或状态已变更"
+- 胡子老师测出报"订单不存在或状态已变更"
 - 排查 10 分钟找到根因：verify-payment 重复调 payOrder
 - 修法：删 payOrder 调用，改调 RewardService.processOrderRewards 直接发奖励
 
@@ -595,14 +558,14 @@ const paidOrder = await OrderService.payOrder(orderId)
 
 - **夸克**：正常
 - **遨游**：有 CSS 兼容问题（CSS Grid / 某些 flex 行为异常）
-- 胡子哥偏好深色导航栏 + 橙色主题（夸克风格）
+- 胡子老师偏好深色导航栏 + 橙色主题（夸克风格）
 
 
 ### 铁律 7：新建 admin 页面 fetch 必须含 Authorization header（v46.6 实战总结，2026-06-25 写入）
 
 **核心教训**：v46.5 新建 `src/app/admin/notification-history/page.tsx` 和 `[id]/page.tsx` 时，fetch **漏写了 `Authorization: Bearer ${token}` header**，结果：
 - middleware 拦截 `/api/admin/*` 路由强制要 Bearer token，没传就 401
-- 胡子哥看不到发件箱（"暂无发送记录"）
+- 胡子老师看不到发件箱（"暂无发送记录"）
 - 排查 1 小时才定位（中间踩了 enum 中文/英文不一致、SQL JOIN 模拟查询的坑）
 
 **v46.6 修复**（commit `febe85f`）：
@@ -630,12 +593,12 @@ const res = await fetch(`/api/admin/xxx`, {
 3. 任何一个 fetch 漏 header → 整个页面 401
 
 **v46.5 真实事故时间线**（40 分钟排查）：
-- T+0：胡子哥发"发件箱空"截图
+- T+0：胡子老师发"发件箱空"截图
 - T+5：Mavis 指出"还没触发数据" → 让用户手动触发
-- T+15：胡子哥触发"通用通知"失败（userId 填错"admin"） → 改用"系统公告" → 成功
+- T+15：胡子老师触发"通用通知"失败（userId 填错"admin"） → 改用"系统公告" → 成功
 - T+20：发件箱还是空 → 怀疑 API 查询 bug
 - T+30：SQL JOIN 模拟查 5 条 batch → 数据没问题
-- T+35：胡子哥抓 DevTools Console → 发现 401 + React hydration error #418
+- T+35：胡子老师抓 DevTools Console → 发现 401 + React hydration error #418
 - T+40：Mavis 读 middleware.ts → 发现是 Authorization header 漏写
 
 **教训**：下次 v46.5 风格的派单（新建 admin 页面），**派单前必须 grep fetch 鉴权 header 模式**，不能只看代码逻辑对不对。
@@ -714,7 +677,7 @@ useEffect(() => {
 // → syncFromStorage() 再 set → 重渲染 → effect 重跑 → ... 死循环
 ```
 
-**症状**（胡子哥看到的）：
+**症状**（胡子老师看到的）：
 - `Minified React error #185` + `Maximum update depth exceeded`
 - Vercel 显示 `Application error: a client-side exception has occurred`
 - `/api/settings/public` 和 `/api/notifications/unread-count` 反复触发 500（effect 死循环中反复 fetch）
@@ -748,7 +711,7 @@ useEffect(() => {
 5. **派单前自检**：新加 useEffect 的依赖数组有没有 store 函数引用 / 对象引用
 
 **v46.10 真实事故时间线**（30 分钟排查）：
-- T+0：胡子哥报 "Application error: a client-side exception" 截图
+- T+0：胡子老师报 "Application error: a client-side exception" 截图
 - T+5：Playwright 访问首页 + /admin/notifications 一切正常（未登录态）
 - T+10：Playwright 登录测试账号 → console 抓 4 errors
 - T+15：识别 `Minified React error #185` + 两个 API 500
@@ -766,14 +729,14 @@ useEffect(() => {
 
 ### 铁律 13：所有分析报告必须包含可执行的方案建议（v60.1 实战总结，2026-07-01 写入）
 
-**核心教训**：胡子哥 2026-07-01 明确要求 —— 「以后你做出来的所有分析，一定要有一个执行方案的建议」。**纯诊断、不给方案 = 半成品**。
+**核心教训**：胡子老师 2026-07-01 明确要求 —— 「以后你做出来的所有分析，一定要有一个执行方案的建议」。**纯诊断、不给方案 = 半成品**。
 
 **强制规则**：
 
 1. **每个分析报告结尾必须有「执行方案建议」章节**：
    - 列出 P0/P1/P2 优先级
    - 每项给出具体行动 + 负责人 + 工时估算
-   - 标明哪些 mavis 可立刻执行、哪些需胡子哥拍板
+   - 标明哪些 mavis 可立刻执行、哪些需胡子老师拍板
 
 2. **派单文档格式升级**：在原有「方案 + 派单」基础上，必须多写一节「我自己接下来会做什么」(自主执行项)。
 
@@ -792,22 +755,22 @@ useEffect(() => {
    - [动作1] - [工时] - 预计完成时间
    - [动作2] - [工时] - 预计完成时间
 
-   ### 🟡 P1 - 近期执行（需胡子哥确认）
-   - [动作1] - 依赖 [胡子哥提供 X]
+   ### 🟡 P1 - 近期执行（需胡子老师确认）
+   - [动作1] - 依赖 [胡子老师提供 X]
 
    ### 🟢 P2 - 战略规划（下一轮讨论）
    - [方向性建议]
    ```
 
 5. **违反示例**：
-   - ❌ 「项目代码没问题」(不给方案 = 浪费胡子哥时间)
+   - ❌ 「项目代码没问题」(不给方案 = 浪费胡子老师时间)
    - ❌ 「建议优化」(太虚,没动作、没工时、没负责人)
    - ✅ 「P0: 更新 docs/项目清单.md 到 2026-07-01 状态,我现在 30 分钟搞定 → 直接 commit」
 
 **v60.1 真实场景**：
 - v60 全量盘点报告(2026-07-01)
 - 发现 docs/项目清单.md 过期 5 天、12 个待办实际已完成
-- **当时报告只列问题**,胡子哥立刻指出「根据你的计划和建议来执行好吗？以后你做出来的所有分析,一定要有一个执行方案的建议」
+- **当时报告只列问题**,胡子老师立刻指出「根据你的计划和建议来执行好吗？以后你做出来的所有分析,一定要有一个执行方案的建议」
 - **修正**：报告必须自带执行方案,不要等用户追问
 
 **横向教训**：
@@ -972,7 +935,7 @@ try {
 ### 铁律 16：权限/二次确认类改造必须造测试数据验证（v68.6 实战总结，2026-07-02 写入）
 
 **核心教训**：涉及"权限按钮灰态"、"大额二次确认弹框"、"错误拦截"等**纯 UI/交互类改造**，
-不能等"真实业务触发"——直接用 prisma 脚本造一条测试数据，让胡子哥立刻能验证。
+不能等"真实业务触发"——直接用 prisma 脚本造一条测试数据，让胡子老师立刻能验证。
 
 **v68.5 实战**：
 - v68.5 加了：操作权限 5 档（view/create/update/delete/approve）+ 大额二次确认（退款≥1000、提现≥5000）
@@ -982,7 +945,7 @@ try {
   - 大额退款弹框 → 库里没 ≥1000 的待审退款
   - 大额提现弹框 → 库里没 ≥5000 的待审提现
 - **正确解法**：用 `scripts/seed-test-refund.ts` 在数据库造一条 `amount=5000, status=pending` 的退款
-- 胡子哥**强刷后台** → 点"通过" → **立刻看到红色大额确认弹框** → 验证通过
+- 胡子老师**强刷后台** → 点"通过" → **立刻看到红色大额确认弹框** → 验证通过
 
 **强制规则**：
 
@@ -1025,15 +988,15 @@ try {
    - 不要造新账号（涉及 user 表）
 
 **v68.6 真实事故时间线**（15 分钟解决）：
-- T+0：v68.5 已部署,胡子哥说"看不到按钮变灰和大额弹框"
+- T+0：v68.5 已部署,胡子老师说"看不到按钮变灰和大额弹框"
 - T+5：查数据库 → 0 条 pending 退款 + 没"财务管理员"账号
 - T+8：写 `scripts/seed-test-refund.ts` 造 amount=5000 的退款
-- T+12：胡子哥强刷后台,点"通过"→ 红色大弹框出现 ✅
+- T+12：胡子老师强刷后台,点"通过"→ 红色大弹框出现 ✅
 - T+15：清理测试数据 + mavis-trash 临时脚本和调试 API
 
 **派单前自检清单**（权限/弹框类 UI 改造）：
 1. 提前 grep 真实业务数据(退款/提现/订单)→ 决定要不要造测试数据
-2. 如果要造,提前写好 `seed-test-*.ts` 脚本(不要等胡子哥说"没法测"再补救)
+2. 如果要造,提前写好 `seed-test-*.ts` 脚本(不要等胡子老师说"没法测"再补救)
 3. 准备 `cleanup-test-*.ts` 脚本（验证完自动清理）
 4. 调试 API 用完即删（`src/app/api/admin/debug/*` 移到 trash）
 
@@ -1054,7 +1017,7 @@ try {
 | v68.9 | `e4c07e7` | 用户页等级调整 + 商品页上架/下架 + 批量上下架 + 新增商品 | 还漏基础资料修改 |
 | v68.10 | `0a61ae7` | 用户页基础资料修改(原本只有 `disabled={savingProfile}` 没 hasPermission) | 终于全部闭合 |
 
-**v68.7 真实教训**：胡子哥超管改成 `["view"]` 后,商品页操作列全灰 → 误以为"全部变灰"是 bug → 其实是预期 → 但截图 1-3 同时暴露**等级调整按钮亮** = v68.7 漏了。同样的"我以为是预期 实际是漏掉"反复发生。
+**v68.7 真实教训**：胡子老师超管改成 `["view"]` 后,商品页操作列全灰 → 误以为"全部变灰"是 bug → 其实是预期 → 但截图 1-3 同时暴露**等级调整按钮亮** = v68.7 漏了。同样的"我以为是预期 实际是漏掉"反复发生。
 
 **强制规则**：
 
@@ -1093,7 +1056,7 @@ try {
 **v68.11 super_admin 兜底**(commit `05860e8`):
 - 同一个验证过程暴露**设计漏洞**:super_admin 可能被自己配的 view-only 锁出后台
 - 修复:`hasPermission` 头部加 `if (role === 'super_admin') return true`
-- **结果**:胡子哥以后可以放心改超管配置(改了也无效,代码兜底)
+- **结果**:胡子老师以后可以放心改超管配置(改了也无效,代码兜底)
 
 **派单前自检清单**(操作权限类改造)：
 1. grep `<button` 列出所有按钮
@@ -1112,7 +1075,7 @@ try {
 | 单 | 内容 | commit |
 |---|------|--------|
 | v68.5 | 通用二次确认组件 + 权限按钮灰态 + 大额弹框 | `694d7ee` |
-| **v68.6 验证** | 造 ¥5000 测试退款 + 胡子哥截图验证 → ✅ 大额弹框/二次确认/状态写入全部跑通 | - |
+| **v68.6 验证** | 造 ¥5000 测试退款 + 胡子老师截图验证 → ✅ 大额弹框/二次确认/状态写入全部跑通 | - |
 
 **v68.6 教训**：
 - 权限/弹框类验证**不能等真实业务**——直接造测试数据
@@ -1140,4 +1103,4 @@ try {
   // ... 其他逻辑
 }
 ```
-**好处**:胡子哥以后改超管配置再也不会锁自�?测按钮变灰用子角�?support_admin/goods_admin)即可
+**好处**:胡子老师以后改超管配置再也不会锁自�?测按钮变灰用子角�?support_admin/goods_admin)即可
