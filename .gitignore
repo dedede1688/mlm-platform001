@@ -56,3 +56,6 @@ _update_*.sql
 .joycode/
 .lingma/
 .trae/
+
+# Git linked worktrees
+.worktrees/
