@@ -1,54 +1,54 @@
-# Supabase Data API Lockdown Implementation Plan
+# Supabase 数据接口权限封锁实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **执行人员必读：** 实施时必须使用 `superpowers:subagent-driven-development`（子代理驱动开发，推荐）或 `superpowers:executing-plans`（按计划分批执行）技能，逐项完成本计划。所有步骤使用复选框（`- [ ]`）跟踪。
 
-**Goal:** Prevent Supabase `anon` and `authenticated` roles from reading or modifying any `public` application table while preserving Prisma, service-role, and Storage behavior.
+**目标：** 阻止 Supabase 的 `anon`（匿名访问角色）和 `authenticated`（Supabase 已认证角色）读取或修改任何 `public` 业务表，同时保持 Prisma 服务端连接、`service_role`（Supabase 服务端特权角色）和 Storage（对象存储）的现有行为。
 
-**Architecture:** Add one explicit, reviewable Prisma SQL migration that revokes table/sequence privileges and enables RLS on the 28 production tables. Protect the migration with a static Vitest contract test, provide read-only before/after audit SQL and an operational runbook, then require 小M review and 胡子老师 approval before any production execution.
+**架构：** 新增一份显式、可逐行复审的 Prisma SQL 迁移，对生产库 28 张表撤销表/序列权限并启用 RLS（Row Level Security，行级安全）。使用 Vitest 静态契约测试保护迁移范围，提供生产变更前后的只读审计 SQL 和操作手册；任何生产执行都必须先经过小M复审和胡子老师批准。
 
-**Tech Stack:** PostgreSQL 17, Supabase, Prisma 6 migrations, Vitest 4, PowerShell, Next.js 15.
+**技术栈：** PostgreSQL 17、Supabase、Prisma 6 数据库迁移、Vitest 4 测试框架、PowerShell、Next.js 15。
 
-## Global Constraints
+## 全局约束
 
-- This is a P-level production permission change.
-- Do not execute production SQL before 小M passes the implementation and 胡子老师 explicitly approves the execution window.
-- Do not change table data, columns, indexes, constraints, Storage buckets, Storage policies, Prisma models, or application behavior.
-- Do not grant any new privilege or create any permissive RLS policy.
-- Use the explicit 28-table list from the approved design; stop if production inventory changes.
-- Do not include `password_reset_codes`; it is absent from production and belongs to a separate schema-drift task.
-- Do not use `git add .`.
-- Do not push, deploy, or run `prisma migrate deploy` during implementation or pre-review.
-
----
-
-## File Structure
-
-- Create `__tests__/security/supabase-data-api-lockdown.test.ts`: static contract tests for migration scope and forbidden SQL.
-- Create `prisma/migrations/20260719_lock_down_supabase_data_api/migration.sql`: explicit REVOKE and RLS statements for the 28 tables.
-- Create `scripts/audit-supabase-data-api.sql`: read-only before/after production audit queries.
-- Modify `scripts/README.md`: register the audit script and state that it never mutates the database.
-- Create `docs/runbooks/supabase-data-api-lockdown.md`: production preflight, execution, verification, stop conditions, and minimal recovery procedure.
-- Create `docs/roles/tasks/xiaom/todo/小M_003号任务.md`: independent read-only pre-production review task.
-
-### Interfaces
-
-- The static test consumes the exact migration file as UTF-8 text.
-- The migration produces only PostgreSQL permission and RLS metadata changes.
-- The audit script produces table inventory, RLS status, grants, policies, and non-sensitive row counts.
-- The runbook consumes the migration and audit output; it does not contain credentials.
-- 小M reviews the complete uncommitted implementation diff and command evidence.
+- 本任务是 P 级生产权限变更。
+- 小M未通过实施复审、胡子老师未明确批准执行窗口之前，禁止执行生产 SQL。
+- 禁止修改表数据、列、索引、约束、Storage bucket（对象存储桶）、Storage policy（对象存储策略）、Prisma 模型或应用行为。
+- 禁止授予任何新权限，禁止创建允许访问的宽松 RLS 策略。
+- 必须使用已批准设计中的显式 28 表清单；生产表清单发生变化时立即停止。
+- 不得包含 `password_reset_codes`；生产库不存在该表，它属于独立的数据库结构漂移任务。
+- 禁止使用 `git add .`。
+- 实施和预审阶段禁止推送、部署或运行 `prisma migrate deploy`（执行 Prisma 生产迁移）。
 
 ---
 
-### Task 1: Lock the expected security contract with a failing test
+## 文件结构
 
-**Files:**
-- Create: `__tests__/security/supabase-data-api-lockdown.test.ts`
-- Future create: `prisma/migrations/20260719_lock_down_supabase_data_api/migration.sql`
+- 新建 `__tests__/security/supabase-data-api-lockdown.test.ts`：验证迁移范围和禁用 SQL 的静态契约测试。
+- 新建 `prisma/migrations/20260719_lock_down_supabase_data_api/migration.sql`：针对 28 张表的显式 `REVOKE`（撤权）和 RLS 语句。
+- 新建 `scripts/audit-supabase-data-api.sql`：生产变更前后使用的只读审计查询。
+- 修改 `scripts/README.md`：登记审计脚本，并声明脚本绝不修改数据库。
+- 新建 `docs/runbooks/supabase-data-api-lockdown.md`：生产预检、执行、验证、停止条件和最小恢复程序。
+- 新建 `docs/roles/tasks/xiaom/todo/小M_003号任务.md`：生产执行前的小M独立只读复审任务。
 
-- [ ] **Step 1: Create the contract test before the migration exists**
+### 文件之间的关系
 
-The test must define the exact production inventory:
+- 静态测试以 UTF-8 文本读取并检查目标迁移文件。
+- 迁移只能产生 PostgreSQL 权限和 RLS 元数据变化。
+- 审计脚本输出表清单、RLS 状态、授权、策略和不含业务内容的行数。
+- 操作手册引用迁移和审计输出，但不包含任何凭据。
+- 小M复审完整的未提交实施差异和命令证据。
+
+---
+
+### 任务 1：先用失败测试锁定安全契约
+
+**文件：**
+- 新建：`__tests__/security/supabase-data-api-lockdown.test.ts`
+- 后续新建：`prisma/migrations/20260719_lock_down_supabase_data_api/migration.sql`
+
+- [ ] **步骤 1：在迁移文件不存在时先创建契约测试**
+
+测试必须定义准确的生产表清单：
 
 ```ts
 import { readFileSync } from 'node:fs'
@@ -99,8 +99,8 @@ function migrationSql(): string {
     .toLowerCase()
 }
 
-describe('Supabase Data API lockdown migration', () => {
-  it('revokes anon and authenticated privileges from every approved table', () => {
+describe('Supabase 数据接口权限封锁迁移', () => {
+  it('撤销每张已批准表的 anon 和 authenticated 权限', () => {
     const sql = migrationSql()
     for (const table of tables) {
       expect(sql).toContain(
@@ -109,7 +109,7 @@ describe('Supabase Data API lockdown migration', () => {
     }
   })
 
-  it('enables RLS on every approved table', () => {
+  it('为每张已批准表启用 RLS', () => {
     const sql = migrationSql()
     for (const table of tables) {
       expect(sql).toContain(
@@ -118,7 +118,7 @@ describe('Supabase Data API lockdown migration', () => {
     }
   })
 
-  it('does not weaken permissions or mutate business data', () => {
+  it('不放宽权限且不修改业务数据', () => {
     const sql = migrationSql()
     expect(sql).not.toMatch(/\bgrant\b/)
     expect(sql).not.toContain('disable row level security')
@@ -128,27 +128,27 @@ describe('Supabase Data API lockdown migration', () => {
 })
 ```
 
-- [ ] **Step 2: Run the new test and verify RED**
+- [ ] **步骤 2：运行新测试并确认红灯（预期失败）**
 
-Run:
+运行：
 
 ```powershell
 npx vitest run __tests__/security/supabase-data-api-lockdown.test.ts
 ```
 
-Expected: FAIL with `ENOENT` for the migration file. A syntax error or test discovery failure is not an acceptable RED result.
+预期：因为迁移文件不存在而以 `ENOENT`（找不到文件）失败。语法错误或测试未被发现不算有效红灯。
 
 ---
 
-### Task 2: Add the explicit permission migration
+### 任务 2：新增显式权限迁移
 
-**Files:**
-- Create: `prisma/migrations/20260719_lock_down_supabase_data_api/migration.sql`
-- Test: `__tests__/security/supabase-data-api-lockdown.test.ts`
+**文件：**
+- 新建：`prisma/migrations/20260719_lock_down_supabase_data_api/migration.sql`
+- 测试：`__tests__/security/supabase-data-api-lockdown.test.ts`
 
-- [ ] **Step 1: Create the migration with one explicit pair per table**
+- [ ] **步骤 1：为每张表创建一对显式迁移语句**
 
-Create the migration with this complete SQL:
+使用以下完整 SQL 创建迁移：
 
 ```sql
 REVOKE ALL PRIVILEGES ON TABLE public._prisma_migrations FROM anon, authenticated;
@@ -210,21 +210,21 @@ ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
 ```
 
-Do not use a dynamic `DO $$` block. Explicit statements are required for reviewability and to ensure an unexpected future table is not silently included.
+禁止使用动态 `DO $$` 代码块。必须显式列出语句，以便逐行复审，并避免未来新增表被静默纳入。
 
-- [ ] **Step 2: Run the contract test and verify GREEN**
+- [ ] **步骤 2：运行契约测试并确认绿灯（测试通过）**
 
-Run:
+运行：
 
 ```powershell
 npx vitest run __tests__/security/supabase-data-api-lockdown.test.ts
 ```
 
-Expected: 1 file passed, 3 tests passed.
+预期：1 个测试文件通过，3 项测试通过。
 
-- [ ] **Step 3: Verify migration statement counts**
+- [ ] **步骤 3：核对迁移语句数量**
 
-Run:
+运行：
 
 ```powershell
 $sql = Get-Content -Raw -Encoding UTF8 'prisma/migrations/20260719_lock_down_supabase_data_api/migration.sql'
@@ -232,17 +232,17 @@ $sql = Get-Content -Raw -Encoding UTF8 'prisma/migrations/20260719_lock_down_sup
 ([regex]::Matches($sql, '(?im)^ALTER TABLE public\..* ENABLE ROW LEVEL SECURITY;')).Count
 ```
 
-Expected: `28` and `28`.
+预期：两个结果均为 `28`。
 
 ---
 
-### Task 3: Add a read-only production audit script
+### 任务 3：新增生产只读审计脚本
 
-**Files:**
-- Create: `scripts/audit-supabase-data-api.sql`
-- Modify: `scripts/README.md`
+**文件：**
+- 新建：`scripts/audit-supabase-data-api.sql`
+- 修改：`scripts/README.md`
 
-- [ ] **Step 1: Add inventory and RLS query**
+- [ ] **步骤 1：增加表清单和 RLS 状态查询**
 
 ```sql
 SELECT c.relname AS table_name, c.relrowsecurity AS rls_enabled
@@ -252,7 +252,7 @@ WHERE n.nspname = 'public' AND c.relkind = 'r'
 ORDER BY c.relname;
 ```
 
-- [ ] **Step 2: Add role grant query**
+- [ ] **步骤 2：增加角色授权查询**
 
 ```sql
 SELECT grantee, table_name,
@@ -264,9 +264,9 @@ GROUP BY grantee, table_name
 ORDER BY table_name, grantee;
 ```
 
-- [ ] **Step 3: Add policy and safe row-count queries**
+- [ ] **步骤 3：增加策略和安全行数查询**
 
-The script must list `pg_policies` for `public` and return `count(*)` for the security-critical tables without selecting row data:
+脚本必须列出 `public` schema（数据库命名空间）的 `pg_policies`（RLS 策略），并仅用 `count(*)` 返回关键表行数，不得读取具体行内容：
 
 ```sql
 SELECT schemaname, tablename, policyname, roles, cmd, qual, with_check
@@ -282,78 +282,78 @@ SELECT
   (SELECT count(*) FROM public.rewards) AS rewards;
 ```
 
-The script must contain only `SELECT` statements and comments.
+脚本只能包含 `SELECT`（只读查询）语句和注释。
 
-- [ ] **Step 4: Register the script**
+- [ ] **步骤 4：登记审计脚本**
 
-Update `scripts/README.md` to describe:
+更新 `scripts/README.md`，明确说明：
 
-- purpose: Data API permission/RLS preflight and postflight audit;
-- safety: read-only, no credentials, no row contents;
-- execution: run through Supabase SQL editor or read-only SQL tool;
-- prohibition: never redirect its output into tracked files containing production data.
+- 用途：Data API（Supabase 数据接口）权限/RLS 的执行前和执行后审计；
+- 安全性：严格只读，不含凭据，不输出行内容；
+- 执行方式：通过 Supabase SQL Editor（SQL 编辑器）或只读 SQL 工具运行；
+- 禁止事项：不得把包含生产统计的输出重定向到 Git 跟踪文件。
 
-- [ ] **Step 5: Add audit-script safety assertions to the contract test**
+- [ ] **步骤 5：在契约测试中增加审计脚本安全断言**
 
-Extend the test file to read `scripts/audit-supabase-data-api.sql` and assert after removing comments:
+扩展测试文件，读取 `scripts/audit-supabase-data-api.sql`，删除注释后执行以下断言：
 
 ```ts
 expect(auditSql).not.toMatch(/\b(insert|update|delete|truncate|drop|alter|grant|revoke)\b/)
 expect(auditSql).toMatch(/\bselect\b/)
 ```
 
-Run the test before creating the script to observe RED, then create the script and rerun to GREEN.
+创建脚本前先运行测试并观察红灯；创建脚本后重新运行并确认绿灯。
 
 ---
 
-### Task 4: Add the production runbook
+### 任务 4：新增生产操作手册
 
-**Files:**
-- Create: `docs/runbooks/supabase-data-api-lockdown.md`
+**文件：**
+- 新建：`docs/runbooks/supabase-data-api-lockdown.md`
 
-- [ ] **Step 1: Document preflight gates**
+- [ ] **步骤 1：记录生产执行前置门槛**
 
-The runbook must require:
+操作手册必须要求：
 
-1. clean worktree except approved files;
-2. 小M review conclusion `通过`;
-3. explicit 胡子老师 production-window approval;
-4. fresh table inventory still equals the approved 28-table list;
-5. before-snapshot audit output captured in the conversation, not committed;
-6. database connection and Vercel application health available.
+1. 除已批准文件外，工作区必须干净；
+2. 小M复审结论必须为“通过”；
+3. 胡子老师明确批准生产执行窗口；
+4. 最新生产表清单仍与已批准的 28 表完全一致；
+5. 执行前审计输出只在对话中保存，不提交到仓库；
+6. 数据库连接和 Vercel 应用处于可验证状态。
 
-- [ ] **Step 2: Document the execution command without credentials**
+- [ ] **步骤 2：记录不含凭据的执行方式**
 
-The execution section must instruct 小酷 to copy the reviewed migration SQL into the Supabase SQL editor or use the approved SQL execution tool. It must not embed project keys, connection URLs, passwords, or service-role tokens.
+执行章节必须要求小酷把已复审的迁移 SQL 复制到 Supabase SQL 编辑器，或使用已批准的 SQL 执行工具。不得写入项目密钥、数据库连接地址、密码或 `service_role` token（服务端特权令牌）。
 
-- [ ] **Step 3: Document postflight verification**
+- [ ] **步骤 3：记录生产执行后验证**
 
-Require, in order:
+必须按顺序执行：
 
-1. run the audit script;
-2. confirm 28 target tables have RLS enabled;
-3. confirm zero `anon/authenticated` table grants;
-4. confirm critical row counts equal preflight values;
-5. rerun Supabase Security Advisor;
-6. call public settings/product endpoints;
-7. test login, authenticated profile, admin users list, and order list;
-8. verify Storage uploads are unchanged but explicitly still pending the next P0.
+1. 运行审计脚本；
+2. 确认 28 张目标表全部启用 RLS；
+3. 确认 `anon/authenticated` 的表授权数量为 0；
+4. 确认关键表行数与执行前完全一致；
+5. 重新运行 Supabase Security Advisor（安全顾问）；
+6. 调用公开设置和商品接口；
+7. 测试登录、认证用户资料、后台会员列表和订单列表；
+8. 确认 Storage 上传行为没有因本任务改变，同时明确 Storage 风险仍由下一项 P0 处理。
 
-- [ ] **Step 4: Document stop and recovery conditions**
+- [ ] **步骤 4：记录停止和恢复条件**
 
-The runbook must prohibit `GRANT ALL` rollback. On application failure, first identify the blocked caller. Restore only a single required operation on a single table with a deny-by-default RLS policy after a separate approval, or migrate the caller to a Next.js API.
+操作手册必须禁止用 `GRANT ALL`（授予全部权限）回滚。应用失败时，先识别被阻断的真实调用方。另行批准后，只能为单张表恢复单项必要操作并配置默认拒绝的 RLS 策略；更优先的方案是把调用迁移到 Next.js API。
 
 ---
 
-### Task 5: Run local verification and create the 小M review task
+### 任务 5：运行本地验证并创建小M复审任务
 
-**Files:**
-- Create: `docs/roles/tasks/xiaom/todo/小M_003号任务.md`
-- Review all files from Tasks 1-4.
+**文件：**
+- 新建：`docs/roles/tasks/xiaom/todo/小M_003号任务.md`
+- 复核任务 1—4 的全部文件。
 
-- [ ] **Step 1: Run targeted and repository checks**
+- [ ] **步骤 1：运行针对性检查和全仓库检查**
 
-Run:
+运行：
 
 ```powershell
 npx vitest run __tests__/security/supabase-data-api-lockdown.test.ts
@@ -364,18 +364,18 @@ git diff --check
 git status --short --branch
 ```
 
-Expected:
+预期：
 
-- targeted test passes;
-- typecheck exits 0;
-- all repository tests pass;
-- build exits 0;
-- diff check exits 0;
-- no unrelated file is staged.
+- 针对性测试通过；
+- `typecheck`（TypeScript 类型检查）退出码为 0；
+- 全仓库测试全部通过；
+- `build`（生产构建）退出码为 0；
+- 差异格式检查退出码为 0；
+- 没有暂存任何无关文件。
 
-- [ ] **Step 2: Inspect the exact implementation diff**
+- [ ] **步骤 2：检查准确的实施差异**
 
-Run:
+运行：
 
 ```powershell
 git -c core.quotePath=false diff -- \
@@ -386,32 +386,32 @@ git -c core.quotePath=false diff -- \
   docs/runbooks/supabase-data-api-lockdown.md
 ```
 
-Confirm no production SQL was executed and no application file changed.
+确认没有执行任何生产 SQL，也没有修改应用文件。
 
-- [ ] **Step 3: Create 小M_003 with all six task elements**
+- [ ] **步骤 3：创建具备六要素的小M_003任务**
 
-The review task must specify:
+复审任务必须明确：
 
-- goal: independently review the Data API lockdown implementation before commit/push/production execution;
-- baseline: `708eb69` plus the approved design/plan commits;
-- allowed reads: the five implementation files, design, plan, Git diff/history, and read-only production metadata;
-- allowed writes: none;
-- prohibited operations: all file writes, commits, pushes, deployments, migrations, SQL mutations, Storage changes;
-- verification: statement counts, forbidden-SQL scans, targeted test, typecheck/test/build evidence, production inventory and grant snapshots;
-- completion: return `通过/有条件通过/不通过` only in conversation to 小酷.
+- 目标：在提交、推送和生产执行前，独立复审 Data API 权限封锁实现；
+- 基线：`708eb69` 加上已批准的设计和计划提交；
+- 允许读取：五个实施文件、设计、计划、Git 差异/历史和生产只读元数据；
+- 允许写入：无；
+- 禁止操作：所有文件写入、提交、推送、部署、迁移执行、SQL 修改、Storage 变更；
+- 验证内容：语句数量、禁用 SQL 扫描、针对性测试、类型检查/全量测试/构建证据、生产表清单和授权快照；
+- 完成标准：只在对话中向小酷返回“通过/有条件通过/不通过”。
 
-- [ ] **Step 4: Stop for independent review**
+- [ ] **步骤 4：停止并等待独立复审**
 
-Do not stage or commit implementation files. Give the complete 小M_003 prompt to 胡子老师 for copying to the independent Mavis AI.
+不得暂存或提交实施文件。把完整的小M_003提示词交给胡子老师，由胡子老师复制给独立 Mavis AI。
 
 ---
 
-### Task 6: Commit and production execution gates
+### 任务 6：提交与生产执行门禁
 
-**Files:**
-- Same reviewed implementation files.
+**文件：**
+- 与小M复审通过的实施文件完全相同。
 
-- [ ] **Step 1: After 小M passes, stage exact files only**
+- [ ] **步骤 1：小M通过后只精确暂存目标文件**
 
 ```powershell
 git add -- \
@@ -425,38 +425,40 @@ git diff --cached --name-only
 git diff --cached --check
 ```
 
-Expected: exactly six reviewed files and no diff-check errors.
+预期：恰好六个已复审文件，差异格式检查没有错误。
 
-- [ ] **Step 2: Commit but do not execute production SQL**
+- [ ] **步骤 2：创建提交，但不执行生产 SQL**
 
 ```powershell
 git commit -m "security: lock down Supabase Data API tables"
 ```
 
-- [ ] **Step 3: Push only after 胡子老师 authorizes release**
+提交信息含义：安全修复——封锁 Supabase 数据接口对业务表的直接访问。
+
+- [ ] **步骤 3：仅在胡子老师批准发布后推送**
 
 ```powershell
 git push origin main
 git log origin/main --oneline -1
 ```
 
-Expected: remote hash equals local HEAD.
+预期：远程提交哈希与本地 HEAD（当前最新提交）完全一致。
 
-- [ ] **Step 4: Obtain a separate production execution approval**
+- [ ] **步骤 4：单独取得生产执行批准**
 
-Report the reviewed commit, tests, build, remote state, preflight database snapshot, and exact migration effects. Do not treat approval to push as approval to mutate production.
+报告已复审提交、测试、构建、远程状态、数据库执行前快照和迁移的准确影响。推送批准不得视为生产数据库修改批准。
 
-- [ ] **Step 5: Execute and verify production**
+- [ ] **步骤 5：执行并验证生产变更**
 
-After explicit approval, execute the reviewed migration once, run every postflight check from the runbook, and provide the evidence to 小M for final read-only verification. If any stop condition triggers, do not broaden grants or make an unreviewed fix.
+得到明确批准后，只执行一次已复审迁移，运行操作手册中的全部执行后检查，并把证据交给小M做最终只读复核。任何停止条件触发时，禁止扩大授权或实施未经复审的修复。
 
 ---
 
-## Plan Self-Review
+## 计划自审
 
-- The plan covers every approved design requirement: explicit scope, dual defense, no Storage changes, TDD, read-only audit, recovery, independent review, and separate production approval.
-- No application behavior or schema model change is included.
-- The 28-table list matches the production inventory captured on 2026-07-19.
-- `password_reset_codes` is intentionally excluded and called out as a separate task.
-- All implementation mutations are test-first; configuration SQL is guarded by a failing static contract test before creation.
-- No placeholder or unspecified implementation step remains.
+- 计划覆盖已批准设计的全部要求：显式范围、双重防线、不修改 Storage、TDD（测试驱动开发）、只读审计、恢复策略、独立复审和单独生产批准。
+- 不包含应用行为或 Prisma schema（数据模型）的变更。
+- 28 表清单与 2026-07-19 获取的生产清单一致。
+- `password_reset_codes` 被明确排除，并登记为独立任务。
+- 所有实施变更均测试先行；配置 SQL 在创建前先由失败的静态契约测试锁定。
+- 不存在占位内容或未说明的实施步骤。
