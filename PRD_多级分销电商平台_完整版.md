@@ -996,24 +996,60 @@ withdrawals (
 | **奖励状态** | pending(待发放) / paid(已发放) / cancelled(已取消) |
 | **提现状态** | pending(待审核) / approved(已通过) / rejected(已拒绝) / completed(已完成) |
 
-### 9.4 接口清单（主要）
+### 9.4 接口清单（v53 同步更新）
 
 | 接口 | 说明 |
 |-----|------|
+| **认证** | |
 | POST /api/auth/register | 用户注册 |
 | POST /api/auth/login | 用户登录 |
+| GET /api/auth/me | 当前用户信息 |
+| POST /api/auth/change-password | 修改密码 |
+| POST /api/auth/forgot-password/send-code | 忘记密码-发送验证码 |
+| POST /api/auth/forgot-password/verify-code | 忘记密码-验证码校验 |
+| POST /api/auth/forgot-password/reset | 忘记密码-重置 |
+| **商品** | |
 | GET /api/products | 商品列表 |
 | GET /api/products/:id | 商品详情 |
+| **购物车** | |
+| GET/POST /api/cart | 购物车列表/添加 |
+| PUT/DELETE /api/cart/:id | 购物车修改/删除 |
+| **订单** | |
 | POST /api/orders | 创建订单 |
 | GET /api/orders | 订单列表 |
 | GET /api/orders/:id | 订单详情 |
-| POST /api/orders/:id/pay | 支付订单 |
-| POST /api/referral/code | 获取推荐码 |
-| GET /api/referral/team | 我的团队 |
+| POST /api/orders/:id/verify-payment | 支付验证回调 |
+| POST /api/orders/:id/cancel | 取消订单 |
+| POST /api/orders/:id/confirm | 确认收货 |
+| POST /api/orders/:id/refund | 申请退款 |
+| **收益** | |
 | GET /api/rewards | 收益明细 |
+| GET /api/dividends | 分红记录 |
+| **提现** | |
 | POST /api/withdrawals | 申请提现 |
+| **积分** | |
 | GET /api/points | 积分明细 |
+| GET /api/points/schedule | 积分解锁计划 |
 | POST /api/points/transfer | 积分转赠 |
+| **团队** | |
+| GET /api/users/team | 我的团队 |
+| **用户** | |
+| GET /api/users/me | 用户资料 |
+| GET /api/users/lookup | 用户查询 |
+| GET /api/user/dashboard | 用户仪表盘 |
+| GET /api/user/balance-records | 余额变动记录 |
+| POST /api/user/earnings-transfer | 收益转余额 |
+| POST /api/user/recharge | 充值 |
+| GET /api/user/recharge-settings | 充值设置 |
+| GET/POST /api/user/addresses | 收货地址 |
+| POST/PUT /api/user/payment-password | 支付密码设置 |
+| **通知** | |
+| GET /api/notifications | 通知列表 |
+| GET /api/notifications/unread-count | 未读通知数 |
+| POST /api/notifications/:id/read | 标记已读 |
+| **公共** | |
+| GET /api/regions | 地区列表 |
+| GET /api/settings/public | 公开系统设置 |
 
 ---
 
