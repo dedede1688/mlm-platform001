@@ -257,7 +257,7 @@ export async function POST(
 
     const fieldLabel = result.mapping.label
     const actionLabel = amount > 0 ? '增加' : '扣减'
-    console.log(
+    logger.info(
       `[BalanceAdjust] 用户 ${id} 的${fieldLabel}已${actionLabel} ¥${Math.abs(amount).toFixed(2)}，原因：${reason}`
     )
 

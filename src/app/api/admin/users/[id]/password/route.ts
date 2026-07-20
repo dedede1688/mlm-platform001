@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import bcrypt from 'bcryptjs'
+import { logger } from '@/lib/logger'
 
 // PUT /api/admin/users/[id]/password — 管理员重置会员密码
 export async function PUT(
@@ -85,7 +86,7 @@ export async function PUT(
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    console.log(`[PasswordReset] 管理员 ${admin.phone} 重置了用户 ${existing.phone} 的密码，原因：${reason}`)
+    logger.info(`[PasswordReset] 管理员 ${admin.phone} 重置了用户 ${existing.phone} 的密码，原因：${reason}`)
 
     return NextResponse.json({
       success: true,

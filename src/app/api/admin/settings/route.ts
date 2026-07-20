@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET：获取所有系统配置（管理员）
 export async function GET(request: NextRequest) {
@@ -100,7 +101,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
 
     // 调试日志：打印接收到的数据
-    console.log('[Settings PUT] Received body:', JSON.stringify(body, null, 2))
+    logger.info('[Settings PUT] Received body:', JSON.stringify(body, null, 2))
 
     // 辅助函数：trim 字符串值（防止用户输入带空格）
     const trimVal = (v: string | undefined | null) => (typeof v === 'string' ? v.trim() : v)

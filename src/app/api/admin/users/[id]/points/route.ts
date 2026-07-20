@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // POST /api/admin/users/[id]/points — 管理员调整会员积分（自动联动）
 export async function POST(
@@ -136,7 +137,7 @@ export async function POST(
     })
 
     const actionLabel = amount > 0 ? '增加' : '扣减'
-    console.log(
+    logger.info(
       `[PointsAdjust] 用户 ${id} 的${result.fieldLabel}已${actionLabel} ${Math.abs(amount)}，原因：${reason}`
     )
 

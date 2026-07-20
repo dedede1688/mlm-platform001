@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { logger } from '@/lib/logger'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -64,11 +65,10 @@ type PendingRestoreStatus = 'idle' | 'validating' | 'restored' | 'validation_err
 // ---- 商品规格展示组件 ----
 
 function ProductSpecsDisplay({ specs }: { specs?: SpecGroup[] | null }) {
-  // 调试日志
-  console.log('[ProductSpecsDisplay] 收到的specs数据:', specs)
+  logger.debug(`[ProductSpecsDisplay] 收到的specs数据: ${JSON.stringify(specs)}`)
 
   if (!Array.isArray(specs) || specs.length === 0) {
-    console.log('[ProductSpecsDisplay] 没有规格数据或数据为空')
+    logger.debug('[ProductSpecsDisplay] 没有规格数据或数据为空')
     return null
   }
 
