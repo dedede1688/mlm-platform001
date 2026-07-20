@@ -149,3 +149,138 @@ describe('v55.2: middleware JWT 签名验证', () => {
     expect(res.request.headers.get('x-trace-id')).toBeTruthy()
   })
 })
+
+// ============================================================
+// v51: 用户侧接口鉴权加固（仅登录校验，不校验角色）
+// ============================================================
+
+describe('v51: 用户侧接口 middleware 登录校验', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // ---- 受保护路径 401 场景 ----
+
+  it('用户侧路径无 token 返回 401', () => {
+    const req = createMockRequest('/api/orders')
+    const res = middleware(req) as { status: number; body: { success: boolean; error: string } }
+    expect(res.status).toBe(401)
+    expect(res.body.error).toBe('请先登录')
+  })
+
+  it('用户侧路径伪造 token 返回 401', () => {
+    const fakePayload = Buffer.from(
+      JSON.stringify({ userId: 'user1', role: 'user' })
+    ).toString('base64url')
+    const fakeToken = `fake.${fakePayload}.sig`
+    const req = createMockRequest('/api/withdrawals', `Bearer ${fakeToken}`)
+    const res = middleware(req) as { status: number; body: { success: boolean; error: string } }
+    expect(res.status).toBe(401)
+    expect(res.body.error).toBe('登录已过期，请重新登录')
+  })
+
+  it('用户侧路径过期 token 返回 401', () => {
+    const expiredToken = createToken(
+      { userId: 'u1', phone: '138', role: 'user' },
+      { expiresIn: '-1s' }
+    )
+    const req = createMockRequest('/api/points', `Bearer ${expiredToken}`)
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(401)
+  })
+
+  it('用户侧路径无 Bearer 前缀返回 401', () => {
+    const req = createMockRequest('/api/cart', 'bare-token-123')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(401)
+  })
+
+  // ---- 受保护路径 200 场景 ----
+
+  it('用户侧路径有效 token 放行并注入 x-user-id', () => {
+    const token = createToken({ userId: 'user-123', phone: '138', role: 'user' })
+    const req = createMockRequest('/api/orders', `Bearer ${token}`)
+    const res = middleware(req) as { status: number; request: { headers: Headers } }
+    expect(res.status).toBe(200)
+    expect(res.request.headers.get('x-user-id')).toBe('user-123')
+    expect(res.request.headers.get('x-user-role')).toBe('user')
+  })
+
+  it('用户侧子路径也拦截（/api/orders/123 → 401 无 token）', () => {
+    const req = createMockRequest('/api/orders/uuid-123')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(401)
+  })
+
+  it('用户侧子路径有效 token 放行（/api/notifications/batch）', () => {
+    const token = createToken({ userId: 'user-456', phone: '138', role: 'user' })
+    const req = createMockRequest('/api/notifications/batch', `Bearer ${token}`)
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+
+  // ---- 所有用户受保护路径覆盖 ----
+
+  it.each([
+    '/api/cart',
+    '/api/dividends',
+    '/api/notifications',
+    '/api/orders',
+    '/api/points',
+    '/api/rewards',
+    '/api/settings',
+    '/api/user',
+    '/api/withdrawals',
+    '/api/users/lookup',
+    '/api/users/me',
+    '/api/users/team',
+    '/api/auth/me',
+    '/api/auth/change-password',
+  ])('%s 无 token 返回 401', (pathname) => {
+    const req = createMockRequest(pathname)
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(401)
+  })
+
+  // ---- 公开路径放行 ----
+
+  it('公开路径 /api/auth/login 无 token 放行', () => {
+    const req = createMockRequest('/api/auth/login')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+
+  it('公开路径 /api/auth/register 无 token 放行', () => {
+    const req = createMockRequest('/api/auth/register')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+
+  it('公开路径 /api/auth/forgot-password 无 token 放行', () => {
+    const req = createMockRequest('/api/auth/forgot-password')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+
+  it('公开路径 /api/products 无 token 放行', () => {
+    const req = createMockRequest('/api/products')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+
+  it('公开路径 /api/regions 无 token 放行', () => {
+    const req = createMockRequest('/api/regions')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+
+  // ---- 用户路径不校验角色（仅登录） ----
+
+  it('用户侧路径任意角色都放行（不校验角色）', () => {
+    // 普通用户访问 /api/rewards 应该放行
+    const token = createToken({ userId: 'u1', phone: '138', role: 'user' })
+    const req = createMockRequest('/api/rewards', `Bearer ${token}`)
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+})

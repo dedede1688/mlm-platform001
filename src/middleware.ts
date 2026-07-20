@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 
-// ---- 路径与所需角色映射 ----
+// ---- 用户侧需要登录的路径（仅验证 JWT，不校验角色） ----
+
+const userProtectedPaths = [
+  '/api/cart',
+  '/api/dividends',
+  '/api/notifications',
+  '/api/orders',
+  '/api/points',
+  '/api/rewards',
+  '/api/settings',
+  '/api/user',
+  '/api/withdrawals',
+  '/api/users/lookup',
+  '/api/users/me',
+  '/api/users/team',
+  '/api/auth/me',
+  '/api/auth/change-password',
+]
+
+// ---- admin 路径与所需角色映射 ----
 
 const pathRoleMap: Record<string, string[]> = {
   '/api/admin/orders': ['super_admin', 'goods_admin'],
@@ -85,12 +104,26 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const traceId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-  // 仅拦截 /api/admin/* 路径
-  if (!pathname.startsWith('/api/admin/')) {
-    return NextResponse.next()
+  // ---- 分支 1：admin 路径 → 完整角色校验（原有逻辑） ----
+  if (pathname.startsWith('/api/admin/')) {
+    return adminAuth(request, traceId)
   }
 
-  // 提取 token
+  // ---- 分支 2：用户侧受保护路径 → 仅登录校验 ----
+  if (userProtectedPaths.some(p => pathname.startsWith(p))) {
+    return userAuth(request, traceId)
+  }
+
+  // ---- 分支 3：公开路径 → 直接放行 ----
+  return NextResponse.next()
+}
+
+/**
+ * admin 路径：JWT 签名 + 角色校验
+ */
+function adminAuth(request: NextRequest, traceId: string) {
+  const { pathname } = request.nextUrl
+
   const authHeader = request.headers.get('authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return NextResponse.json(
@@ -100,8 +133,6 @@ export function middleware(request: NextRequest) {
   }
 
   const token = authHeader.replace('Bearer ', '')
-
-  // v55.2: 真正验证 JWT 签名（jwt.verify），失败返回 401
   let userRole = ''
   let userId = ''
   const payload = verifyJwtPayload(token)
@@ -109,14 +140,12 @@ export function middleware(request: NextRequest) {
     userRole = payload.role || ''
     userId = payload.userId || ''
   } else {
-    // 签名验证失败（伪造/过期/格式错误）→ 401，不放过
     return NextResponse.json(
       { success: false, error: '认证令牌无效或已过期' },
       { status: 401, headers: { 'x-trace-id': traceId } }
     )
   }
 
-  // 匹配路径角色
   const matchedPath = matchPath(pathname)
   if (matchedPath && userRole) {
     const requiredRoles = pathRoleMap[matchedPath]
@@ -128,10 +157,40 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // 将用户信息注入请求头，供后续路由使用
   const requestHeaders = new Headers(request.headers)
   if (userId) requestHeaders.set('x-user-id', userId)
   if (userRole) requestHeaders.set('x-user-role', userRole)
+  requestHeaders.set('x-trace-id', traceId)
+
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  })
+}
+
+/**
+ * 用户侧路径：仅 JWT 签名校验（不校验角色）
+ */
+function userAuth(request: NextRequest, traceId: string) {
+  const authHeader = request.headers.get('authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return NextResponse.json(
+      { success: false, error: '请先登录' },
+      { status: 401, headers: { 'x-trace-id': traceId } }
+    )
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+  const payload = verifyJwtPayload(token)
+  if (!payload) {
+    return NextResponse.json(
+      { success: false, error: '登录已过期，请重新登录' },
+      { status: 401, headers: { 'x-trace-id': traceId } }
+    )
+  }
+
+  const requestHeaders = new Headers(request.headers)
+  if (payload.userId) requestHeaders.set('x-user-id', payload.userId)
+  if (payload.role) requestHeaders.set('x-user-role', payload.role)
   requestHeaders.set('x-trace-id', traceId)
 
   return NextResponse.next({
