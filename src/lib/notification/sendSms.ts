@@ -11,15 +11,9 @@ interface SendSmsParams {
  * 发送短信通知（预留接口）
  *
  * 当前仅打印日志，不实际发送。
- * 后续可对接第三方短信服务，如：
- * - 阿里云短信
- * - 腾讯云短信
- * - Twilio
  *
- * 环境变量预留：
- * - SMS_SERVICE_API_KEY
- * - SMS_SIGN_NAME
- * - SMS_TEMPLATE_CODE
+ * 【产品决策】本平台仅使用站内信（in-app）通知，短信通道为有意保留的占位接口，
+ * 不接入任何外部短信服务。此 mock 为终态，非待办项。
  */
 export async function sendSms({ to, templateType, variables }: SendSmsParams): Promise<boolean> {
   try {
@@ -41,7 +35,8 @@ export async function sendSms({ to, templateType, variables }: SendSmsParams): P
     // 替换变量占位符
     const content = replaceVariables(template.content, variables)
 
-    // TODO: 对接真实短信发送服务
+    // 按产品决策，平台仅使用站内信（in-app），短信通道不接入外部服务。
+    // 以下为预留对接示例（当前不启用）：
     // const result = await smsClient.send({
     //   phoneNumbers: to,
     //   signName: process.env.SMS_SIGN_NAME,

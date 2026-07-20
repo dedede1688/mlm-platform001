@@ -285,9 +285,6 @@ const canDelete = useMemo(() => hasPermission(userRole, 'delete'), [userRole, pe
       research: product.research || '',
       videoUrl: product.videoUrl || '',
     })
-    // 🔍 调试：打印加载的规格数据
-    console.log('[AdminProducts] 编辑模式 - 加载的原始specs数据:', JSON.stringify(product.specs, null, 2))
-    console.log('[AdminProducts] 编辑模式 - 赋值后的formData.specs:', JSON.stringify(Array.isArray(product.specs) ? product.specs : [], null, 2))
     setNewBenefit('')
     setShowModal(true)
   }
@@ -427,9 +424,6 @@ const canDelete = useMemo(() => hasPermission(userRole, 'delete'), [userRole, pe
         images: processedImages.length > 0 ? processedImages : null,
         videoUrl: formData.videoUrl.trim() || null,
       }
-
-      // 🔍 调试：打印提交的完整数据
-      console.log('[AdminProducts] 提交前的specs数据:', JSON.stringify(body.specs, null, 2))
 
       const res = await fetch(url, {
         method,

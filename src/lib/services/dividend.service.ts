@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { MEMBER_LEVELS, BALANCE_SELECT } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
+import { logger } from '@/lib/logger'
+import { randomUUID } from 'crypto'
 
 
 export class DividendService {
@@ -16,15 +18,16 @@ export class DividendService {
     7: '董事',
   }
 
-  // 执行每日分红结算
-  static async settleDailyDividends() {
+  // ========================================
+  // 每日快照：只生成 dividend 明细（settled=false），不入账
+  // ========================================
+  static async snapshotDailyDividends() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
 
-    // 使用事务确保数据一致性
     return await prisma.$transaction(async (tx) => {
-      // 1. 检查今日是否已结算
+      // 1. 检查今日是否已快照（幂等：同一日不重复生成明细）
       const existingDividends = await tx.dividend.findFirst({
         where: {
           dividendDate: {
@@ -35,22 +38,7 @@ export class DividendService {
       })
 
       if (existingDividends) {
-        throw new Error('今日分红已结算，不可重复结算')
-      }
-
-      // 2. 检查今日是否已有reward记录（防止重复发放）
-      const existingRewards = await tx.reward.findFirst({
-        where: {
-          type: 'dividend',
-          createdAt: {
-            gte: today,
-            lte: todayEnd,
-          },
-        },
-      })
-
-      if (existingRewards) {
-        throw new Error('今日分红奖励已发放，不可重复发放')
+        throw new Error('今日分红已快照，不可重复生成')
       }
 
       // 2. 获取当日所有已支付订单
@@ -64,10 +52,9 @@ export class DividendService {
         },
       })
 
-      // 3. v50 B: 计算总订单金额 + 5 级独立池（替代 v1 单池累加算法）
+      // 3. v50 B: 计算总订单金额 + 5 级独立池
       const totalOrderAmount = paidOrders.reduce((sum, order) => sum + order.payAmount, 0)
 
-      // 读取 5 个独立池比例
       const [
         directorRate, managerRate, supervisorRate, presidentRate, boardRate,
       ] = await Promise.all([
@@ -78,7 +65,6 @@ export class DividendService {
         getBusinessConfig<number>('dividend.board.rate', 0.05),
       ])
 
-      // 读取 5 个 include_upstream 开关
       const [
         directorInclude, managerInclude, supervisorInclude, presidentInclude, boardInclude,
       ] = await Promise.all([
@@ -89,7 +75,7 @@ export class DividendService {
         getBusinessConfig<boolean>('dividend.board.include_upstream', false),
       ])
 
-      // 5 级独立池总额（v2: 每级算自己的池，不累加）
+      // 5 级独立池总额
       const poolsTotal: Record<number, number> = {
         3: Math.round(totalOrderAmount * directorRate * 100) / 100,
         4: Math.round(totalOrderAmount * managerRate * 100) / 100,
@@ -116,7 +102,7 @@ export class DividendService {
       const eligibleUsers = await tx.user.findMany({
         where: {
           level: {
-            gte: MEMBER_LEVELS.DIRECTOR, // >= 3
+            gte: MEMBER_LEVELS.DIRECTOR,
           },
           status: 'active',
         },
@@ -140,12 +126,9 @@ export class DividendService {
         }
       }
 
-      console.log(`[分红结算 v2] 5级独立池总额: ¥${totalDividendPool}, 参与用户: ${eligibleUsers.length}人`)
+      logger.info(`[分红快照 v3] 5级独立池总额: ¥${totalDividendPool}, 参与用户: ${eligibleUsers.length}人`)
 
-      // 5. v50 B: 5 级独立池分配算法（替代 v1 累加算法）
-      // 每个池独立计算：pool_total = totalOrderAmount × rate
-      // include_upstream=true 时，本级 + 更高级（不含董事，董事池独占）参与平分
-      // 用户可同时拿多个池的分红（如总监 S 可同时拿主任池+经理池+总监池+董事池）
+      // 5. v50 B: 5 级独立池分配算法
       const poolConfig: Record<number, { total: number; includeUpstream: boolean }> = {
         3: { total: poolsTotal[3], includeUpstream: directorInclude },
         4: { total: poolsTotal[4], includeUpstream: managerInclude },
@@ -154,26 +137,21 @@ export class DividendService {
         7: { total: poolsTotal[7], includeUpstream: boardInclude },
       }
 
-      // 用户累计分红：{ userId: { level: perPerson } }
       const userDividends: Record<string, Record<number, number>> = {}
 
-      // 按从高到低处理（董事→总裁→总监→经理→主任）
       for (const level of [7, 6, 5, 4, 3]) {
         const config = poolConfig[level]
         if (config.total <= 0) continue
 
         let eligibleLevels: number[]
         if (level === 7) {
-          // 董事池永远只覆盖董事
           eligibleLevels = [7]
         } else if (config.includeUpstream) {
-          // 包含上级：本级 + 更高级（不含董事，因为董事池独占）
           eligibleLevels = []
           for (let l = level; l <= 6; l++) {
             eligibleLevels.push(l)
           }
         } else {
-          // 仅本级
           eligibleLevels = [level]
         }
 
@@ -188,31 +166,25 @@ export class DividendService {
         }
       }
 
-      // 6. 计算每个用户的总分红（多个池的 perPerson 之和）
+      // 6. 计算每个用户的总分红
       const userTotalDividends: Record<string, number> = {}
       for (const [userId, levelMap] of Object.entries(userDividends)) {
         userTotalDividends[userId] = Math.round(Object.values(levelMap).reduce((sum, amt) => sum + amt, 0) * 100) / 100
       }
 
-      console.log('[分红结算 v2] 用户分红明细:', userTotalDividends)
+      logger.info('[分红快照 v3] 用户分红明细:', userTotalDividends)
 
-      // 7. 获取一个订单ID用于分红记录关联（取第一个已支付订单）
+      // 7. 获取一个订单ID用于分红记录关联
       const referenceOrderId = paidOrders.length > 0 ? paidOrders[0].id : ''
 
-      // 8. 为每个用户创建分红记录并更新余额（v50 B: 用 userTotalDividends 替代 levelDividendPerPerson）
+      // 8. 为每个用户创建分红记录（settled=false，不入账）
       const details = []
       for (const user of eligibleUsers) {
         const dividendAmount = userTotalDividends[user.id] || 0
 
         if (dividendAmount > 0) {
-          // 查询用户当前余额（事务内）
-          const currentUser = await tx.user.findUnique({
-            where: { id: user.id },
-            select: BALANCE_SELECT,
-          })
-
-          // 创建分红记录
-          const dividendRecord = await tx.dividend.create({
+          // 只创建 dividend 记录，settled=false（等待周结入账）
+          await tx.dividend.create({
             data: {
               userId: user.id,
               orderId: referenceOrderId,
@@ -220,42 +192,7 @@ export class DividendService {
               userLevel: user.level,
               totalPool: totalDividendPool,
               dividendDate: new Date(),
-            },
-          })
-
-          // 更新用户余额（资金底座重构: 分红只进可提现收益，不进余额）
-          await tx.user.update({
-            where: { id: user.id },
-            data: {
-              earningsAvailable: {
-                increment: dividendAmount,
-              },
-            },
-          })
-
-          // 记录余额流水
-          const afterDividend = currentUser ? { consumeBalance: currentUser.consumeBalance, earningsAvailable: currentUser.earningsAvailable + dividendAmount, earningsPending: currentUser.earningsPending, earningsVoided: currentUser.earningsVoided } : { consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0 }
-          await tx.balanceRecord.create({
-            data: {
-              userId: user.id,
-              type: 'daily_dividend',
-              sourceType: 'dividend',
-              sourceId: dividendRecord.id,
-              amount: +dividendAmount,
-              balance: currentUser!.balance,
-              frozenBalance: currentUser!.frozenBalance,
-              description: `每日分红结算（v2 5级独立池），发放 ¥${dividendAmount}，可提现收益增加，余额不变，分红 ID：${dividendRecord.id}，等级：${this.LEVEL_NAMES[user.level] || '未知'}${currentUser ? format4FieldDelta(currentUser, afterDividend) : ''}`,
-            },
-          })
-
-          // 同时创建 reward 记录（type='dividend'）
-          await tx.reward.create({
-            data: {
-              userId: user.id,
-              type: 'dividend',
-              orderId: referenceOrderId,
-              amount: dividendAmount,
-              status: 'paid',
+              settled: false,
             },
           })
 
@@ -277,7 +214,138 @@ export class DividendService {
         eligibleUsers: eligibleUsers.length,
         distributedUsers: details.length,
         details,
-        message: '分红结算成功（v2 5级独立池）',
+        message: '分红快照成功（v3 周结模式，明细已生成，待周结入账）',
+      }
+    })
+  }
+
+  // ========================================
+  // 每周结算：把"未结算"明细统一入账 + 幂等标记
+  // ========================================
+  static async settleWeeklyDividends() {
+    return await prisma.$transaction(async (tx) => {
+      // 1. 获取所有未结算的分红明细
+      const unsettledDividends = await tx.dividend.findMany({
+        where: { settled: false },
+        orderBy: { userId: 'asc' },
+      })
+
+      if (unsettledDividends.length === 0) {
+        return {
+          batchId: null,
+          totalAmount: 0,
+          totalDividends: 0,
+          distributedUsers: 0,
+          details: [],
+          message: '无待结算的分红明细',
+        }
+      }
+
+      // 2. 生成结算批次ID（幂等标识）
+      const batchId = randomUUID()
+      const settleDate = new Date()
+
+      // 3. 按用户分组
+      const userDividendMap: Record<string, typeof unsettledDividends> = {}
+      for (const dividend of unsettledDividends) {
+        if (!userDividendMap[dividend.userId]) {
+          userDividendMap[dividend.userId] = []
+        }
+        userDividendMap[dividend.userId].push(dividend)
+      }
+
+      const details = []
+      let totalAmount = 0
+
+      // 4. 逐用户入账
+      for (const [userId, dividends] of Object.entries(userDividendMap)) {
+        const userTotal = Math.round(
+          dividends.reduce((sum, d) => sum + d.amount, 0) * 100
+        ) / 100
+
+        if (userTotal <= 0) continue
+
+        // 4a. 获取用户当前余额（事务内）
+        const currentUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: BALANCE_SELECT,
+        })
+
+        if (!currentUser) {
+          logger.warn(`[周结] 用户 ${userId} 不存在，跳过`)
+          continue
+        }
+
+        // 4b. 更新用户可提现收益（资金底座: 分红只进 earningsAvailable）
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            earningsAvailable: { increment: userTotal },
+          },
+        })
+
+        // 4c. 记录余额流水（一条汇总记录）
+        const dividendIds = dividends.map(d => d.id)
+        const afterDividend = {
+          consumeBalance: currentUser.consumeBalance,
+          earningsAvailable: currentUser.earningsAvailable + userTotal,
+          earningsPending: currentUser.earningsPending,
+          earningsVoided: currentUser.earningsVoided,
+        }
+        await tx.balanceRecord.create({
+          data: {
+            userId,
+            type: 'daily_dividend',
+            sourceType: 'dividend',
+            sourceId: batchId,
+            amount: +userTotal,
+            balance: currentUser.balance,
+            frozenBalance: currentUser.frozenBalance,
+            description: `周结分红入账，批次：${batchId}，发放 ¥${userTotal}，可提现收益增加，余额不变，包含 ${dividends.length} 条明细：${dividendIds.join(',')}${format4FieldDelta(currentUser, afterDividend)}`,
+          },
+        })
+
+        // 4d. 为每条分红明细创建 reward 记录（orderId 必填）
+        for (const dividend of dividends) {
+          await tx.reward.create({
+            data: {
+              userId,
+              type: 'dividend',
+              orderId: dividend.orderId,
+              amount: dividend.amount,
+              status: 'paid',
+            },
+          })
+        }
+
+        // 4e. 标记这些分红明细为已结算
+        await tx.dividend.updateMany({
+          where: { id: { in: dividendIds } },
+          data: {
+            settled: true,
+            settleBatchId: batchId,
+            settleDate,
+          },
+        })
+
+        totalAmount = Math.round((totalAmount + userTotal) * 100) / 100
+
+        details.push({
+          userId,
+          amount: userTotal,
+          dividendCount: dividends.length,
+        })
+      }
+
+      logger.info(`[周结 v3] 批次 ${batchId} 结算完成，总金额 ¥${totalAmount}，用户 ${details.length} 人`)
+
+      return {
+        batchId,
+        totalAmount,
+        totalDividends: unsettledDividends.length,
+        distributedUsers: details.length,
+        details,
+        message: `周结分红入账成功（批次 ${batchId}），共 ${unsettledDividends.length} 条明细，${details.length} 位用户`,
       }
     })
   }
@@ -315,13 +383,11 @@ export class DividendService {
 
     if (!user) throw new Error('用户不存在')
 
-    // 获取用户的分红总额
     const totalDividends = await prisma.dividend.aggregate({
       where: { userId },
       _sum: { amount: true },
     })
 
-    // 获取最近一次分红
     const lastDividend = await prisma.dividend.findFirst({
       where: { userId },
       orderBy: { dividendDate: 'desc' },
@@ -335,7 +401,7 @@ export class DividendService {
     }
   }
 
-  // 检查今日是否已结算分红
+  // 检查今日是否已快照分红
   static async checkTodaySettlement() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -353,7 +419,7 @@ export class DividendService {
     return !!existingDividends
   }
 
-  // 获取今日分红统计
+  // 获取今日分红快照摘要
   static async getTodayDividendSummary() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -389,12 +455,16 @@ export class DividendService {
 
     const totalAmount = todayDividends.reduce((sum, d) => sum + d.amount, 0)
     const distributedUsers = todayDividends.length
+    const settledCount = todayDividends.filter(d => d.settled).length
 
     return {
       totalAmount,
       distributedUsers,
       eligibleUsers,
       isSettled: distributedUsers > 0,
+      isSnapshotted: distributedUsers > 0,
+      settledCount,
+      unsettledCount: distributedUsers - settledCount,
       details: todayDividends,
     }
   }

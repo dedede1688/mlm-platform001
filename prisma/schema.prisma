@@ -200,20 +200,25 @@ model Reward {
 }
 
 model Dividend {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  orderId      String   @map("order_id")
-  amount       Float
-  userLevel    Int      @map("user_level")
-  totalPool    Float    @map("total_pool")
-  dividendDate DateTime @map("dividend_date")
-  createdAt    DateTime @default(now()) @map("created_at")
-  order        Order    @relation(fields: [orderId], references: [id])
-  user         User     @relation(fields: [userId], references: [id])
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  orderId       String    @map("order_id")
+  amount        Float
+  userLevel     Int       @map("user_level")
+  totalPool     Float     @map("total_pool")
+  dividendDate  DateTime  @map("dividend_date")
+  settled       Boolean   @default(false) @map("settled")
+  settleBatchId String?   @map("settle_batch_id")
+  settleDate    DateTime? @map("settle_date")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  order         Order     @relation(fields: [orderId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([orderId])
   @@index([dividendDate])
+  @@index([settled])
+  @@index([settleBatchId])
   @@map("dividends")
 }
 

@@ -19,13 +19,13 @@ interface Parameter {
 }
 
 const GROUP_LABELS: Record<string, string> = {
-  time: '⏰ 时间参数',
-  reward: '🎁 奖励配置',
-  dividend: '💰 分红配置',
-  upgrade: '⬆️ 升级门槛',
-  feature: '🔧 功能开关',
-  points: '🪙 积分设置',
-  withdrawal: '💳 提现设置',
+  time: '时间参数',
+  reward: '奖励配置',
+  dividend: '分红配置',
+  upgrade: '升级门槛',
+  feature: '功能开关',
+  points: '积分设置',
+  withdrawal: '提现设置',
 }
 
 const UNIT_LABELS: Record<string, string> = {

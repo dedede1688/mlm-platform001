@@ -11,12 +11,12 @@ import { ACTIONS, ACTION_LABELS, Action } from '@/lib/admin-permissions'
 // ---- 6 大类分组(跟 admin-menu.ts 顺序一致) ----
 
 const CATEGORY_GROUPS: { name: string; icon: string; menuIds: string[] }[] = [
-  { name: '🏠 数据中台', icon: 'LayoutDashboard', menuIds: ['dashboard', 'reports'] },
-  { name: '📦 商品', icon: 'Package', menuIds: ['products', 'categories', 'banners'] },
-  { name: '💰 财务', icon: 'DollarSign', menuIds: ['finance', 'refunds', 'withdrawal-templates'] },
-  { name: '🛒 订单', icon: 'ShoppingCart', menuIds: ['orders'] },
-  { name: '👤 会员', icon: 'Users', menuIds: ['users'] },
-  { name: '⚙️ 系统后台', icon: 'Settings', menuIds: ['settings', 'system-parameters', 'notifications', 'notification-history', 'logs', 'roles'] },
+  { name: '数据中台', icon: 'LayoutDashboard', menuIds: ['dashboard', 'reports'] },
+  { name: '商品', icon: 'Package', menuIds: ['products', 'categories', 'banners'] },
+  { name: '财务', icon: 'DollarSign', menuIds: ['finance', 'refunds', 'withdrawal-templates'] },
+  { name: '订单', icon: 'ShoppingCart', menuIds: ['orders'] },
+  { name: '会员', icon: 'Users', menuIds: ['users'] },
+  { name: '系统后台', icon: 'Settings', menuIds: ['settings', 'system-parameters', 'notifications', 'notification-history', 'logs', 'roles'] },
 ]
 
 const ROLE_LABELS: Record<string, string> = {
