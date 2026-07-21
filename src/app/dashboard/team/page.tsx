@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Users, ArrowLeft, ChevronLeft, ChevronRight,
-  Search, UserPlus, Copy, Check
+  Search, UserPlus, Copy, Check, List, Network
 } from 'lucide-react'
+import ReferralTreeView, { TreeNode } from '@/components/ReferralTreeView'
 
 // ---- 类型 ----
 
@@ -50,6 +51,8 @@ export default function TeamPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [copied, setCopied] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'tree'>('list')
+  const [treeData, setTreeData] = useState<TreeNode[]>([])
   const pageSize = 10
 
   useEffect(() => {
@@ -81,6 +84,29 @@ export default function TeamPage() {
       console.error('获取团队数据失败:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchTreeData = async () => {
+    const authToken = localStorage.getItem('token')
+    if (!authToken) return
+    try {
+      const res = await fetch('/api/users/team?tree=true', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) setTreeData(data.data || [])
+      }
+    } catch (err) {
+      console.error('获取树形数据失败:', err)
+    }
+  }
+
+  const handleSwitchView = (mode: 'list' | 'tree') => {
+    setViewMode(mode)
+    if (mode === 'tree' && treeData.length === 0) {
+      fetchTreeData()
     }
   }
 
@@ -156,7 +182,7 @@ export default function TeamPage() {
     <div className="min-h-screen bg-gradient-to-b from-primary-50 via-white to-gray-50">
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 返回 + 标题 */}
+        {/* 返回 + 标题 + 视图切换 */}
         <div className="flex items-center gap-3 mb-6">
           <Link href="/dashboard" className="w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center text-gray-500 hover:text-primary hover:shadow-md transition-all">
             <ArrowLeft className="w-5 h-5" />
@@ -165,7 +191,65 @@ export default function TeamPage() {
             <Users className="w-6 h-6 text-primary" />
             我的团队
           </h1>
+          <div className="ml-auto flex items-center bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => handleSwitchView('list')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-primary shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <List className="w-3.5 h-3.5 inline mr-1" />
+              列表
+            </button>
+            <button
+              onClick={() => handleSwitchView('tree')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                viewMode === 'tree'
+                  ? 'bg-white text-primary shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Network className="w-3.5 h-3.5 inline mr-1" />
+              树形
+            </button>
+          </div>
         </div>
+
+        {/* 树形视图 */}
+        {viewMode === 'tree' && (
+          <div className="card-base mb-6" style={{ height: 'calc(100vh - 200px)', minHeight: 500 }}>
+            {treeData.length === 0 && user ? (
+              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                <Network className="w-5 h-5 mr-2" />
+                {loading ? '加载中...' : '暂无团队数据'}
+              </div>
+            ) : (
+              <ReferralTreeView
+                data={{
+                  id: user?.id ?? '',
+                  phone: user?.phone ?? '',
+                  nickname: user?.nickname ?? null,
+                  level: user?.level ?? 0,
+                  avatarUrl: null,
+                  totalPoints: 0,
+                  directSalesAmount: 0,
+                  orderCount: 0,
+                  teamCount: treeData.length,
+                  referralCount: treeData.length,
+                  createdAt: '',
+                  children: treeData,
+                  referrerId: null,
+                  referrerInfo: null,
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* 列表视图 */}
+        {viewMode === 'list' && (<>
 
         {/* 顶部统计卡片 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
@@ -249,6 +333,7 @@ export default function TeamPage() {
             </button>
           </div>
         )}
+        </>)}
       </main>
 
     </div>
