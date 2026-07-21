@@ -258,6 +258,11 @@ export default function OrdersPage() {
             >
               {tab.icon}
               {tab.label}
+              {tab.key === 'shipped' && (
+                orders.filter(o => o.status === 'shipped').length > 0 && (
+                  <span className="ml-0.5 w-2 h-2 rounded-full bg-red-500" />
+                )
+              )}
             </button>
           ))}
         </div>
@@ -354,8 +359,11 @@ function OrderCard({
       <div className="px-5 py-3 bg-gray-50/80 border-b border-gray-100 flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="font-mono text-sm text-gray-500">{order.orderNo}</span>
         <span className="text-xs text-gray-400">{formatDate(order.createdAt)}</span>
-        <span className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
+        <span className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.color} relative`}>
           {badge.text}
+          {order.status === 'shipped' && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full" />
+          )}
         </span>
       </div>
 
