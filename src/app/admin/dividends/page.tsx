@@ -79,7 +79,7 @@ export default function AdminDividendsPage() {
       } else {
         toast.error(data.error || `操作失败（${res.status}）`)
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error('请求失败')
     } finally {
       setSnapshotLoading(false)

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 
 // ---- 用户侧需要登录的路径（仅验证 JWT，不校验角色） ----
+//
+// 注意：/api/settings 已移除——当前 /api/settings/public 是公开接口。
+// 未来新增 /api/settings/* 路径需手动评估是否加入 userProtectedPaths。
+//
+// 注意：/api/users 是 /api/users/{lookup,me,team} 的兜底前缀。
+// 未来新增 /api/users/* 需评估是否应公开，避免被自动拦截。
 
 const userProtectedPaths = [
   '/api/cart',
@@ -10,12 +16,9 @@ const userProtectedPaths = [
   '/api/orders',
   '/api/points',
   '/api/rewards',
-  '/api/settings',
   '/api/user',
+  '/api/users',
   '/api/withdrawals',
-  '/api/users/lookup',
-  '/api/users/me',
-  '/api/users/team',
   '/api/auth/me',
   '/api/auth/change-password',
 ]

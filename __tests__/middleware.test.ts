@@ -228,12 +228,9 @@ describe('v51: 用户侧接口 middleware 登录校验', () => {
     '/api/orders',
     '/api/points',
     '/api/rewards',
-    '/api/settings',
     '/api/user',
+    '/api/users',
     '/api/withdrawals',
-    '/api/users/lookup',
-    '/api/users/me',
-    '/api/users/team',
     '/api/auth/me',
     '/api/auth/change-password',
   ])('%s 无 token 返回 401', (pathname) => {
@@ -270,6 +267,12 @@ describe('v51: 用户侧接口 middleware 登录校验', () => {
 
   it('公开路径 /api/regions 无 token 放行', () => {
     const req = createMockRequest('/api/regions')
+    const res = middleware(req) as { status: number }
+    expect(res.status).toBe(200)
+  })
+
+  it('公开路径 /api/settings/public 无 token 放行', () => {
+    const req = createMockRequest('/api/settings/public')
     const res = middleware(req) as { status: number }
     expect(res.status).toBe(200)
   })
