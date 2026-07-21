@@ -7,12 +7,13 @@ import { ArrowLeft, Loader2, Wallet, CheckCircle2, AlertTriangle } from 'lucide-
 import { toast } from '@/components/ToastProvider'
 
 interface TodaySummary {
-  date: string
   totalAmount: number
-  recipientCount: number
-  settledAmount: number
-  unsettledAmount: number
-  pendingCount: number
+  distributedUsers: number
+  eligibleUsers: number
+  isSettled: boolean
+  isSnapshotted: boolean
+  settledCount: number
+  unsettledCount: number
 }
 
 export default function AdminDividendsPage() {
@@ -67,16 +68,16 @@ export default function AdminDividendsPage() {
         },
         body: JSON.stringify({ action }),
       })
-      const data = await res.json()
-      if (data.success) {
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
         if (action === 'snapshot') {
           toast.success('日快照执行成功')
         } else {
-          toast.success(`周结入账成功：${data.data?.totalAmount?.toFixed(2) ?? 0} 元`)
+          toast.success(`周结入账成功：¥${data.data?.totalAmount?.toFixed(2) ?? '0.00'}`)
         }
         await fetchSummary(token)
       } else {
-        toast.error(data.error || '操作失败')
+        toast.error(data.error || `操作失败（${res.status}）`)
       }
     } catch (err) {
       toast.error('请求失败')
@@ -113,21 +114,21 @@ export default function AdminDividendsPage() {
             </div>
           ) : summary ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <p className="text-xs text-gray-500 mb-1">日期</p>
-                <p className="text-sm font-bold text-gray-900">{summary.date}</p>
-              </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <p className="text-xs text-gray-500 mb-1">今日总金额</p>
                 <p className="text-lg font-bold text-green-700">¥{summary.totalAmount?.toFixed(2) ?? '0.00'}</p>
               </div>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <p className="text-xs text-gray-500 mb-1">已生成条数</p>
+                <p className="text-lg font-bold text-blue-700">{summary.distributedUsers ?? 0}</p>
+              </div>
               <div className="text-center p-4 bg-amber-50 rounded-lg">
-                <p className="text-xs text-gray-500 mb-1">待入账</p>
-                <p className="text-lg font-bold text-amber-700">¥{summary.unsettledAmount?.toFixed(2) ?? '0.00'}</p>
+                <p className="text-xs text-gray-500 mb-1">未结算条数</p>
+                <p className="text-lg font-bold text-amber-700">{summary.unsettledCount ?? 0}</p>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <p className="text-xs text-gray-500 mb-1">已入账</p>
-                <p className="text-lg font-bold text-purple-700">¥{summary.settledAmount?.toFixed(2) ?? '0.00'}</p>
+                <p className="text-xs text-gray-500 mb-1">已结算条数</p>
+                <p className="text-lg font-bold text-purple-700">{summary.settledCount ?? 0}</p>
               </div>
             </div>
           ) : (
