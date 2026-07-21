@@ -12,6 +12,7 @@ import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
 import OrderAfterSalesCard from '@/components/orders/OrderAfterSalesCard'
+import PaymentPasswordModal from '@/components/dashboard/PaymentPasswordModal'
 
 // ---- 类型 ----
 
@@ -96,6 +97,7 @@ export default function OrderDetailPage() {
   const [showRefundSuccess, setShowRefundSuccess] = useState(false)
   // 用户资金信息（用于收益转余额弹窗）
   const [userBalance, setUserBalance] = useState(0)
+  const [payModalOpen, setPayModalOpen] = useState(false)
   const [userEarningsAvailable, setUserEarningsAvailable] = useState(0)
   // 收益转余额弹窗
   const [showTransferModal, setShowTransferModal] = useState(false)
@@ -160,8 +162,11 @@ export default function OrderDetailPage() {
 
   const handlePay = async () => {
     if (!order) return
-    const password = window.prompt('请输入 6 位支付密码')
-    if (!password) return
+    setPayModalOpen(true)
+  }
+
+  const handlePayConfirm = async (password: string) => {
+    if (!order) return
     const token = localStorage.getItem('token')
     if (!token) { router.push('/login'); return }
     try {
@@ -469,6 +474,11 @@ export default function OrderDetailPage() {
           }}
         />
 
+        <PaymentPasswordModal
+          open={payModalOpen}
+          onConfirm={handlePayConfirm}
+          onCancel={() => setPayModalOpen(false)}
+        />
       </div>
     </div>
   )

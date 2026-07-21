@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
+import PaymentPasswordModal from '@/components/dashboard/PaymentPasswordModal'
 
 // ---- 类型 ----
 
@@ -68,6 +69,8 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<StatusKey>('all')
   const [page, setPage] = useState(1)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [payModalOpen, setPayModalOpen] = useState(false)
+  const [payOrderId, setPayOrderId] = useState<string | null>(null)
   const pageSize = 8
 
   useEffect(() => {
@@ -97,14 +100,20 @@ export default function OrdersPage() {
     }
   }
 
-  // 支付
+  // 支付 - 打开 Modal
   const handlePay = async (orderId: string) => {
     if (!token) return
-    const password = window.prompt('请输入 6 位支付密码')
-    if (!password) return
-    setActionLoading(orderId)
+    setPayOrderId(orderId)
+    setPayModalOpen(true)
+  }
+
+  // 支付 - Modal 确认回调
+  const handlePayConfirm = async (password: string) => {
+    if (!token || !payOrderId) return
+    setActionLoading(payOrderId)
+    setPayModalOpen(false)
     try {
-      const res = await fetch(`/api/orders/${orderId}/verify-payment`, {
+      const res = await fetch(`/api/orders/${payOrderId}/verify-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ password }),
@@ -112,7 +121,6 @@ export default function OrdersPage() {
       const data = await res.json()
       if (data.success) {
         toast.success('支付成功')
-        // v50 F：检查推荐奖未解锁提示
         if (data.data?.unlockRequired && data.data?.unlockAmount) {
           toast.warning(`您还未购买升级品，本次推荐奖 ¥${data.data.unlockAmount.toFixed(2)} 未发放。购买升级品即可解锁。`)
         }
@@ -124,6 +132,7 @@ export default function OrdersPage() {
       toast.error('支付请求失败')
     } finally {
       setActionLoading(null)
+      setPayOrderId(null)
     }
   }
 
@@ -307,6 +316,12 @@ export default function OrdersPage() {
         )}
       </main>
 
+      <PaymentPasswordModal
+        open={payModalOpen}
+        loading={!!actionLoading}
+        onConfirm={handlePayConfirm}
+        onCancel={() => { setPayModalOpen(false); setPayOrderId(null) }}
+      />
     </div>
   )
 }
