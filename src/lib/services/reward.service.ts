@@ -302,16 +302,13 @@ export class RewardService {
 
     const buyer = order.user
     const orderAmount = order.payAmount
-    const hasUpgradeProduct = order.items.some(
-      (item: { product: { isUpgradeProduct: boolean } }) => item.product.isUpgradeProduct
-    )
 
     let referralResult: { unlockRequired: boolean; amount?: number } | undefined
     if (buyer.referrerId) {
       referralResult = await this.createReferralReward(orderId, orderAmount, buyer.referrerId, buyer.id)
     }
 
-    if (buyer.referrerId && !hasUpgradeProduct) {
+    if (buyer.referrerId) {
       await this.createBrandBonusReward(orderId, orderAmount, buyer.id, buyer.referrerId)
     }
 
