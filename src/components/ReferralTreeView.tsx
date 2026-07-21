@@ -482,16 +482,19 @@ function getPathToRoot(nodeId: string | null, treeData: TreeNode | null): Set<st
     }, 100)
   }, [data, currentFocusId, previousFocusId, compact])
 
-  // v33：监听 hoveredNodeId 变化，更新节点透明度和边样式
+  // v33 + v52：hover/click 路径高亮（hover 优先，sticky 焦点 fallback）
   useEffect(() => {
-    if (!hoveredNodeId) {
-      // 无 hover → 恢复所有节点和边为正常状态
+    // 优先用 hover；hover 为空时用 click 焦点（保持粘性）
+    const highlightedId = hoveredNodeId || (currentFocusId !== data?.id ? currentFocusId : null)
+
+    if (!highlightedId) {
+      // 无任何高亮 → 恢复所有节点和边为正常状态
       setNodes(prev => prev.map(n => ({ ...n, data: { ...n.data, _dimmed: false } })))
       setEdges(prev => prev.map(e => ({ ...e, style: { stroke: '#cbd5e1', strokeWidth: 1.5, opacity: 1 } })))
       return
     }
 
-    const pathIds = getPathToRoot(hoveredNodeId, data)
+    const pathIds = getPathToRoot(highlightedId, data)
 
     setNodes(prev => prev.map(n => ({
       ...n,
@@ -511,7 +514,7 @@ function getPathToRoot(nodeId: string | null, treeData: TreeNode | null): Set<st
           : { stroke: '#cbd5e1', strokeWidth: 1.5, opacity: 0.25 }, // 灰色暗淡
       }
     }))
-  }, [hoveredNodeId, data])
+  }, [hoveredNodeId, currentFocusId, data])
 
   // 点击节点
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
