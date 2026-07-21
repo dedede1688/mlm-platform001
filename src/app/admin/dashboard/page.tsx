@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   BarChart3, Users, ShoppingCart, DollarSign,
   TrendingUp, Package, Clock, RefreshCw,
@@ -105,6 +106,7 @@ interface SummaryData {
 // ---- 主组件 ----
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
   const [stats, setStats] = useState<StatsData | null>(null)
   const [trend, setTrend] = useState<TrendItem[]>([])
   const [summary, setSummary] = useState<SummaryData | null>(null)
@@ -292,6 +294,7 @@ export default function AdminDashboardPage() {
                 label="待处理订单"
                 value={String(stats.orders.pending)}
                 color="text-orange-600 bg-orange-50"
+                onClick={() => router.push('/admin/orders?status=pending')}
               />
               <MetricCard
                 icon={<ShoppingCart className="w-5 h-5" />}
@@ -308,6 +311,7 @@ export default function AdminDashboardPage() {
                 color="text-purple-600 bg-purple-50"
                 delta={stats.users.todayNewVsYesterday}
                 deltaLabel="vs 昨日"
+                onClick={() => router.push('/admin/users')}
               />
               <MetricCard
                 icon={<Users className="w-5 h-5" />}
@@ -569,12 +573,13 @@ interface MetricCardProps {
   value: string
   color: string
   highlight?: boolean
-  // v51.0: 环比% 字段（正数=增长绿色↑，负数=下降红色↓，0=持平灰色→）
+  // v51.0: 环比% 字段
   delta?: number
-  deltaLabel?: string  // v51.0: 环比描述（如"vs 昨日"），可不传
+  deltaLabel?: string
+  onClick?: () => void  // v59: 卡片点击跳转
 }
 
-function MetricCard({ icon, label, value, color, highlight, delta, deltaLabel }: MetricCardProps) {
+function MetricCard({ icon, label, value, color, highlight, delta, deltaLabel, onClick }: MetricCardProps) {
   const [textColor, bgColor] = color.split(' ')
   // v51.0: 环比% 颜色 + 图标
   const deltaColor = delta === undefined || delta === 0
@@ -590,7 +595,9 @@ function MetricCard({ icon, label, value, color, highlight, delta, deltaLabel }:
   return (
     <div className={`bg-white rounded-xl shadow-lg p-5 flex items-center gap-4 hover:shadow-xl transition-shadow ${
       highlight ? 'ring-2 ring-red-300 cursor-pointer' : ''
-    }`}>
+    } ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${bgColor} ${textColor}`}>
         {icon}
       </div>
