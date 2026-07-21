@@ -65,6 +65,7 @@ describe('GET /api/users/lookup', () => {
       id: 'u2',
       phone: '13800138000',
       nickname: '张三',
+      referrerId: 'u1',
     })
     const { GET } = await import('@/app/api/users/lookup/route')
     const req = new Request('http://localhost/api/users/lookup?phone=13800138000')
