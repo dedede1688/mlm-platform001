@@ -355,6 +355,7 @@ function getLayoutedElements(
 function treeToNodesAndEdges(
   treeNode: TreeNode,
   focusId: string,
+  selfId: string,
   previousFocusId: string | null,
   depth: number = 0,
   parentId?: string,
@@ -368,7 +369,7 @@ function treeToNodesAndEdges(
     level: treeNode.level,
     childCount: treeNode.children.length,
     salesAmount: formatCurrency(treeNode.directSalesAmount),
-    isRoot: treeNode.id === focusId,
+    isRoot: treeNode.id === selfId,  // v52: 用 selfId 而非 focusId，导航焦点不改变"自己"标识
     depth,
     referrerInfo: treeNode.referrerInfo ?? null,  // v37
     referralCount: treeNode.referralCount ?? 0,  // v41
@@ -399,7 +400,7 @@ function treeToNodesAndEdges(
   }
 
   for (const child of treeNode.children) {
-    const result = treeToNodesAndEdges(child, focusId, previousFocusId, depth + 1, treeNode.id, compact)
+    const result = treeToNodesAndEdges(child, focusId, selfId, previousFocusId, depth + 1, treeNode.id, compact)
     nodes.push(...result.nodes)
     edges.push(...result.edges)
   }
@@ -461,8 +462,9 @@ function getPathToRoot(nodeId: string | null, treeData: TreeNode | null): Set<st
   // 数据变化时重新布局
   useEffect(() => {
     if (!data || !currentFocusId) { setNodes([]); setEdges([]); return }
+    const selfId = focusUserId || data.id  // v52: 自己 = 外部传入的 focusUserId，或 data 根节点 id
     const { nodes: rawNodes, edges: rawEdges } = treeToNodesAndEdges(
-      data, currentFocusId, previousFocusId, 0, undefined, compact
+      data, currentFocusId, selfId, previousFocusId, 0, undefined, compact
     )
     const layouted = getLayoutedElements(rawNodes, rawEdges, 'TB')
     // v33：注入 _onHover 回调到每个节点的 data 中

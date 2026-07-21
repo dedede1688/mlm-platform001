@@ -227,6 +227,7 @@ export default function TeamPage() {
               </div>
             ) : (
               <ReferralTreeView
+                focusUserId={user?.id}
                 data={{
                   id: user?.id ?? '',
                   phone: user?.phone ?? '',
