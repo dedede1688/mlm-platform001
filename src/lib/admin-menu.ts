@@ -1,4 +1,4 @@
-import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Sliders, FileText, Inbox, BarChart3, ScrollText, Shield } from 'lucide-react';
+import { LayoutDashboard, Image, FolderTree, Package, ShoppingCart, Users, DollarSign, Bell, Settings, Receipt, Sliders, FileText, Inbox, BarChart3, ScrollText, Shield, Wallet } from 'lucide-react';
 
 // v65: 后台架构升级 - 6 大类 + 改名"数据中台" + 删"推荐关系图"独立菜单
 // 6 大类:数据中台(首页) / 商品 / 财务 / 订单 / 会员 / 系统后台
@@ -15,6 +15,7 @@ export const MENU_ITEMS = [
   // 3. 财务
   { id: 'finance', name: '财务管理', path: '/admin/finance', icon: DollarSign },
   { id: 'refunds', name: '退款管理', path: '/admin/refunds', icon: Receipt },
+  { id: 'dividends', name: '分红结算', path: '/admin/dividends', icon: Wallet },
   { id: 'withdrawal-templates', name: '拒绝理由模板', path: '/admin/withdrawal-templates', icon: FileText },
 
   // 4. 订单
