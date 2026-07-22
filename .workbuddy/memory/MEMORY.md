@@ -20,3 +20,16 @@
 - schema.prisma 与 migration 文件存在漂移（5 表：password_reset_codes/categories/notification_templates/refund_requests/banners 由非 migration 途径建）
 - 对生产库的任何 migration 操作必须先验证表真实存在性，禁止直接 migrate deploy
 - 验证生产表存在性的安全方式：curl 生产公开接口（如 /api/settings/public），而非直连数据库
+
+## 代码替换铁规（2026-07-23 实战总结）
+
+- **console.* → logger.* 替换必须人工核查类型**：logger 的 `(message: string, meta?: Record<string, unknown>)` 严格类型，console 接受任何类型
+- 替换后必须跑 `npx next build` 验证（不是只看 lint），TypeScript 严格类型错只会在 build 时暴露
+- 错误模式：console.error(msg, number/string/Error) → logger.error(msg, number/string/Error) 编译失败
+- 修复模式：wrap 第二个参数为对象 `logger.error(msg, { key: value })`
+- emoji 替换也一样：必须 build 验证，不能只信 lint + test
+
+## Vercel 部署铁律补充
+
+- Vercel build 失败时**必须本地 `npx next build` 复现**，看末尾报错（日志往往截断）
+- 项目用 pnpm（pnpm-lock.yaml 存在），Vercel 用 Corepack 自动检测 pnpm 版本（9.x 或 10.x），本地 build 用 npm 也 OK
