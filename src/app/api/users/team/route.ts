@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 
-const MAX_DEPTH = 3
+const MAX_DEPTH = 10
 
 interface TreeNode {
   id: string
@@ -32,8 +32,9 @@ async function fetchChildren(parentId: string, depth: number): Promise<TreeNode[
       nickname: true,
       level: true,
       totalPoints: true,
+      directSalesAmount: true,
       createdAt: true,
-      _count: { select: { referrals: true } },
+      _count: { select: { referrals: true, orders: true } },
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -42,7 +43,7 @@ async function fetchChildren(parentId: string, depth: number): Promise<TreeNode[
 
   const results: TreeNode[] = []
   for (const child of children) {
-    // 递归查下级（depth < MAX_DEPTH - 1 时继续）
+    // 递归查下级（depth < MAX_DEPTH 时继续）
     const grandchildren = await fetchChildren(child.id, depth + 1)
 
     results.push({
@@ -52,9 +53,9 @@ async function fetchChildren(parentId: string, depth: number): Promise<TreeNode[
       level: child.level,
       avatarUrl: null,
       totalPoints: child.totalPoints,
-      directSalesAmount: 0,
-      orderCount: 0,
-      teamCount: child._count.referrals + grandchildren.length,
+      directSalesAmount: child.directSalesAmount,
+      orderCount: child._count.orders,
+      teamCount: child._count.referrals + grandchildren.reduce((sum, gc) => sum + 1 + gc.teamCount, 0),
       createdAt: child.createdAt.toISOString(),
       children: grandchildren,
       referrerId: parentId,
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
     const mode = searchParams.get('tree')
 
     if (mode === 'true') {
-      // 树形模式：递归 3 层
+      // 树形模式：递归 10 层
       const tree = await fetchChildren(auth.userId, 0)
 
       return NextResponse.json({ success: true, data: tree })
