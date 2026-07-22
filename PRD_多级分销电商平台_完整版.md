@@ -994,11 +994,13 @@ withdrawals (
 | **奖励状态** | pending(待发放) / paid(已发放) / cancelled(已取消) |
 | **提现状态** | pending(待审核) / approved(已通过) / rejected(已拒绝) / completed(已完成) |
 
-### 9.4 接口清单（v53 同步更新）
+### 9.4 接口清单（2026-07-23 同步更新）
+
+> 共 97 个 route.ts 文件，142 个 API 端点
 
 | 接口 | 说明 |
 |-----|------|
-| **认证** | |
+| **认证 auth（7 端点）** | |
 | POST /api/auth/register | 用户注册 |
 | POST /api/auth/login | 用户登录 |
 | GET /api/auth/me | 当前用户信息 |
@@ -1006,48 +1008,178 @@ withdrawals (
 | POST /api/auth/forgot-password/send-code | 忘记密码-发送验证码 |
 | POST /api/auth/forgot-password/verify-code | 忘记密码-验证码校验 |
 | POST /api/auth/forgot-password/reset | 忘记密码-重置 |
-| **商品** | |
+| **商品 products（5 端点）** | |
 | GET /api/products | 商品列表 |
+| POST /api/products | 创建商品 |
 | GET /api/products/:id | 商品详情 |
-| **购物车** | |
-| GET/POST /api/cart | 购物车列表/添加 |
-| PUT/DELETE /api/cart/:id | 购物车修改/删除 |
-| **订单** | |
-| POST /api/orders | 创建订单 |
+| PUT /api/products/:id | 更新商品 |
+| DELETE /api/products/:id | 删除商品 |
+| **购物车 cart（3 端点）** | |
+| GET /api/cart | 购物车列表 |
+| POST /api/cart | 添加购物车 |
+| DELETE /api/cart/:id | 删除购物车项 |
+| **订单 orders（12 端点）** | |
 | GET /api/orders | 订单列表 |
+| POST /api/orders | 创建订单 |
 | GET /api/orders/:id | 订单详情 |
+| POST /api/orders/:id | 订单操作 |
+| PUT /api/orders/:id | 更新订单 |
+| DELETE /api/orders/:id | 删除订单 |
 | POST /api/orders/:id/verify-payment | 支付验证回调 |
+| POST /api/orders/:id/pay | 发起支付 |
 | POST /api/orders/:id/cancel | 取消订单 |
 | POST /api/orders/:id/confirm | 确认收货 |
 | POST /api/orders/:id/refund | 申请退款 |
-| **收益** | |
+| GET /api/orders/:id/refund | 退款详情 |
+| **收益 rewards（2 端点）** | |
 | GET /api/rewards | 收益明细 |
+| POST /api/rewards | 创建收益记录 |
+| **分红 dividends（1 端点）** | |
 | GET /api/dividends | 分红记录 |
-| **提现** | |
+| **提现 withdrawals（2 端点）** | |
+| GET /api/withdrawals | 提现列表 |
 | POST /api/withdrawals | 申请提现 |
-| **积分** | |
+| **积分 points（3 端点）** | |
 | GET /api/points | 积分明细 |
 | GET /api/points/schedule | 积分解锁计划 |
 | POST /api/points/transfer | 积分转赠 |
-| **团队** | |
-| GET /api/users/team | 我的团队 |
-| **用户** | |
+| **团队与用户 users（4 端点）** | |
+| GET /api/users/team | 我的团队（树形/平铺） |
 | GET /api/users/me | 用户资料 |
+| PUT /api/users/me | 更新用户资料 |
 | GET /api/users/lookup | 用户查询 |
+| **用户中心 user（13 端点）** | |
 | GET /api/user/dashboard | 用户仪表盘 |
 | GET /api/user/balance-records | 余额变动记录 |
 | POST /api/user/earnings-transfer | 收益转余额 |
-| POST /api/user/recharge | 充值 |
+| GET /api/user/recharge | 充值记录 |
+| POST /api/user/recharge | 提交充值 |
+| GET /api/user/recharge/:id | 充值详情 |
 | GET /api/user/recharge-settings | 充值设置 |
-| GET/POST /api/user/addresses | 收货地址 |
-| POST/PUT /api/user/payment-password | 支付密码设置 |
-| **通知** | |
+| GET /api/user/addresses | 收货地址列表 |
+| POST /api/user/addresses | 新增收货地址 |
+| PUT /api/user/addresses/:id | 更新收货地址 |
+| DELETE /api/user/addresses/:id | 删除收货地址 |
+| POST /api/user/payment-password/set | 设置支付密码 |
+| PUT /api/user/payment-password/update | 修改支付密码 |
+| **通知 notifications（3 端点）** | |
 | GET /api/notifications | 通知列表 |
 | GET /api/notifications/unread-count | 未读通知数 |
 | POST /api/notifications/:id/read | 标记已读 |
-| **公共** | |
+| **公共（2 端点）** | |
 | GET /api/regions | 地区列表 |
 | GET /api/settings/public | 公开系统设置 |
+| **定时任务 cron（2 端点）** | |
+| GET /api/cron/daily-tasks | 每日定时任务 |
+| GET /api/cron/weekly-tasks | 每周定时任务 |
+| **后台-商品管理 admin/products（6 端点）** | |
+| GET /api/admin/products | 商品列表 |
+| POST /api/admin/products | 创建商品 |
+| GET /api/admin/products/:id | 商品详情 |
+| PUT /api/admin/products/:id | 更新商品 |
+| DELETE /api/admin/products/:id | 删除商品 |
+| POST /api/admin/products/:id/duplicate | 复制商品 |
+| PATCH /api/admin/products/bulk | 批量操作商品 |
+| **后台-分类管理 admin/categories（4 端点）** | |
+| GET /api/admin/categories | 分类列表 |
+| POST /api/admin/categories | 创建分类 |
+| PUT /api/admin/categories/:id | 更新分类 |
+| DELETE /api/admin/categories/:id | 删除分类 |
+| **后台-Banner管理 admin/banners（4 端点）** | |
+| GET /api/admin/banners | Banner列表 |
+| POST /api/admin/banners | 创建Banner |
+| PUT /api/admin/banners | 更新Banner |
+| DELETE /api/admin/banners | 删除Banner |
+| **后台-订单管理 admin/orders（4 端点）** | |
+| GET /api/admin/orders | 订单列表 |
+| GET /api/admin/orders/:id | 订单详情 |
+| PUT /api/admin/orders/:id | 更新订单 |
+| PATCH /api/admin/orders/:id/status | 更新订单状态 |
+| **后台-退款管理 admin/refunds（3 端点）** | |
+| GET /api/admin/refunds | 退款列表 |
+| PATCH /api/admin/refunds/:id/review | 退款审核 |
+| PATCH /api/admin/refunds/:id/complete | 完成退款 |
+| **后台-用户管理 admin/users（12 端点）** | |
+| GET /api/admin/users | 用户列表 |
+| GET /api/admin/users/:id | 用户详情 |
+| PUT /api/admin/users/:id | 更新用户 |
+| PUT /api/admin/users/:id/profile | 更新用户资料 |
+| PUT /api/admin/users/:id/status | 更新用户状态 |
+| PUT /api/admin/users/:id/password | 重置密码 |
+| POST /api/admin/users/:id/payment-password/reset | 重置支付密码 |
+| POST /api/admin/users/:id/points | 积分调整 |
+| POST /api/admin/users/:id/balance | 余额调整 |
+| GET /api/admin/users/:id/balance-records | 余额变动记录 |
+| GET /api/admin/users/:id/referral-tree | 推荐关系树 |
+| **后台-充值管理 admin/recharge（5 端点）** | |
+| GET /api/admin/recharge | 充值列表 |
+| GET /api/admin/recharge/:id | 充值详情 |
+| PATCH /api/admin/recharge/:id/review | 充值审核 |
+| GET /api/admin/recharge/:id/audit-logs | 充值审核日志 |
+| GET /api/admin/recharge-settings | 充值设置 |
+| PUT /api/admin/recharge-settings | 更新充值设置 |
+| **后台-提现管理 admin/withdrawals（6 端点）** | |
+| GET /api/admin/withdrawals | 提现列表 |
+| PUT /api/admin/withdrawals | 更新提现 |
+| POST /api/admin/withdrawals/batch-review | 批量审核提现 |
+| PATCH /api/admin/withdrawals/:id/complete | 完成提现 |
+| GET /api/admin/withdrawals/:id/audit-logs | 提现审核日志 |
+| **后台-提现模板 admin/withdrawal-templates（4 端点）** | |
+| GET /api/admin/withdrawal-templates | 提现模板列表 |
+| POST /api/admin/withdrawal-templates | 创建提现模板 |
+| PUT /api/admin/withdrawal-templates/:id | 更新提现模板 |
+| DELETE /api/admin/withdrawal-templates/:id | 删除提现模板 |
+| **后台-通知管理 admin/notifications（6 端点）** | |
+| GET /api/admin/notifications | 通知模板列表 |
+| POST /api/admin/notifications | 创建通知模板 |
+| GET /api/admin/notifications/:id | 通知模板详情 |
+| PUT /api/admin/notifications/:id | 更新通知模板 |
+| DELETE /api/admin/notifications/:id | 删除通知模板 |
+| POST /api/admin/notifications/send | 发送通知 |
+| **后台-通知记录 admin/notification-history（2 端点）** | |
+| GET /api/admin/notification-history | 通知发送记录列表 |
+| GET /api/admin/notification-history/:id | 通知发送记录详情 |
+| **后台-数据统计 admin/stats（2 端点）** | |
+| GET /api/admin/stats | 统计概览 |
+| GET /api/admin/stats/trend | 趋势数据 |
+| **后台-仪表盘 admin/dashboard（1 端点）** | |
+| GET /api/admin/dashboard/summary | 仪表盘汇总 |
+| **后台-报表 admin/reports（6 端点）** | |
+| GET /api/admin/reports/sales | 销售报表 |
+| GET /api/admin/reports/finance | 财务报表 |
+| GET /api/admin/reports/members | 会员报表 |
+| GET /api/admin/reports/funnel | 漏斗分析 |
+| GET /api/admin/reports/export/sales | 导出销售报表 |
+| GET /api/admin/reports/export/finance | 导出财务报表 |
+| GET /api/admin/reports/export/members | 导出会员报表 |
+| **后台-奖励 admin/rewards（1 端点）** | |
+| GET /api/admin/rewards | 奖励记录 |
+| **后台-分红 admin/settle-dividends（2 端点）** | |
+| POST /api/admin/settle-dividends | 执行分红结算 |
+| GET /api/admin/settle-dividends | 分红结算记录 |
+| **后台-推荐关系 admin/referral-tree（1 端点）** | |
+| GET /api/admin/referral-tree/:userId | 用户推荐关系树 |
+| **后台-系统设置 admin/settings（2 端点）** | |
+| GET /api/admin/settings | 系统设置 |
+| PUT /api/admin/settings | 更新系统设置 |
+| **后台-系统配置 admin/config（2 端点）** | |
+| GET /api/admin/config | 系统配置 |
+| PUT /api/admin/config | 更新系统配置 |
+| **后台-系统参数 admin/system-config（2 端点）** | |
+| GET /api/admin/system-config/parameters | 系统参数 |
+| PUT /api/admin/system-config/parameters | 更新系统参数 |
+| **后台-角色管理 admin/roles（2 端点）** | |
+| GET /api/admin/roles | 角色列表 |
+| PUT /api/admin/roles | 更新角色 |
+| **后台-角色权限 admin/role-permissions（2 端点）** | |
+| GET /api/admin/role-permissions | 角色权限列表 |
+| PUT /api/admin/role-permissions | 更新角色权限 |
+| **后台-操作日志 admin/logs（1 端点）** | |
+| GET /api/admin/logs | 操作日志 |
+| **后台-积分作废 admin/points（1 端点）** | |
+| POST /api/admin/points/void | 积分作废 |
+| **后台-手动奖励 admin/manual-reward（1 端点）** | |
+| POST /api/admin/manual-reward | 手动发放奖励 |
 
 ---
 
