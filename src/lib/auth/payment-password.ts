@@ -44,7 +44,7 @@ export async function checkPaymentPasswordLock(userId: string): Promise<{ locked
   return { locked: false }
 }
 
-export async function incrementFailedAttempt(userId: string): Promise<{ attempts: number; locked: boolean }> {
+export async function incrementFailedAttempt(userId: string, ip?: string): Promise<{ attempts: number; locked: boolean }> {
   const updated = await prisma.user.update({
     where: { id: userId },
     data: { failedAttempts: { increment: 1 } },
@@ -59,7 +59,7 @@ export async function incrementFailedAttempt(userId: string): Promise<{ attempts
       where: { id: userId },
       data: { lockedUntil },
     })
-    logger.info('支付密码已锁定', { userId, attempts, lockedUntil: lockedUntil.toISOString() })
+    logger.info('支付密码已锁定', { userId, attempts, lockedUntil: lockedUntil.toISOString(), ip: ip ?? '-' })
     return { attempts, locked: true }
   }
 

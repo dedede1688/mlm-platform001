@@ -80,7 +80,7 @@ export async function POST(
 
     const valid = await verifyPaymentPassword(password, pwHash)
     if (!valid) {
-      const result = await incrementFailedAttempt(user.userId)
+      const result = await incrementFailedAttempt(user.userId, clientIP)
       if (result.locked) {
         return errorResponse('支付密码已锁定，请15分钟后再试', 423)
       }
