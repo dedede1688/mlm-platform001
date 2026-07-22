@@ -6,6 +6,10 @@ import {
   hashPaymentPassword,
   verifyPaymentPassword,
   isValidPaymentPassword,
+  checkPaymentPasswordLock,
+  incrementFailedAttempt,
+  resetPaymentPasswordLock,
+  PAYMENT_LOCK_THRESHOLD,
 } from '@/lib/auth/payment-password'
 
 // PUT /api/user/payment-password/update — 修改支付密码
@@ -28,7 +32,7 @@ export async function PUT(request: NextRequest) {
 
     // 校验新密码格式
     if (!isValidPaymentPassword(newPassword)) {
-      return errorResponse('新密码必须为 6 位数字', 400)
+      return errorResponse('支付密码至少6位，必须同时包含字母和数字', 400)
     }
 
     // 查用户当前 hash
@@ -41,14 +45,25 @@ export async function PUT(request: NextRequest) {
       return errorResponse('尚未设置支付密码，请先设置', 400)
     }
 
-    // 验证旧密码
+    const lockStatus = await checkPaymentPasswordLock(user.userId)
+    if (lockStatus.locked) {
+      return errorResponse(`支付密码已锁定，请${lockStatus.remainingMinutes}分钟后再试`, 423)
+    }
+
     const valid = await verifyPaymentPassword(
       oldPassword,
       currentUser.paymentPasswordHash
     )
     if (!valid) {
-      return errorResponse('旧密码错误', 401)
+      const result = await incrementFailedAttempt(user.userId)
+      if (result.locked) {
+        return errorResponse('支付密码已锁定，请15分钟后再试', 423)
+      }
+      const remaining = PAYMENT_LOCK_THRESHOLD - result.attempts
+      return errorResponse(`支付密码错误，剩余${remaining}次机会`, 401)
     }
+
+    await resetPaymentPasswordLock(user.userId)
 
     // 更新为新密码
     const newHash = await hashPaymentPassword(newPassword)

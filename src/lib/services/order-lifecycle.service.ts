@@ -5,7 +5,7 @@ import { ORDER_STATUS, BALANCE_SELECT } from '@/lib/constants'
 import { sendEmail } from '@/lib/notification/sendEmail'
 import { sendSms } from '@/lib/notification/sendSms'
 import { logger } from '@/lib/logger'
-import { verifyPaymentPassword } from '@/lib/auth/payment-password'
+import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { getSystemParameter } from '@/lib/config/system-parameters'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 
@@ -43,9 +43,22 @@ export class OrderLifecycleService {
     const pwHash = pwUser?.paymentPasswordHash
     if (!pwHash) throw new Error('尚未设置支付密码，请先设置')
 
-    // 校验支付密码
+    const lockStatus = await checkPaymentPasswordLock(order.userId)
+    if (lockStatus.locked) {
+      throw new Error(`支付密码已锁定，请${lockStatus.remainingMinutes}分钟后再试`)
+    }
+
     const valid = await verifyPaymentPassword(password, pwHash)
-    if (!valid) throw new Error('支付密码错误')
+    if (!valid) {
+      const result = await incrementFailedAttempt(order.userId)
+      if (result.locked) {
+        throw new Error('支付密码已锁定，请15分钟后再试')
+      }
+      const remaining = PAYMENT_LOCK_THRESHOLD - result.attempts
+      throw new Error(`支付密码错误，剩余${remaining}次机会`)
+    }
+
+    await resetPaymentPasswordLock(order.userId)
 
     // 事务：标记订单为已支付 + 扣减余额 + 写balance_record
     const paidOrder = await prisma.$transaction(async (tx) => {

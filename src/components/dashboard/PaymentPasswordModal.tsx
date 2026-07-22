@@ -21,7 +21,7 @@ export default function PaymentPasswordModal({
   if (!open) return null
 
   const handleConfirm = () => {
-    if (password.length === 6) {
+    if (isValid) {
       onConfirm(password)
       setPassword('')
     }
@@ -32,7 +32,7 @@ export default function PaymentPasswordModal({
     onCancel()
   }
 
-  const isValid = /^\d{6}$/.test(password)
+  const isValid = /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(password)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleCancel}>
@@ -59,11 +59,11 @@ export default function PaymentPasswordModal({
         <input
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          placeholder="6 位数字"
-          maxLength={6}
+          onChange={(e) => setPassword(e.target.value.slice(0, 20))}
+          placeholder="至少6位，需含字母和数字"
+          maxLength={20}
           autoFocus
-          className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-center tracking-[0.5em] text-lg font-mono
+          className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-center text-lg font-mono
             focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
         />
 

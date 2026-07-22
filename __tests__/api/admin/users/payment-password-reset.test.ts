@@ -293,9 +293,9 @@ describe('POST /api/admin/users/[id]/payment-password/reset', () => {
     expect(data.success).toBe(true)
     expect(data.data.hasPaymentPassword).toBe(false)
 
-    // 验证 updateMany 只更新了 paymentPasswordHash
+    // 验证 updateMany 更新了 paymentPasswordHash + failedAttempts + lockedUntil
     const updateCall = (prisma.user.updateMany as any).mock.calls[0][0]
-    expect(updateCall.data).toEqual({ paymentPasswordHash: null })
+    expect(updateCall.data).toEqual({ paymentPasswordHash: null, failedAttempts: 0, lockedUntil: null })
   })
 
   // ===== 场景 12: 成功时登录密码和资金字段不参与更新 =====

@@ -29,9 +29,13 @@ vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
 }))
 
-// Mock verifyPaymentPassword
+// Mock verifyPaymentPassword + lock functions
 vi.mock('@/lib/auth/payment-password', () => ({
   verifyPaymentPassword: vi.fn(),
+  checkPaymentPasswordLock: vi.fn().mockResolvedValue({ locked: false }),
+  incrementFailedAttempt: vi.fn().mockResolvedValue({ attempts: 1, locked: false }),
+  resetPaymentPasswordLock: vi.fn().mockResolvedValue(undefined),
+  PAYMENT_LOCK_THRESHOLD: 5,
 }))
 
 // Mock RewardService
@@ -61,7 +65,7 @@ vi.mock('@/lib/utils/stats-cache', () => ({
 }))
 
 import { verifyToken } from '@/lib/utils/auth'
-import { verifyPaymentPassword } from '@/lib/auth/payment-password'
+import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock } from '@/lib/auth/payment-password'
 import { prisma } from '@/lib/prisma'
 
 // 辅助：构造 NextRequest
@@ -82,6 +86,9 @@ describe('POST /api/orders/[id]/verify-payment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(verifyPaymentPassword).mockResolvedValue(true)
+    vi.mocked(checkPaymentPasswordLock).mockResolvedValue({ locked: false })
+    vi.mocked(incrementFailedAttempt).mockResolvedValue({ attempts: 1, locked: false })
+    vi.mocked(resetPaymentPasswordLock).mockResolvedValue(undefined)
   })
 
   describe('余额不足返回结构化错误', () => {
@@ -194,7 +201,7 @@ describe('POST /api/orders/[id]/verify-payment', () => {
   })
 
   describe('非余额不足错误按原逻辑返回', () => {
-    it('支付密码错误返回 401（无 code 字段）', async () => {
+    it('支付密码错误返回 401（含剩余次数）', async () => {
       vi.mocked(verifyToken).mockResolvedValueOnce({ userId: 'user-3' } as any)
 
       prisma.order.findUnique.mockResolvedValueOnce({
@@ -210,6 +217,7 @@ describe('POST /api/orders/[id]/verify-payment', () => {
       })
 
       vi.mocked(verifyPaymentPassword).mockResolvedValueOnce(false)
+      vi.mocked(incrementFailedAttempt).mockResolvedValueOnce({ attempts: 1, locked: false })
 
       const { POST } = await import('@/app/api/orders/[id]/verify-payment/route')
       const res = await POST(makePostRequest({ password: 'wrong' }), makeParams('order-3'))
@@ -217,8 +225,8 @@ describe('POST /api/orders/[id]/verify-payment', () => {
       const data = await res.json()
       expect(res.status).toBe(401)
       expect(data.success).toBe(false)
-      expect(data.error).toBe('支付密码错误')
-      expect(data.code).toBeUndefined() // 不应有 code
+      expect(data.error).toContain('剩余')
+      expect(data.code).toBeUndefined()
     })
 
     it('订单不存在返回 404（无 code 字段）', async () => {

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
-import { verifyPaymentPassword } from '@/lib/auth/payment-password'
+import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { RewardService } from '@/lib/services/reward.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { invalidateCache } from '@/lib/utils/stats-cache'
@@ -73,10 +73,22 @@ export async function POST(
       return errorResponse('尚未设置支付密码，请先设置', 400)
     }
 
+    const lockStatus = await checkPaymentPasswordLock(user.userId)
+    if (lockStatus.locked) {
+      return errorResponse(`支付密码已锁定，请${lockStatus.remainingMinutes}分钟后再试`, 423)
+    }
+
     const valid = await verifyPaymentPassword(password, pwHash)
     if (!valid) {
-      return errorResponse('支付密码错误', 401)
+      const result = await incrementFailedAttempt(user.userId)
+      if (result.locked) {
+        return errorResponse('支付密码已锁定，请15分钟后再试', 423)
+      }
+      const remaining = PAYMENT_LOCK_THRESHOLD - result.attempts
+      return errorResponse(`支付密码错误，剩余${remaining}次机会`, 401)
     }
+
+    await resetPaymentPasswordLock(user.userId)
 
     // 事务：标记订单为已支付 + 扣减余额 + 写 balance_record（原子操作）
     // v43-6-批次-2: 余额不足时整个事务回滚，订单保持 PENDING

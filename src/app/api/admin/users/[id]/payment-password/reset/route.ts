@@ -74,7 +74,7 @@ export async function POST(
         id: userId,
         paymentPasswordHash: { not: null },
       },
-      data: { paymentPasswordHash: null },
+      data: { paymentPasswordHash: null, failedAttempts: 0, lockedUntil: null },
     })
 
     // 9. 条件更新未命中（状态已被其他操作改变）

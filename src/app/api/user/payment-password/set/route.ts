@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // 校验密码格式
     if (!password || !isValidPaymentPassword(password)) {
-      return errorResponse('支付密码必须为 6 位数字', 400)
+      return errorResponse('支付密码至少6位，必须同时包含字母和数字', 400)
     }
 
     // 查用户是否已设置支付密码

@@ -215,8 +215,8 @@ export function CheckoutDialog({
       }
     }
 
-    if (!/^\d{6}$/.test(payPassword)) {
-      toast.error('支付密码必须为 6 位数字')
+    if (!/^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(payPassword)) {
+      toast.error('支付密码至少6位，需含字母和数字')
       return
     }
 
@@ -465,10 +465,10 @@ export function CheckoutDialog({
               <input
                 type={showPayPwd ? 'text' : 'password'}
                 value={payPassword}
-                onChange={(e) => setPayPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="6 位数字支付密码"
-                maxLength={6}
-                className="w-full px-3.5 py-2.5 pr-11 border border-gray-300 rounded-lg text-center tracking-[0.5em] font-mono text-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                onChange={(e) => setPayPassword(e.target.value.slice(0, 20))}
+                placeholder="至少6位，需含字母和数字"
+                maxLength={20}
+                className="w-full px-3.5 py-2.5 pr-11 border border-gray-300 rounded-lg text-center font-mono text-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
               />
               <button
                 type="button"

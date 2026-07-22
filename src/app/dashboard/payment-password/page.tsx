@@ -59,7 +59,7 @@ export default function PaymentPasswordPage() {
   }
 
   // 前端校验：6 位数字
-  const isValidPwd = (v: string) => /^\d{6}$/.test(v)
+  const isValidPwd = (v: string) => /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(v)
 
   const handleSubmit = async () => {
     if (!token) return
@@ -67,7 +67,7 @@ export default function PaymentPasswordPage() {
     // 设置模式校验
     if (!hasPassword) {
       if (!isValidPwd(newPassword)) {
-        toast.error('支付密码必须为 6 位数字')
+        toast.error('支付密码至少6位，需含字母和数字')
         return
       }
       if (newPassword !== confirmPassword) {
@@ -76,14 +76,13 @@ export default function PaymentPasswordPage() {
       }
     }
 
-    // 修改模式校验
     if (hasPassword) {
-      if (!isValidPwd(oldPassword)) {
-        toast.error('旧密码必须为 6 位数字')
+      if (!oldPassword) {
+        toast.error('请输入当前密码')
         return
       }
       if (!isValidPwd(newPassword)) {
-        toast.error('新密码必须为 6 位数字')
+        toast.error('支付密码至少6位，需含字母和数字')
         return
       }
       if (newPassword !== confirmPassword) {
@@ -124,13 +123,16 @@ export default function PaymentPasswordPage() {
       const data = await res.json()
       if (res.ok && data.success !== false) {
         toast.success(hasPassword ? '支付密码修改成功' : '支付密码设置成功')
-        // 刷新页面状态（重新查询 hasPassword）
         setOldPassword('')
         setNewPassword('')
         setConfirmPassword('')
         fetchStatus(token)
       } else {
-        toast.error(data.error || '操作失败')
+        if (res.status === 423) {
+          toast.error(data.error || '支付密码已锁定')
+        } else {
+          toast.error(data.error || '操作失败')
+        }
       }
     } catch (_error) {
       toast.error('网络错误，请重试')
@@ -176,8 +178,8 @@ export default function PaymentPasswordPage() {
           <div className="text-sm text-orange-800 leading-relaxed">
             <p className="font-medium mb-1">安全提示</p>
             <p className="text-xs text-orange-700">
-              支付密码用于确认订单支付，请勿与他人分享。
-              密码为 <strong>6 位数字</strong>，请牢记。
+               支付密码用于确认订单支付，请勿与他人分享。
+               密码为 <strong>至少6位，需含字母和数字</strong>，请牢记。
             </p>
           </div>
         </div>
@@ -194,10 +196,10 @@ export default function PaymentPasswordPage() {
                 <input
                   type={showOld ? 'text' : 'password'}
                   value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => setOldPassword(e.target.value.slice(0, 20))}
                   placeholder="请输入当前支付密码"
-                  maxLength={6}
-                  className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center tracking-[0.5em]
+                  maxLength={20}
+                  className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                     text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
                     transition-colors"
                 />
@@ -221,10 +223,10 @@ export default function PaymentPasswordPage() {
               <input
                 type={showNew ? 'text' : 'password'}
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="请输入 6 位数字密码"
-                maxLength={6}
-                className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center tracking-[0.5em]
+                onChange={(e) => setNewPassword(e.target.value.slice(0, 20))}
+                placeholder="至少6位，需含字母和数字"
+                maxLength={20}
+                className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                   text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
                   transition-colors"
               />
@@ -247,10 +249,10 @@ export default function PaymentPasswordPage() {
               <input
                 type={showConfirm ? 'text' : 'password'}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onChange={(e) => setConfirmPassword(e.target.value.slice(0, 20))}
                 placeholder="再次输入密码"
-                maxLength={6}
-                className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center tracking-[0.5em]
+                maxLength={20}
+                className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                   text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
                   transition-colors"
               />

@@ -141,8 +141,8 @@ export default function WithdrawalsPage() {
       toast.error('请输入支付密码')
       return
     }
-    if (!/^\d{6}$/.test(paymentPassword)) {
-      toast.error('支付密码为6位数字')
+    if (!/^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(paymentPassword)) {
+      toast.error('支付密码至少6位，需含字母和数字')
       return
     }
 
@@ -176,7 +176,11 @@ export default function WithdrawalsPage() {
         fetchUser(token)
         fetchRecords(token)
       } else {
-        toast.error(data.error || '提交失败')
+        if (res.status === 423) {
+          toast.error(data.error || '支付密码已锁定')
+        } else {
+          toast.error(data.error || '提交失败')
+        }
       }
     } catch (_error) {
       toast.error('网络错误，请重试')
@@ -361,10 +365,10 @@ export default function WithdrawalsPage() {
               <input
                 type={showPwd ? 'text' : 'password'}
                 value={paymentPassword}
-                onChange={(e) => setPaymentPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="请输入6位数字支付密码"
-                maxLength={6}
-                className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center tracking-[0.5em]
+                onChange={(e) => setPaymentPassword(e.target.value.slice(0, 20))}
+                placeholder="至少6位，需含字母和数字"
+                maxLength={20}
+                className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                   text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
                   transition-colors"
               />

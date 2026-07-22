@@ -61,6 +61,10 @@ vi.mock('@/lib/services/order-notification.service', () => ({
 // 4. 支付密码校验
 vi.mock('@/lib/auth/payment-password', () => ({
   verifyPaymentPassword: vi.fn(),
+  checkPaymentPasswordLock: vi.fn(),
+  incrementFailedAttempt: vi.fn(),
+  resetPaymentPasswordLock: vi.fn(),
+  PAYMENT_LOCK_THRESHOLD: 5,
 }))
 
 // 5. 系统参数
@@ -88,7 +92,7 @@ vi.mock('@/lib/logger', () => ({
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { RewardService } from '@/lib/services/reward.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
-import { verifyPaymentPassword } from '@/lib/auth/payment-password'
+import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { getSystemParameter } from '@/lib/config/system-parameters'
 import { sendEmail } from '@/lib/notification/sendEmail'
 import { sendSms } from '@/lib/notification/sendSms'
@@ -107,6 +111,9 @@ describe('OrderLifecycleService', () => {
         pointsRecord: mocks.pointsRecord,
       })
     })
+    // v57.11: 支付密码锁定函数默认 mock
+    ;(checkPaymentPasswordLock as any).mockResolvedValue({ locked: false })
+    ;(resetPaymentPasswordLock as any).mockResolvedValue(undefined)
   })
 
   // ============ verifyPayment ============
@@ -134,6 +141,7 @@ describe('OrderLifecycleService', () => {
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-1', status: 'pending', userId: 'user-1' } as any)
       mocks.user.findUnique.mockResolvedValueOnce({ paymentPasswordHash: 'hashed' } as any)
       vi.mocked(verifyPaymentPassword).mockResolvedValueOnce(false)
+      vi.mocked(incrementFailedAttempt).mockResolvedValueOnce({ attempts: 1, locked: false })
       await expect(OrderLifecycleService.verifyPayment('order-1', 'wrong'))
         .rejects.toThrow('支付密码错误')
     })

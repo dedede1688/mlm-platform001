@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { verifyToken } from '@/lib/utils/auth'
-import bcrypt from 'bcryptjs'
+import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { prisma } from '@/lib/prisma'
+import { errorResponse } from '@/lib/api-response'
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,13 +72,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const isValid = await bcrypt.compare(paymentPassword, user.paymentPasswordHash)
-    if (!isValid) {
+    const lockStatus = await checkPaymentPasswordLock(auth.userId)
+    if (lockStatus.locked) {
       return NextResponse.json(
-        { error: '支付密码错误' },
-        { status: 400 }
+        { error: `支付密码已锁定，请${lockStatus.remainingMinutes}分钟后再试` },
+        { status: 423 }
       )
     }
+
+    const isValid = await verifyPaymentPassword(paymentPassword, user.paymentPasswordHash)
+    if (!isValid) {
+      const result = await incrementFailedAttempt(auth.userId)
+      if (result.locked) {
+        return NextResponse.json(
+          { error: '支付密码已锁定，请15分钟后再试' },
+          { status: 423 }
+        )
+      }
+      const remaining = PAYMENT_LOCK_THRESHOLD - result.attempts
+      return NextResponse.json(
+        { error: `支付密码错误，剩余${remaining}次机会` },
+        { status: 401 }
+      )
+    }
+
+    await resetPaymentPasswordLock(auth.userId)
 
     const withdrawal = await WithdrawalService.createWithdrawal(auth.userId, {
       amount,
