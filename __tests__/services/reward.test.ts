@@ -6,9 +6,11 @@ vi.mock('@/lib/prisma', () => {
     findUnique: vi.fn(),
     findMany: vi.fn(),
     create: vi.fn(),
+    createMany: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
     delete: vi.fn(),
+    deleteMany: vi.fn(),
     count: vi.fn(),
     aggregate: vi.fn(),
   })
@@ -255,34 +257,33 @@ describe('RewardService', () => {
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'manager-1', level: 4 })
       prisma.user.findUnique.mockResolvedValueOnce({ referrerId: null, level: 4, id: 'manager-1' })
 
-      // director pool: 500 each
-      prisma.dividend.create.mockResolvedValueOnce({
-        id: 'div-1', userId: 'director-1', orderId, amount: 500, userLevel: 3, totalPool: 500, dividendDate: new Date(),
-      })
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 1000, frozenBalance: 0 })
-      prisma.user.update.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      // director pool: findMany 预取余额
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'director-1', balance: 1000, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.dividend.createMany.mockResolvedValueOnce({ count: 1 })
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
-      // manager pool: 500 each
-      prisma.dividend.create.mockResolvedValueOnce({
-        id: 'div-2', userId: 'manager-1', orderId, amount: 500, userLevel: 4, totalPool: 500, dividendDate: new Date(),
-      })
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 2000, frozenBalance: 0 })
-      prisma.user.update.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      // manager pool: findMany 预取余额
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'manager-1', balance: 2000, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.dividend.createMany.mockResolvedValueOnce({ count: 1 })
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.createDividendReward(orderId, orderAmount, buyerId)
 
-      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(2)
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(2)
       for (let i = 0; i < 2; i++) {
-        const call = prisma.balanceRecord.create.mock.calls[i][0]
-        expect(call.data.type).toBe('dividend_reward')
-        expect(call.data.sourceType).toBe('dividend')
+        const call = prisma.balanceRecord.createMany.mock.calls[i][0]
+        expect(call.data[0].type).toBe('dividend_reward')
+        expect(call.data[0].sourceType).toBe('dividend')
       }
 
-      const update1 = prisma.user.update.mock.calls[0][0]
-      const update2 = prisma.user.update.mock.calls[1][0]
-      // 资金底座重构: 分红只进 earningsAvailable，不进 balance
+      const update1 = prisma.user.updateMany.mock.calls[0][0]
+      const update2 = prisma.user.updateMany.mock.calls[1][0]
       expect(update1.data).toMatchObject({ earningsAvailable: { increment: 500 } })
       expect(update1.data).not.toHaveProperty('balance')
       expect(update2.data).toMatchObject({ earningsAvailable: { increment: 500 } })
@@ -314,19 +315,20 @@ describe('RewardService', () => {
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, earningsAvailable: 500 })
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-1', balance: 500, frozenBalance: 0, earningsAvailable: 500, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.reward.update.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      prisma.reward.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
 
-      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(1)
-      const call = prisma.balanceRecord.create.mock.calls[0][0]
-      expect(call.data.type).toBe('refund_reward')
-      expect(call.data.amount).toBe(-100)
-      // 资金底座重构: 退款不碰 balance，balance 快照保持原值
-      expect(call.data.balance).toBe(500)
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+      const call = prisma.balanceRecord.createMany.mock.calls[0][0]
+      expect(call.data[0].type).toBe('refund_reward')
+      expect(call.data[0].amount).toBe(-100)
+      expect(call.data[0].balance).toBe(500)
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
       expect(userUpdateCall.data).toMatchObject({
@@ -345,22 +347,23 @@ describe('RewardService', () => {
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 300, frozenBalance: 10, earningsAvailable: 300 })
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-2', balance: 300, frozenBalance: 10, earningsAvailable: 300, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.dividend.delete.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      prisma.dividend.deleteMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
 
-      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(1)
-      const call = prisma.balanceRecord.create.mock.calls[0][0]
-      expect(call.data.type).toBe('refund_dividend')
-      expect(call.data.amount).toBe(-50)
-      // 资金底座重构: 退款不碰 balance，balance 快照保持原值
-      expect(call.data.balance).toBe(300)
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+      const call = prisma.balanceRecord.createMany.mock.calls[0][0]
+      expect(call.data[0].type).toBe('refund_dividend')
+      expect(call.data[0].amount).toBe(-50)
+      expect(call.data[0].balance).toBe(300)
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
-      // 资金底座重构: earningsAvailable=300 够扣 50，只扣 earningsAvailable，不碰 balance/earningsVoided
       expect(userUpdateCall.data).toMatchObject({
         earningsAvailable: { decrement: 50 },
       })
@@ -376,25 +379,23 @@ describe('RewardService', () => {
       ])
       prisma.dividend.findMany.mockResolvedValueOnce([])
 
-      // earningsAvailable=50 < reward.amount=1000 → 扣 50 可提现 + 作废 950
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 5000, frozenBalance: 0, earningsAvailable: 50, consumeBalance: 0, earningsPending: 0, earningsVoided: 0 })
-
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-3', balance: 5000, frozenBalance: 0, earningsAvailable: 50, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.reward.update.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      prisma.reward.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
 
-      // 不报错，且写了流水
-      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(1)
-      const call = prisma.balanceRecord.create.mock.calls[0][0]
-      expect(call.data.type).toBe('refund_reward')
-      expect(call.data.amount).toBe(-1000)
-      expect(call.data.balance).toBe(5000) // 余额不变
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+      const call = prisma.balanceRecord.createMany.mock.calls[0][0]
+      expect(call.data[0].type).toBe('refund_reward')
+      expect(call.data[0].amount).toBe(-1000)
+      expect(call.data[0].balance).toBe(5000)
 
-      // 验证 update: 扣 earningsAvailable 50 + 增 earningsVoided 950
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
       expect(userUpdateCall.data).toMatchObject({
         earningsAvailable: { decrement: 50 },
@@ -411,25 +412,24 @@ describe('RewardService', () => {
         { id: 'dividend-d2', userId: 'user-4', orderId, amount: 500 },
       ])
 
-      // earningsAvailable=100 < dividend.amount=500 → 扣 100 可提现 + 作废 400
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 2000, frozenBalance: 0, earningsAvailable: 100, consumeBalance: 0, earningsPending: 0, earningsVoided: 0 })
-
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-4', balance: 2000, frozenBalance: 0, earningsAvailable: 100, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.dividend.delete.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      prisma.dividend.deleteMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
 
-      // 不报错，且写了流水
-      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(1)
-      const call = prisma.balanceRecord.create.mock.calls[0][0]
-      expect(call.data.type).toBe('refund_dividend')
-      expect(call.data.amount).toBe(-500)
-      expect(call.data.balance).toBe(2000) // 余额不变
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+      const call = prisma.balanceRecord.createMany.mock.calls[0][0]
+      expect(call.data[0].type).toBe('refund_dividend')
+      expect(call.data[0].amount).toBe(-500)
+      expect(call.data[0].balance).toBe(2000)
 
-      // 验证 update: 扣 earningsAvailable 100 + 增 earningsVoided 400
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
       expect(userUpdateCall.data).toMatchObject({
         earningsAvailable: { decrement: 100 },
@@ -449,8 +449,7 @@ describe('RewardService', () => {
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      // user.findUnique 返回 null (用户在 processRefund 期间被删除)
-      prisma.user.findUnique.mockResolvedValueOnce(null)
+      prisma.user.findMany.mockResolvedValueOnce([])
 
       await expect(RewardService.processRefund(orderId))
         .rejects.toThrow('不存在')
@@ -461,14 +460,13 @@ describe('RewardService', () => {
       const orderId = 'order-refund-div-missing'
 
       prisma.reward.findMany.mockResolvedValueOnce([])
-      // 有 dividend,user 在事务中找不到
       prisma.dividend.findMany.mockResolvedValueOnce([
         { id: 'dividend-x', userId: 'user-orphan-div', orderId, amount: 50 },
       ])
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
-      // user.findUnique 返回 null (用户在 processRefund 期间被删除)
-      prisma.user.findUnique.mockResolvedValueOnce(null)
+
+      prisma.user.findMany.mockResolvedValueOnce([])
 
       await expect(RewardService.processRefund(orderId))
         .rejects.toThrow('不存在')
@@ -486,25 +484,30 @@ describe('RewardService', () => {
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 200, frozenBalance: 0, earningsAvailable: 200 })
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-5', balance: 200, frozenBalance: 0, earningsAvailable: 200, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.reward.update.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      prisma.reward.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
-      prisma.user.findUnique.mockResolvedValueOnce({ balance: 200, frozenBalance: 0, earningsAvailable: 170 })
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-5', balance: 200, frozenBalance: 0, earningsAvailable: 170, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.dividend.delete.mockResolvedValueOnce({})
-      prisma.balanceRecord.create.mockResolvedValueOnce({})
+      prisma.dividend.deleteMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
 
-      expect(prisma.balanceRecord.create).toHaveBeenCalledTimes(2)
-      expect(prisma.balanceRecord.create.mock.calls[0][0].data.type).toBe('refund_reward')
-      expect(prisma.balanceRecord.create.mock.calls[1][0].data.type).toBe('refund_dividend')
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(2)
+      const call1 = prisma.balanceRecord.createMany.mock.calls[0][0]
+      const call2 = prisma.balanceRecord.createMany.mock.calls[1][0]
+      expect(call1.data[0].type).toBe('refund_reward')
+      expect(call2.data[0].type).toBe('refund_dividend')
 
       const update1 = prisma.user.update.mock.calls[0][0]
       const update2 = prisma.user.update.mock.calls[1][0]
-      // 资金底座重构: 退款只扣 earningsAvailable（够扣时不碰 earningsVoided），都不碰 balance
       expect(update1.data).toMatchObject({ earningsAvailable: { decrement: 30 } })
       expect(update1.data).not.toHaveProperty('balance')
       expect(update1.data).not.toHaveProperty('earningsVoided')
@@ -684,34 +687,35 @@ describe('RewardService', () => {
   describe('createDividendReward - 额外分支', () => {
     // v60.3 batch 7: 补 line 238 - includeUpstream=true 时,anyone level>=pool.level
     it('includeUpstream=true includes higher-level users (line 238)', async () => {
-      // 临时设 manager pool rate = 0.05 (default) + includeUpstream=true
       const savedInc = businessConfigValues['dividend.manager.include_upstream']
       businessConfigValues['dividend.manager.include_upstream'] = true
       try {
         const orderId = 'order-inc-up'
         const buyerId = 'buyer-inc'
 
-        // 链上 2 个 user:1 个 level=3, 1 个 level=4
         prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'd1', level: 1, id: buyerId })
-        prisma.user.findUnique.mockResolvedValueOnce({ id: 'd1', level: 3 })  // for director pool
+        prisma.user.findUnique.mockResolvedValueOnce({ id: 'd1', level: 3 })
         prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'm1', level: 3, id: 'd1' })
-        prisma.user.findUnique.mockResolvedValueOnce({ id: 'm1', level: 4 })  // for manager pool
+        prisma.user.findUnique.mockResolvedValueOnce({ id: 'm1', level: 4 })
         prisma.user.findUnique.mockResolvedValueOnce({ referrerId: null, level: 4, id: 'm1' })
 
-        // manager 池 includeUpstream=true → level=3 (d1) 也算进
-        prisma.dividend.create.mockResolvedValueOnce({ id: 'div-m-3', userId: 'd1' })
-        prisma.user.findUnique.mockResolvedValueOnce({ balance: 1000, frozenBalance: 0 })
-        prisma.user.update.mockResolvedValueOnce({})
-        prisma.balanceRecord.create.mockResolvedValueOnce({})
+        prisma.user.findMany.mockResolvedValueOnce([
+          { id: 'd1', balance: 1000, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+        ])
+        prisma.dividend.createMany.mockResolvedValueOnce({ count: 1 })
+        prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+        prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
-        // director 池 share 到 level=4 (m1) - includeUpstream=true default= false for director
-        // Actually director.include_upstream=false (default), so only level=3 (d1)
-        // 这里只触发 manager pool 为 include_upstream=true 测试
+        prisma.user.findMany.mockResolvedValueOnce([
+          { id: 'd1', balance: 1000, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+        ])
+        prisma.dividend.createMany.mockResolvedValueOnce({ count: 1 })
+        prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+        prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
         await RewardService.createDividendReward(orderId, 10000, buyerId)
 
-        // 期望 manager 池把 d1(level=3) 纳入, 所以至少 1 个 div.create
-        expect(prisma.dividend.create).toHaveBeenCalled()
+        expect(prisma.dividend.createMany).toHaveBeenCalled()
       } finally {
         businessConfigValues['dividend.manager.include_upstream'] = savedInc
       }

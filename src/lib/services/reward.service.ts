@@ -245,43 +245,58 @@ export class RewardService {
       const perUserAmount = Math.round((totalPool / poolMembers.length) * 100) / 100
 
       await prisma.$transaction(async (tx) => {
-        for (const member of poolMembers) {
-          const dividend = await tx.dividend.create({
-            data: {
-              userId: member.userId,
-              orderId,
-              amount: perUserAmount,
-              userLevel: member.level,
-              totalPool,
-              dividendDate: new Date(),
-            },
+        // 模式 B：批量预取用户余额
+        const memberIds = poolMembers.map(m => m.userId)
+        const usersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
+        if (memberIds.length > 0) {
+          const users = await tx.user.findMany({
+            where: { id: { in: memberIds } },
+            select: { id: true, ...BALANCE_SELECT },
           })
+          for (const u of users) usersMap.set(u.id, u)
+        }
 
-          const before = await tx.user.findUnique({
-            where: { id: member.userId },
-            select: BALANCE_SELECT,
-          })
+        // 模式 A：收集 dividend 数据
+        const dividendDataList = poolMembers.map(member => ({
+          userId: member.userId,
+          orderId,
+          amount: perUserAmount,
+          userLevel: member.level,
+          totalPool,
+          dividendDate: new Date(),
+        }))
+        if (dividendDataList.length > 0) {
+          await tx.dividend.createMany({ data: dividendDataList })
+        }
 
-          await tx.user.update({
-            where: { id: member.userId },
+        // 模式 C：同 pool 内 perUserAmount 相同，批量 updateMany
+        if (memberIds.length > 0) {
+          await tx.user.updateMany({
+            where: { id: { in: memberIds } },
             data: { earningsAvailable: { increment: perUserAmount } },
           })
+        }
 
+        // 模式 A：收集 balanceRecord 数据（每条用该用户自己的 before 计算）
+        const balanceRecordDataList: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
+        for (const member of poolMembers) {
+          const before = usersMap.get(member.userId)
           if (before) {
             const after = { consumeBalance: before.consumeBalance, earningsAvailable: before.earningsAvailable + perUserAmount, earningsPending: before.earningsPending, earningsVoided: before.earningsVoided }
-            await tx.balanceRecord.create({
-              data: {
-                userId: member.userId,
-                type: 'dividend_reward',
-                amount: perUserAmount,
-                balance: before.balance,
-                frozenBalance: before.frozenBalance,
-                sourceType: 'dividend',
-                sourceId: dividend.id,
-                description: `分红奖（${pool.configKey}池）+¥${perUserAmount.toFixed(2)}，可提现收益增加，余额不变，订单 ${orderId}${format4FieldDelta(before, after)}`,
-              },
+            balanceRecordDataList.push({
+              userId: member.userId,
+              type: 'dividend_reward',
+              amount: perUserAmount,
+              balance: before.balance,
+              frozenBalance: before.frozenBalance,
+              sourceType: 'dividend',
+              sourceId: orderId,
+              description: `分红奖（${pool.configKey}池）+¥${perUserAmount.toFixed(2)}，可提现收益增加，余额不变，订单 ${orderId}${format4FieldDelta(before, after)}`,
             })
           }
+        }
+        if (balanceRecordDataList.length > 0) {
+          await tx.balanceRecord.createMany({ data: balanceRecordDataList })
         }
       })
     }
@@ -406,14 +421,23 @@ export class RewardService {
     })
 
     await prisma.$transaction(async (tx) => {
-      for (const reward of rewards) {
-        const user = await tx.user.findUnique({
-          where: { id: reward.userId },
-          select: BALANCE_SELECT,
+      // 模式 B：批量预取 rewards 相关用户余额
+      const rewardUserIds = [...new Set(rewards.map(r => r.userId))]
+      const rewardUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
+      if (rewardUserIds.length > 0) {
+        const users = await tx.user.findMany({
+          where: { id: { in: rewardUserIds } },
+          select: { id: true, ...BALANCE_SELECT },
         })
+        for (const u of users) rewardUsersMap.set(u.id, u)
+      }
+
+      const rewardBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
+
+      for (const reward of rewards) {
+        const user = rewardUsersMap.get(reward.userId)
         if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
 
-        // P0 修复: 退款扣回奖励不报错，优先扣可提现收益，不足部分写作废
         const deductFromAvailable = Math.min(user.earningsAvailable, reward.amount)
         const voidedAmount = reward.amount - deductFromAvailable
 
@@ -435,36 +459,51 @@ export class RewardService {
           data: updateData,
         })
 
-        await tx.reward.update({
-          where: { id: reward.id },
-          data: { status: 'refunded' },
-        })
-
         const voidDesc = voidedAmount > 0
           ? `，其中可提现收益扣减 ¥${deductFromAvailable.toFixed(2)}，作废收益 ¥${voidedAmount.toFixed(2)}`
           : `，可提现收益扣减 ¥${reward.amount.toFixed(2)}`
-        await tx.balanceRecord.create({
-          data: {
-            userId: reward.userId,
-            type: 'refund_reward',
-            amount: -reward.amount,
-            balance: user.balance,
-            frozenBalance: user.frozenBalance,
-            sourceType: 'reward',
-            sourceId: reward.id,
-            description: `扣回奖励（${reward.type}），余额不变${voidDesc}，订单退款${format4FieldDelta(user, afterRefundReward)}`,
-          },
+        rewardBalanceRecords.push({
+          userId: reward.userId,
+          type: 'refund_reward',
+          amount: -reward.amount,
+          balance: user.balance,
+          frozenBalance: user.frozenBalance,
+          sourceType: 'reward',
+          sourceId: reward.id,
+          description: `扣回奖励（${reward.type}），余额不变${voidDesc}，订单退款${format4FieldDelta(user, afterRefundReward)}`,
         })
       }
 
-      for (const dividend of dividends) {
-        const user = await tx.user.findUnique({
-          where: { id: dividend.userId },
-          select: BALANCE_SELECT,
+      // 模式 D：批量更新 reward 状态
+      if (rewards.length > 0) {
+        await tx.reward.updateMany({
+          where: { id: { in: rewards.map(r => r.id) } },
+          data: { status: 'refunded' },
         })
+      }
+
+      // 模式 A：批量写入 balanceRecord
+      if (rewardBalanceRecords.length > 0) {
+        await tx.balanceRecord.createMany({ data: rewardBalanceRecords })
+      }
+
+      // 模式 B：批量预取 dividends 相关用户余额
+      const dividendUserIds = [...new Set(dividends.map(d => d.userId))]
+      const dividendUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
+      if (dividendUserIds.length > 0) {
+        const users = await tx.user.findMany({
+          where: { id: { in: dividendUserIds } },
+          select: { id: true, ...BALANCE_SELECT },
+        })
+        for (const u of users) dividendUsersMap.set(u.id, u)
+      }
+
+      const dividendBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
+
+      for (const dividend of dividends) {
+        const user = dividendUsersMap.get(dividend.userId)
         if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
 
-        // P0 修复: 退款扣回分红不报错，优先扣可提现收益，不足部分写作废
         const deductFromAvailableDiv = Math.min(user.earningsAvailable, dividend.amount)
         const voidedAmountDiv = dividend.amount - deductFromAvailableDiv
 
@@ -486,25 +525,31 @@ export class RewardService {
           data: updateDataDiv,
         })
 
-        await tx.dividend.delete({
-          where: { id: dividend.id },
-        })
-
         const voidDescDiv = voidedAmountDiv > 0
           ? `，其中可提现收益扣减 ¥${deductFromAvailableDiv.toFixed(2)}，作废收益 ¥${voidedAmountDiv.toFixed(2)}`
           : `，可提现收益扣减 ¥${dividend.amount.toFixed(2)}`
-        await tx.balanceRecord.create({
-          data: {
-            userId: dividend.userId,
-            type: 'refund_dividend',
-            amount: -dividend.amount,
-            balance: user.balance,
-            frozenBalance: user.frozenBalance,
-            sourceType: 'reward',
-            sourceId: dividend.id,
-            description: `扣回分红，余额不变${voidDescDiv}，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
-          },
+        dividendBalanceRecords.push({
+          userId: dividend.userId,
+          type: 'refund_dividend',
+          amount: -dividend.amount,
+          balance: user.balance,
+          frozenBalance: user.frozenBalance,
+          sourceType: 'reward',
+          sourceId: dividend.id,
+          description: `扣回分红，余额不变${voidDescDiv}，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
         })
+      }
+
+      // 批量删除 dividend
+      if (dividends.length > 0) {
+        await tx.dividend.deleteMany({
+          where: { id: { in: dividends.map(d => d.id) } },
+        })
+      }
+
+      // 模式 A：批量写入 balanceRecord
+      if (dividendBalanceRecords.length > 0) {
+        await tx.balanceRecord.createMany({ data: dividendBalanceRecords })
       }
     })
   }

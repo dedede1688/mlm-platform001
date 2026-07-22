@@ -179,21 +179,19 @@ export class DividendService {
 
       // 8. 为每个用户创建分红记录（settled=false，不入账）
       const details = []
+      const dividendDataList: Array<{ userId: string; orderId: string; amount: number; userLevel: number; totalPool: number; dividendDate: Date; settled: boolean }> = []
       for (const user of eligibleUsers) {
         const dividendAmount = userTotalDividends[user.id] || 0
 
         if (dividendAmount > 0) {
-          // 只创建 dividend 记录，settled=false（等待周结入账）
-          await tx.dividend.create({
-            data: {
-              userId: user.id,
-              orderId: referenceOrderId,
-              amount: dividendAmount,
-              userLevel: user.level,
-              totalPool: totalDividendPool,
-              dividendDate: new Date(),
-              settled: false,
-            },
+          dividendDataList.push({
+            userId: user.id,
+            orderId: referenceOrderId,
+            amount: dividendAmount,
+            userLevel: user.level,
+            totalPool: totalDividendPool,
+            dividendDate: new Date(),
+            settled: false,
           })
 
           details.push({
@@ -205,6 +203,10 @@ export class DividendService {
             dividendAmount,
           })
         }
+      }
+
+      if (dividendDataList.length > 0) {
+        await tx.dividend.createMany({ data: dividendDataList })
       }
 
       return {
@@ -257,6 +259,21 @@ export class DividendService {
       const details = []
       let totalAmount = 0
 
+      // 4a. 批量预取所有用户余额
+      const allUserIds = Object.keys(userDividendMap)
+      const usersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
+      if (allUserIds.length > 0) {
+        const users = await tx.user.findMany({
+          where: { id: { in: allUserIds } },
+          select: { id: true, ...BALANCE_SELECT },
+        })
+        for (const u of users) usersMap.set(u.id, u)
+      }
+
+      const allBalanceRecords: Array<{ userId: string; type: string; sourceType: string; sourceId: string; amount: number; balance: number; frozenBalance: number; description: string }> = []
+      const allRewards: Array<{ userId: string; type: string; orderId: string; amount: number; status: string }> = []
+      const allDividendIds: string[] = []
+
       // 4. 逐用户入账
       for (const [userId, dividends] of Object.entries(userDividendMap)) {
         const userTotal = Math.round(
@@ -265,18 +282,14 @@ export class DividendService {
 
         if (userTotal <= 0) continue
 
-        // 4a. 获取用户当前余额（事务内）
-        const currentUser = await tx.user.findUnique({
-          where: { id: userId },
-          select: BALANCE_SELECT,
-        })
+        const currentUser = usersMap.get(userId)
 
         if (!currentUser) {
           logger.warn(`[周结] 用户 ${userId} 不存在，跳过`)
           continue
         }
 
-        // 4b. 更新用户可提现收益（资金底座: 分红只进 earningsAvailable）
+        // 4b. 更新用户可提现收益（每人 increment 值不同，保留逐条）
         await tx.user.update({
           where: { id: userId },
           data: {
@@ -284,7 +297,7 @@ export class DividendService {
           },
         })
 
-        // 4c. 记录余额流水（一条汇总记录）
+        // 4c. 收集余额流水
         const dividendIds = dividends.map(d => d.id)
         const afterDividend = {
           consumeBalance: currentUser.consumeBalance,
@@ -292,41 +305,30 @@ export class DividendService {
           earningsPending: currentUser.earningsPending,
           earningsVoided: currentUser.earningsVoided,
         }
-        await tx.balanceRecord.create({
-          data: {
-            userId,
-            type: 'daily_dividend',
-            sourceType: 'dividend',
-            sourceId: batchId,
-            amount: +userTotal,
-            balance: currentUser.balance,
-            frozenBalance: currentUser.frozenBalance,
-            description: `周结分红入账，批次：${batchId}，发放 ¥${userTotal}，可提现收益增加，余额不变，包含 ${dividends.length} 条明细：${dividendIds.join(',')}${format4FieldDelta(currentUser, afterDividend)}`,
-          },
+        allBalanceRecords.push({
+          userId,
+          type: 'daily_dividend',
+          sourceType: 'dividend',
+          sourceId: batchId,
+          amount: +userTotal,
+          balance: currentUser.balance,
+          frozenBalance: currentUser.frozenBalance,
+          description: `周结分红入账，批次：${batchId}，发放 ¥${userTotal}，可提现收益增加，余额不变，包含 ${dividends.length} 条明细：${dividendIds.join(',')}${format4FieldDelta(currentUser, afterDividend)}`,
         })
 
-        // 4d. 为每条分红明细创建 reward 记录（orderId 必填）
+        // 4d. 收集 reward 记录
         for (const dividend of dividends) {
-          await tx.reward.create({
-            data: {
-              userId,
-              type: 'dividend',
-              orderId: dividend.orderId,
-              amount: dividend.amount,
-              status: 'paid',
-            },
+          allRewards.push({
+            userId,
+            type: 'dividend',
+            orderId: dividend.orderId,
+            amount: dividend.amount,
+            status: 'paid',
           })
         }
 
-        // 4e. 标记这些分红明细为已结算
-        await tx.dividend.updateMany({
-          where: { id: { in: dividendIds } },
-          data: {
-            settled: true,
-            settleBatchId: batchId,
-            settleDate,
-          },
-        })
+        // 4e. 收集 dividend id
+        allDividendIds.push(...dividendIds)
 
         totalAmount = Math.round((totalAmount + userTotal) * 100) / 100
 
@@ -334,6 +336,24 @@ export class DividendService {
           userId,
           amount: userTotal,
           dividendCount: dividends.length,
+        })
+      }
+
+      // 批量写入
+      if (allBalanceRecords.length > 0) {
+        await tx.balanceRecord.createMany({ data: allBalanceRecords })
+      }
+      if (allRewards.length > 0) {
+        await tx.reward.createMany({ data: allRewards })
+      }
+      if (allDividendIds.length > 0) {
+        await tx.dividend.updateMany({
+          where: { id: { in: allDividendIds } },
+          data: {
+            settled: true,
+            settleBatchId: batchId,
+            settleDate,
+          },
         })
       }
 
