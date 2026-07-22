@@ -12,7 +12,7 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    logger.error('Application error:', error)
+    logger.error('Application error:', { message: error?.message, digest: error?.digest, stack: error?.stack })
   }, [error])
 
   return (

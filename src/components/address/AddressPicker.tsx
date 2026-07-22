@@ -60,7 +60,7 @@ export function AddressPicker({ value, onChange, disabled }: AddressPickerProps)
           cacheRef.current = data.data
           setProvinces(data.data)
         } else {
-          logger.error('加载省市区数据失败:', data.error)
+          logger.error('加载省市区数据失败:', { error: data.error })
         }
       })
       .catch((err) => console.error('加载省市区数据失败:', err))
