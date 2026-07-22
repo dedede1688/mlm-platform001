@@ -7,7 +7,7 @@ import {
   Package, Plus, Search, Edit2, Trash2, Loader2,
   ChevronLeft, ChevronRight, X, Image as ImageIcon, ToggleLeft, ToggleRight,
   PlusCircle, MinusCircle, ClipboardCopy,
-  AlertTriangle, CheckSquare, Square, CheckCheck, XCircle
+  AlertTriangle, CheckSquare, Square, CheckCheck, XCircle, Lightbulb
 } from 'lucide-react'
 import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ImageUpload'
@@ -1629,7 +1629,7 @@ const handleDuplicate = async (product: Product) => {
                           添加值
                         </button>
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">💡 提示：输入规格值后按回车键或点击"添加值"按钮</p>
+                      <p className="text-xs text-gray-400 mt-1"><Lightbulb className="w-4 h-4 text-gray-500 inline" /> 提示：输入规格值后按回车键或点击"添加值"按钮</p>
                     </div>
                   ))}
                 </div>

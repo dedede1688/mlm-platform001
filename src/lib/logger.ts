@@ -40,9 +40,9 @@ export const logger = {
     console.info(formatLog('info', message, meta))
   },
   warn(message: string, meta?: Record<string, unknown>) {
-    console.warn(formatLog('warn', message, meta))
+    logger.warn(formatLog('warn', message, meta))
   },
   error(message: string, meta?: Record<string, unknown>) {
-    console.error(formatLog('error', message, meta))
+    logger.error(formatLog('error', message, meta))
   },
 }

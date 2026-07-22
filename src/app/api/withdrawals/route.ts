@@ -3,7 +3,7 @@ import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { prisma } from '@/lib/prisma'
-import { errorResponse } from '@/lib/api-response'
+
 
 export async function GET(request: NextRequest) {
   try {

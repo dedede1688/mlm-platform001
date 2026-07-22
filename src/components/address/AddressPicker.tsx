@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 // 数据类型（与服务端 china-regions.ts 一致）
 interface District {
@@ -59,7 +60,7 @@ export function AddressPicker({ value, onChange, disabled }: AddressPickerProps)
           cacheRef.current = data.data
           setProvinces(data.data)
         } else {
-          console.error('加载省市区数据失败:', data.error)
+          logger.error('加载省市区数据失败:', data.error)
         }
       })
       .catch((err) => console.error('加载省市区数据失败:', err))

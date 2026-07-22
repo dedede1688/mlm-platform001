@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { formatMoney } from '@/lib/utils/format'
+import { logger } from '@/lib/logger'
 
 // 动态导入 recharts 组件，减少初始加载体积
 const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false })
@@ -138,7 +139,7 @@ export default function AdminDashboardPage() {
       ])
 
       if (statsRes.status === 403 || statsRes.status === 401) {
-        console.error('[AdminDashboard] stats API 认证失败:', statsRes.status)
+        logger.error('[AdminDashboard] stats API 认证失败:', statsRes.status)
         if (trendRes.status === 403 || trendRes.status === 401) {
           const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/admin/dashboard'
           window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`

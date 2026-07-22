@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import {
   Receipt, Search, Loader2, ChevronLeft, ChevronRight,
-  X, CheckCircle, XCircle, Eye, CreditCard, ClipboardCheck
+  X, CheckCircle, XCircle, Eye, CreditCard, ClipboardCheck, AlertTriangle
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 import { hasPermission } from '@/lib/admin-permissions'
@@ -817,7 +817,7 @@ export default function AdminRefundsPage() {
                 <li>用户: {largeRefundConfirm.item.user.phone}</li>
                 <li>订单: {largeRefundConfirm.item.order.orderNo}</li>
               </ul>
-              <p className="text-red-600 font-medium pt-2">⚠️ 此操作不可撤销,确认无误后再点确认。</p>
+              <p className="text-red-600 font-medium pt-2"><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 此操作不可撤销,确认无误后再点确认。</p>
             </div>
           )
         }

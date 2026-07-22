@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { logger } from '@/lib/logger'
 
 function LoginForm() {
   const router = useRouter()
@@ -70,7 +71,7 @@ function LoginForm() {
       } else {
         // [DEBUG] 显示详细错误信息，方便排查
         const errorMsg = data.error || data.message || '登录失败'
-        console.error('[Login] 登录失败响应:', data)
+        logger.error('[Login] 登录失败响应:', data)
         setError(errorMsg)
       }
     } catch (_err) {

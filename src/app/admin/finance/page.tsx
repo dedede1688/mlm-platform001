@@ -5,7 +5,7 @@ import {
   Wallet, Search, Loader2, ChevronLeft, ChevronRight,
   X, CheckCircle, XCircle, DollarSign, Gift,
   ListChecks, History,
-  ArrowDownCircle, ZoomIn, ZoomOut, Maximize2, Minimize2, ImageOff
+  ArrowDownCircle, ZoomIn, ZoomOut, Maximize2, Minimize2, ImageOff, AlertTriangle
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
@@ -2140,7 +2140,7 @@ const [stats, setStats] = useState<{
                 <li>用户: <b>{largeWithdrawalConfirm.item.user.phone}</b> ({largeWithdrawalConfirm.item.user.nickname || '无昵称'})</li>
                 <li>账号: {largeWithdrawalConfirm.item.accountName || '-'} / {largeWithdrawalConfirm.item.bankName || largeWithdrawalConfirm.item.accountNumber || '-'}</li>
               </ul>
-              <p className="text-red-600 font-medium pt-2">⚠️ 此操作涉及真实资金,确认无误后再点确认。</p>
+              <p className="text-red-600 font-medium pt-2"><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 此操作涉及真实资金,确认无误后再点确认。</p>
             </div>
           )
         }

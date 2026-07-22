@@ -7,7 +7,7 @@ import { formatMoney } from '@/lib/utils/format'
 import {
   Users, Search, Loader2, ChevronLeft, ChevronRight,
   X, Eye, Network, ChevronDown, ChevronUp, Wallet,
-  Lock, LockOpen, Download
+  Lock, LockOpen, Download, AlertTriangle
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import ReferralTreePanel from '@/components/ReferralTreePanel'
@@ -1005,7 +1005,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
               <Section title="密码重置" open={openSections.password} onToggle={() => toggleSection('password')}>
                 <div className="space-y-4">
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-xs text-yellow-700">⚠️ 重置后用户需使用新密码登录，请务必通知用户。</p>
+                    <p className="text-xs text-yellow-700"><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 重置后用户需使用新密码登录，请务必通知用户。</p>
                   </div>
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">新密码（8-20 位，必须包含字母和数字）</label>
@@ -1105,10 +1105,10 @@ const [treeUserName, setTreeUserName] = useState<string>('')
                           placeholder={balanceType === 'earnings_add' ? '例如：100' : balanceType === 'earnings_void' ? '例如：40' : '例如：100 或 -50'}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-colors" />
                         {balanceType === 'earnings_add' && (
-                          <p className="text-xs text-orange-600 mt-1">⚠️ 本次只允许增加可用收益，不可减少或作废。</p>
+                          <p className="text-xs text-orange-600 mt-1"><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 本次只允许增加可用收益，不可减少或作废。</p>
                         )}
                         {balanceType === 'earnings_void' && (
-                          <p className="text-xs text-red-600 mt-1">⚠️ 作废收益将从可用收益中扣除并计入累计作废，不可逆操作。</p>
+                          <p className="text-xs text-red-600 mt-1"><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 作废收益将从可用收益中扣除并计入累计作废，不可逆操作。</p>
                         )}
                       </div>
                       <div>
@@ -1305,7 +1305,7 @@ message={
 )}
 <p>原因: <span className="text-gray-700">{balanceReason}</span></p>
 </div>
-<p className="text-red-600 text-xs">⚠️ {balanceType === 'earnings_void' ? '收益作废会从可用收益中扣除并计入累计作废,不可逆操作,请确认无误后再提交。' : '余额调整会在用户账上直接生效,请确认无误后再提交。'}</p>
+<p className="text-red-600 text-xs"><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> {balanceType === 'earnings_void' ? '收益作废会从可用收益中扣除并计入累计作废,不可逆操作,请确认无误后再提交。' : '余额调整会在用户账上直接生效,请确认无误后再提交。'}</p>
 </div>
 }
 confirmText={balanceType === 'earnings_void' ? '我已确认,执行作废' : '我已确认,执行调整'}
@@ -1333,7 +1333,7 @@ onCancel={() => setBalanceConfirm(null)}
               <p>调整数量: <span className="font-bold text-red-600 text-lg">{Math.abs(pointsConfirm || 0).toLocaleString()} 积分 {(pointsConfirm || 0) > 0 ? '增加' : '扣减'}</span></p>
               <p>原因: <span className="text-gray-700">{pointsReason}</span></p>
             </div>
-            <p className="text-red-600 text-xs">⚠️ 积分调整会同步联动总积分/可用积分/锁定积分三个字段。</p>
+            <p className="text-red-600 text-xs"><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 积分调整会同步联动总积分/可用积分/锁定积分三个字段。</p>
           </div>
         }
         confirmText="我已确认,执行调整"
@@ -1362,7 +1362,7 @@ onCancel={() => setBalanceConfirm(null)}
               <p>原因: <span className="text-gray-700">{passwordReason}</span></p>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
-              <p>⚠️ 重置后原密码立即失效,该用户需使用新密码重新登录。</p>
+              <p><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 重置后原密码立即失效,该用户需使用新密码重新登录。</p>
               <p className="mt-1">请务必通过短信/站内信等渠道告知用户新密码。</p>
             </div>
           </div>
@@ -1392,7 +1392,7 @@ onCancel={() => setBalanceConfirm(null)}
               <p>手机号后 4 位: <span className="font-mono text-gray-900">{payPwdResetSuffix}</span></p>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
-              <p>⚠️ 重置后用户需要重新设置支付密码。</p>
+              <p><AlertTriangle className="w-4 h-4 text-amber-500 inline" /> 重置后用户需要重新设置支付密码。</p>
               <p className="mt-1">请通过站内信或其他渠道通知用户。</p>
             </div>
           </div>

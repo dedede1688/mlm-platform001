@@ -7,7 +7,7 @@ import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
   TrendingUp, Award, Clock, MapPin, ShieldCheck,
   CheckCircle2, Lock, Camera, BarChart3, PieChart as PieIcon,
-  PlusCircle
+  PlusCircle, CheckCircle, Lightbulb
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -474,7 +474,7 @@ export default function DashboardPage() {
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   user.hasUpgradeProduct ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {user.hasUpgradeProduct ? '✅ 已解锁' : '🔒 未解锁'}
+                  {user.hasUpgradeProduct ? <><CheckCircle className="w-4 h-4 text-green-500 inline" /> 已解锁</> : <><Lock className="w-4 h-4 text-gray-500 inline" /> 未解锁</>}
                 </span>
               </div>
 
@@ -504,13 +504,13 @@ export default function DashboardPage() {
                   href="/products?category=upgrade"
                   className="block w-full text-center bg-gradient-to-r from-orange-500 to-amber-500 text-white py-2.5 rounded-lg text-sm font-medium hover:from-orange-600 hover:to-amber-600 transition-all"
                 >
-                  💡 购买 1 件升级品即可解锁推荐奖
+                  <Lightbulb className="w-4 h-4 text-gray-500 inline" /> 购买 1 件升级品即可解锁推荐奖
                 </Link>
               )}
 
               {user.hasUpgradeProduct && (
                 <p className="text-xs text-gray-500 text-center">
-                  ✅ 推荐奖已解锁，推荐好友下单即可获得 20% 推荐奖
+                  <CheckCircle className="w-4 h-4 text-green-500 inline" /> 推荐奖已解锁，推荐好友下单即可获得 20% 推荐奖
                 </p>
               )}
             </div>

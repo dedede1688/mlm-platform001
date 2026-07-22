@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
+import { logger } from '@/lib/logger'
 
 // ---- 用户侧需要登录的路径（仅验证 JWT，不校验角色） ----
 //
@@ -62,7 +63,7 @@ function verifyJwtPayload(token: string): { userId?: string; phone?: string; rol
   try {
     const secret = process.env.JWT_SECRET
     if (!secret) {
-      console.error('[v55.2 middleware] JWT_SECRET 未配置')
+      logger.error('[v55.2 middleware] JWT_SECRET 未配置')
       return null
     }
     const decoded = jwt.verify(token, secret) as { userId?: string; phone?: string; role?: string }
