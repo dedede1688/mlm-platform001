@@ -38,6 +38,10 @@ describe('POST /api/admin/settle-dividends - Batch 3A-1', () => {
     const response = await POST(post({ action: 'settle' }) as any)
 
     expect(response.status).toBe(403)
+    expect(verifyPermission).toHaveBeenCalledWith(
+      expect.anything(),
+      ['super_admin', 'finance_admin']
+    )
     expect(DividendService.settleWeeklyDividends).not.toHaveBeenCalled()
     expect(DividendService.snapshotDailyDividends).not.toHaveBeenCalled()
   })
@@ -64,8 +68,35 @@ describe('POST /api/admin/settle-dividends - Batch 3A-1', () => {
       paused: true,
       error: '分红结算维护中，当前未执行任何资金操作',
     })
+    expect(verifyPermission).toHaveBeenCalledWith(
+      expect.anything(),
+      ['super_admin', 'finance_admin']
+    )
     expect(DividendService.settleWeeklyDividends).toHaveBeenCalledTimes(1)
     expect(DividendService.snapshotDailyDividends).not.toHaveBeenCalled()
+  })
+
+  it('fail-closed: treats result missing paused as 503', async () => {
+    // 故意绕过类型系统模拟运行时 paused 缺失，测试 fail-closed
+    vi.mocked(verifyPermission).mockResolvedValueOnce({ user: admin, error: null } as any)
+    const corruptedResult = {
+      batchId: 'fake-batch',
+      totalAmount: 999,
+      totalDividends: 1,
+      distributedUsers: 1,
+      details: [{ userId: 'u1', amount: 999, dividendCount: 1 }],
+      message: '周结分红入账成功（批次 fake-batch）',
+    }
+    vi.mocked(DividendService.settleWeeklyDividends).mockResolvedValueOnce(corruptedResult as any)
+
+    const { POST } = await import('@/app/api/admin/settle-dividends/route')
+    const response = await POST(post({ action: 'settle' }) as any)
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.success).toBe(false)
+    expect(body.paused).toBe(true)
+    expect(body.error).toBe('分红结算维护中，当前未执行任何资金操作')
   })
 
   it('keeps snapshot behavior unchanged', async () => {

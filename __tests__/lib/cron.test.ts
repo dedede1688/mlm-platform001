@@ -61,4 +61,30 @@ describe('runWeeklyTasks - Batch 3A-1', () => {
       expect.anything()
     )
   })
+
+  it('fail-closed: treats result missing paused as paused', async () => {
+    // 故意绕过类型系统模拟运行时 paused 缺失，测试 fail-closed
+    const corruptedResult = {
+      batchId: 'fake-batch',
+      totalAmount: 999,
+      totalDividends: 1,
+      distributedUsers: 1,
+      details: [{ userId: 'u1', amount: 999, dividendCount: 1 }],
+      message: '周结分红入账成功（批次 fake-batch）',
+    }
+    vi.mocked(DividendService.settleWeeklyDividends).mockResolvedValueOnce(corruptedResult as any)
+
+    const result = await runWeeklyTasks()
+
+    expect(result.dividendSettle?.success).toBe(false)
+    expect(result.dividendSettle?.paused).toBe(true)
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[Batch 3A-1] 分红周结任务已暂停',
+      { reason: '分红结算维护中，当前未执行任何资金操作' }
+    )
+    expect(logger.info).not.toHaveBeenCalledWith(
+      '✅ 分红周结入账完成',
+      expect.anything()
+    )
+  })
 })

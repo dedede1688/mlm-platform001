@@ -24,12 +24,14 @@ export async function POST(request: NextRequest) {
     let result
     if (action === 'settle') {
       result = await DividendService.settleWeeklyDividends()
-      if (result.paused) {
+      if (result.paused === false) {
+        // 正常成功分支
+      } else {
         return NextResponse.json(
           {
             success: false,
             paused: true,
-            error: result.message,
+            error: result.paused ? result.message : '分红结算维护中，当前未执行任何资金操作',
           },
           { status: 503 }
         )

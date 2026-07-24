@@ -68,18 +68,18 @@ export async function runWeeklyTasks() {
   try {
     // 1. 执行分红周结入账（把本周未结算明细统一入账）
     const dividendResult = await DividendService.settleWeeklyDividends()
-    if (dividendResult.paused) {
+    if (dividendResult.paused === false) {
+      logger.info('✅ 分红周结入账完成', { data: dividendResult })
+      results.dividendSettle = { success: true, data: dividendResult }
+    } else {
       logger.warn('[Batch 3A-1] 分红周结任务已暂停', {
-        reason: dividendResult.message,
+        reason: dividendResult.paused ? dividendResult.message : '分红结算维护中，当前未执行任何资金操作',
       })
       results.dividendSettle = {
         success: false,
         paused: true,
         data: dividendResult,
       }
-    } else {
-      logger.info('✅ 分红周结入账完成', { data: dividendResult })
-      results.dividendSettle = { success: true, data: dividendResult }
     }
   } catch (error) {
     logger.error('❌ 分红周结入账失败', { error: error instanceof Error ? error.message : String(error) })

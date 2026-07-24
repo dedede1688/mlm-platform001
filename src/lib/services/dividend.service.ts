@@ -7,8 +7,18 @@ import { randomUUID } from 'crypto'
 
 const DIVIDEND_SETTLEMENT_PAUSED = true
 
-export type DividendSettlementResult = {
-  paused?: boolean
+type DividendSettlementPausedResult = {
+  paused: true
+  batchId: null
+  totalAmount: 0
+  totalDividends: 0
+  distributedUsers: 0
+  details: Array<never>
+  message: string
+}
+
+type DividendSettlementActiveResult = {
+  paused: false
   batchId: string | null
   totalAmount: number
   totalDividends: number
@@ -16,6 +26,10 @@ export type DividendSettlementResult = {
   details: Array<{ userId: string; amount: number; dividendCount: number }>
   message: string
 }
+
+export type DividendSettlementResult =
+  | DividendSettlementPausedResult
+  | DividendSettlementActiveResult
 
 
 export class DividendService {
