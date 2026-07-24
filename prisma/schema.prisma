@@ -137,6 +137,11 @@ model Order {
   recipientPhone       String?   @map("recipient_phone")      // v43-2: 收货人电话
   shippingAddress      String?   @map("shipping_address")     // v43-2: 收货地址
   paymentVerified      Boolean  @default(false) @map("payment_verified") // v43-2: 支付密码是否验证通过
+  rewardStatus        String    @default("completed") @map("reward_status")
+  rewardAttempts      Int       @default(0) @map("reward_attempts")
+  rewardLastError     String?   @map("reward_last_error")
+  rewardLastAttemptAt DateTime? @map("reward_last_attempt_at")
+  rewardsCompletedAt  DateTime? @map("rewards_completed_at")
 
   @@index([userId])
   @@index([status])
@@ -189,6 +194,7 @@ model Reward {
   fromUserId String?  @map("from_user_id")
   level      Int?     @map("level")
   status     String   @default("pending") @map("status")
+  idempotencyKey String @unique @map("idempotency_key")
   createdAt  DateTime @default(now()) @map("created_at")
   order      Order    @relation(fields: [orderId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
@@ -212,10 +218,13 @@ model Dividend {
   settled       Boolean   @default(false) @map("settled")
   settleBatchId String?   @map("settle_batch_id")
   settleDate    DateTime? @map("settle_date")
+  poolType      String    @map("pool_type")
+  refundedAt    DateTime? @map("refunded_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   order         Order     @relation(fields: [orderId], references: [id])
   user          User      @relation(fields: [userId], references: [id])
 
+  @@unique([orderId, userId, poolType])
   @@index([userId])
   @@index([orderId])
   @@index([dividendDate])
