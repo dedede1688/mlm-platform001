@@ -24,6 +24,16 @@ export async function POST(request: NextRequest) {
     let result
     if (action === 'settle') {
       result = await DividendService.settleWeeklyDividends()
+      if (result.paused) {
+        return NextResponse.json(
+          {
+            success: false,
+            paused: true,
+            error: result.message,
+          },
+          { status: 503 }
+        )
+      }
     } else {
       result = await DividendService.snapshotDailyDividends()
     }
