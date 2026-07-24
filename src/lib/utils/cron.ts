@@ -50,19 +50,37 @@ export async function runDailyTasks() {
 }
 
 // 每周任务（分红入账）
+type WeeklyDividendSettleStatus = {
+  success: boolean
+  paused?: boolean
+  data?: unknown
+  error?: string
+}
+
 export async function runWeeklyTasks() {
   logger.info('========================================')
   logger.info('  每周任务执行开始')
   logger.info('  时间:', { time: new Date().toLocaleString('zh-CN') })
   logger.info('========================================\n')
 
-  const results: { dividendSettle?: { success: boolean; data?: unknown; error?: string } } = {}
+  const results: { dividendSettle?: WeeklyDividendSettleStatus } = {}
 
   try {
     // 1. 执行分红周结入账（把本周未结算明细统一入账）
     const dividendResult = await DividendService.settleWeeklyDividends()
-    logger.info('✅ 分红周结入账完成', { data: dividendResult })
-    results.dividendSettle = { success: true, data: dividendResult }
+    if (dividendResult.paused) {
+      logger.warn('[Batch 3A-1] 分红周结任务已暂停', {
+        reason: dividendResult.message,
+      })
+      results.dividendSettle = {
+        success: false,
+        paused: true,
+        data: dividendResult,
+      }
+    } else {
+      logger.info('✅ 分红周结入账完成', { data: dividendResult })
+      results.dividendSettle = { success: true, data: dividendResult }
+    }
   } catch (error) {
     logger.error('❌ 分红周结入账失败', { error: error instanceof Error ? error.message : String(error) })
     results.dividendSettle = { success: false, error: error instanceof Error ? error.message : '未知错误' }
