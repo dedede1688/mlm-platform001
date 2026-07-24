@@ -175,139 +175,33 @@ describe('DividendService', () => {
   // ========================================
   // settleWeeklyDividends（每周入账，幂等）
   // ========================================
-  describe('settleWeeklyDividends', () => {
-    it('should settle unsettled dividends: update earningsAvailable, create balanceRecord, create rewards, mark settled', async () => {
-      // 1. 2 条未结算分红（同一用户 user-1）
-      prisma.dividend.findMany.mockResolvedValueOnce([
-        { id: 'div-1', userId: 'user-1', orderId: 'order-1', amount: 600 },
-        { id: 'div-2', userId: 'user-1', orderId: 'order-2', amount: 400 },
-      ])
-
-      // 2. 用户当前余额（findMany 预取）
-      prisma.user.findMany.mockResolvedValueOnce([{
-        id: 'user-1', balance: 1000, frozenBalance: 50,
-        consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0,
-      }])
-
-      // 3. mock 副作用
-      prisma.user.update.mockResolvedValueOnce({})
-      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
-      prisma.reward.createMany.mockResolvedValueOnce({ count: 2 })
-      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 2 })
-
+  describe('settleWeeklyDividends - Batch 3A-1 紧急暂停', () => {
+    it('returns an explicit paused result before opening a transaction', async () => {
       const result = await DividendService.settleWeeklyDividends()
 
-      // 验证返回值
-      expect(result.batchId).toBeTruthy()
-      expect(result.totalAmount).toBe(1000)
-      expect(result.totalDividends).toBe(2)
-      expect(result.distributedUsers).toBe(1)
-      expect(result.message).toContain('周结分红入账成功')
-
-      // 验证 user.update：earningsAvailable += 1000，不碰 balance
-      const updateCall = prisma.user.update.mock.calls[0][0]
-      expect(updateCall.data.earningsAvailable).toEqual({ increment: 1000 })
-      expect(updateCall.data).not.toHaveProperty('balance')
-
-      // 验证 balanceRecord.createMany：1 条汇总记录
-      const brCall = prisma.balanceRecord.createMany.mock.calls[0][0]
-      expect(brCall.data).toHaveLength(1)
-      expect(brCall.data[0].type).toBe('daily_dividend')
-      expect(brCall.data[0].sourceType).toBe('dividend')
-      expect(brCall.data[0].amount).toBe(1000)
-      expect(brCall.data[0].userId).toBe('user-1')
-
-      // 验证 reward.createMany：2 条
-      expect(prisma.reward.createMany).toHaveBeenCalledTimes(1)
-      const rData = prisma.reward.createMany.mock.calls[0][0].data
-      expect(rData).toHaveLength(2)
-      expect(rData[0].type).toBe('dividend')
-      expect(rData[0].status).toBe('paid')
-      expect(rData[0].amount).toBe(600)
-      expect(rData[0].orderId).toBe('order-1')
-      expect(rData[1].amount).toBe(400)
-      expect(rData[1].orderId).toBe('order-2')
-
-      // 验证 dividend.updateMany：循环外一次调用，标记为 settled
-      const dmCall = prisma.dividend.updateMany.mock.calls[0][0]
-      expect(dmCall.data.settled).toBe(true)
-      expect(dmCall.data.settleBatchId).toBeTruthy()
-      expect(dmCall.data.settleDate).toBeTruthy()
-      expect(dmCall.where.id.in).toEqual(['div-1', 'div-2'])
+      expect(result).toEqual({
+        paused: true,
+        batchId: null,
+        totalAmount: 0,
+        totalDividends: 0,
+        distributedUsers: 0,
+        details: [],
+        message: '分红结算维护中，当前未执行任何资金操作',
+      })
+      expect(prisma.$transaction).not.toHaveBeenCalled()
     })
 
-    it('should settle dividends for multiple users separately', async () => {
-      // 2 个用户，各 1 条未结算
-      prisma.dividend.findMany.mockResolvedValueOnce([
-        { id: 'div-1', userId: 'user-1', orderId: 'order-1', amount: 500 },
-        { id: 'div-2', userId: 'user-2', orderId: 'order-2', amount: 300 },
-      ])
+    it('performs no fund, ledger, reward, or settlement writes while paused', async () => {
+      await DividendService.settleWeeklyDividends()
 
-      // findMany 预取两个用户
-      prisma.user.findMany.mockResolvedValueOnce([
-        { id: 'user-1', balance: 1000, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
-        { id: 'user-2', balance: 2000, frozenBalance: 10, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
-      ])
-
-      prisma.user.update.mockResolvedValue({})
-      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 2 })
-      prisma.reward.createMany.mockResolvedValueOnce({ count: 2 })
-      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 2 })
-
-      const result = await DividendService.settleWeeklyDividends()
-
-      expect(result.totalAmount).toBe(800)
-      expect(result.distributedUsers).toBe(2)
-      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
-      expect(prisma.reward.createMany).toHaveBeenCalledTimes(1)
-      expect(prisma.dividend.updateMany).toHaveBeenCalledTimes(1)
-    })
-
-    it('should return early when no unsettled dividends (idempotent)', async () => {
-      prisma.dividend.findMany.mockResolvedValueOnce([])
-
-      const result = await DividendService.settleWeeklyDividends()
-
-      expect(result.batchId).toBeNull()
-      expect(result.totalAmount).toBe(0)
-      expect(result.totalDividends).toBe(0)
-      expect(result.distributedUsers).toBe(0)
-      expect(result.message).toBe('无待结算的分红明细')
       expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.user.updateMany).not.toHaveBeenCalled()
       expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
-      expect(prisma.reward.create).not.toHaveBeenCalled()
-    })
-
-    it('should skip user when not found', async () => {
-      prisma.dividend.findMany.mockResolvedValueOnce([
-        { id: 'div-1', userId: 'ghost-user', orderId: 'order-1', amount: 500 },
-      ])
-
-      // findMany 预取 → 空数组（用户不存在）
-      prisma.user.findMany.mockResolvedValueOnce([])
-
-      const result = await DividendService.settleWeeklyDividends()
-
-      expect(result.distributedUsers).toBe(0)
-      expect(result.totalAmount).toBe(0)
-      expect(prisma.user.update).not.toHaveBeenCalled()
       expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()
-    })
-
-    it('should skip dividends with total amount 0', async () => {
-      prisma.dividend.findMany.mockResolvedValueOnce([
-        { id: 'div-1', userId: 'user-1', orderId: 'order-1', amount: 0 },
-      ])
-      prisma.user.findMany.mockResolvedValueOnce([
-        { id: 'user-1', balance: 0, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
-      ])
-
-      const result = await DividendService.settleWeeklyDividends()
-
-      // userTotal=0, 跳过 continue
-      expect(result.distributedUsers).toBe(0)
-      expect(result.totalAmount).toBe(0)
-      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.reward.create).not.toHaveBeenCalled()
+      expect(prisma.reward.createMany).not.toHaveBeenCalled()
+      expect(prisma.dividend.update).not.toHaveBeenCalled()
+      expect(prisma.dividend.updateMany).not.toHaveBeenCalled()
     })
   })
 

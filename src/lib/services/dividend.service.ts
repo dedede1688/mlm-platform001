@@ -5,6 +5,18 @@ import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 import { logger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
+const DIVIDEND_SETTLEMENT_PAUSED = true
+
+export type DividendSettlementResult = {
+  paused?: boolean
+  batchId: string | null
+  totalAmount: number
+  totalDividends: number
+  distributedUsers: number
+  details: Array<{ userId: string; amount: number; dividendCount: number }>
+  message: string
+}
+
 
 export class DividendService {
   // 分红等级配置：从主任(3)到董事(7)
@@ -224,7 +236,21 @@ export class DividendService {
   // ========================================
   // 每周结算：把"未结算"明细统一入账 + 幂等标记
   // ========================================
-  static async settleWeeklyDividends() {
+  static async settleWeeklyDividends(): Promise<DividendSettlementResult> {
+    if (DIVIDEND_SETTLEMENT_PAUSED) {
+      const result: DividendSettlementResult = {
+        paused: true,
+        batchId: null,
+        totalAmount: 0,
+        totalDividends: 0,
+        distributedUsers: 0,
+        details: [],
+        message: '分红结算维护中，当前未执行任何资金操作',
+      }
+      logger.warn('[Batch 3A-1] 分红周结已暂停，未执行任何资金操作')
+      return result
+    }
+
     return await prisma.$transaction(async (tx) => {
       // 1. 获取所有未结算的分红明细
       const unsettledDividends = await tx.dividend.findMany({
@@ -234,6 +260,7 @@ export class DividendService {
 
       if (unsettledDividends.length === 0) {
         return {
+          paused: false,
           batchId: null,
           totalAmount: 0,
           totalDividends: 0,
@@ -360,6 +387,7 @@ export class DividendService {
       logger.info(`[周结 v3] 批次 ${batchId} 结算完成，总金额 ¥${totalAmount}，用户 ${details.length} 人`)
 
       return {
+        paused: false,
         batchId,
         totalAmount,
         totalDividends: unsettledDividends.length,
