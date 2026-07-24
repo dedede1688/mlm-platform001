@@ -50,6 +50,9 @@ const pathRoleMap: Record<string, string[]> = {
   '/api/admin/reports': ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'],
   '/api/admin/system-config': ['super_admin'],
   '/api/admin/withdrawal-templates': ['super_admin', 'finance_admin'],
+  '/api/admin/dashboard': ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'],
+  '/api/admin/roles': ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'],
+  '/api/admin/role-permissions': ['super_admin', 'finance_admin', 'goods_admin', 'support_admin', 'auditor'],
 }
 
 // ---- 辅助函数 ----

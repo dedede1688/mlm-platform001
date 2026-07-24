@@ -51,6 +51,40 @@ describe('v55.2: middleware JWT 签名验证', () => {
     vi.clearAllMocks()
   })
 
+  const adminRoles = [
+    'super_admin',
+    'goods_admin',
+    'finance_admin',
+    'support_admin',
+    'auditor',
+  ] as const
+
+  it.each([
+    '/api/admin/dashboard/summary',
+    '/api/admin/roles',
+    '/api/admin/role-permissions',
+  ])('普通用户访问新增映射 %s 返回 403', (pathname) => {
+    const token = createToken({ userId: 'u-user', phone: '138', role: 'user' })
+    const req = createMockRequest(pathname, `Bearer ${token}`)
+    const res = middleware(req) as { status: number }
+
+    expect(res.status).toBe(403)
+  })
+
+  it.each(
+    adminRoles.flatMap(role => [
+      [role, '/api/admin/dashboard/summary'],
+      [role, '/api/admin/roles'],
+      [role, '/api/admin/role-permissions'],
+    ] as const)
+  )('%s 通过新增映射访问 %s', (role, pathname) => {
+    const token = createToken({ userId: `u-${role}`, phone: '138', role })
+    const req = createMockRequest(pathname, `Bearer ${token}`)
+    const res = middleware(req) as { status: number }
+
+    expect(res.status).toBe(200)
+  })
+
   it('非 admin 路径直接放行（不检查 token）', () => {
     const req = createMockRequest('/api/products')
     const res = middleware(req)
@@ -110,14 +144,6 @@ describe('v55.2: middleware JWT 签名验证', () => {
     const res = middleware(req) as { status: number; body: { success: boolean; error: string } }
     expect(res.status).toBe(403)
     expect(res.body.error).toBe('无权访问该接口')
-  })
-
-  it('有效 token + 路径不在 pathRoleMap 中仍放行（路由内自行鉴权）', () => {
-    // /api/admin/config 不在 pathRoleMap 中
-    const token = createToken({ userId: 'u1', phone: '138', role: 'super_admin' })
-    const req = createMockRequest('/api/admin/config', `Bearer ${token}`)
-    const res = middleware(req) as { status: number }
-    expect(res.status).toBe(200)
   })
 
   it('子路径正确匹配父级 pathRoleMap（如 /api/admin/users/123 → /api/admin/users）', () => {
