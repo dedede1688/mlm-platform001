@@ -25,9 +25,9 @@ export default function AdminDividendsPage() {
   const [settleLoading, setSettleLoading] = useState(false)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('adminToken')
+    const storedToken = localStorage.getItem('token')
     if (!storedToken) {
-      router.push('/admin/login')
+      router.push(`/login?redirect=${encodeURIComponent('/admin/dividends')}`)
       return
     }
     setToken(storedToken)
