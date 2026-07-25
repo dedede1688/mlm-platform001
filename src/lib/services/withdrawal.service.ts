@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
 import { WithdrawalAuditLogService } from './withdrawal-audit-log.service'
@@ -241,9 +242,7 @@ export class WithdrawalService {
   static async completeWithdrawal(withdrawalId: string, params: CompleteWithdrawalParams) {
     const { completedBy, paymentProofUrl, remark } = params
 
-    if (!paymentProofUrl || !paymentProofUrl.trim()) {
-      throw new Error('打款凭证不能为空')
-    }
+    const safePaymentProofUrl = validatePaymentProofUrl(paymentProofUrl)
 
     const withdrawal = await prisma.withdrawal.findUnique({
       where: { id: withdrawalId },
@@ -272,7 +271,7 @@ export class WithdrawalService {
           paidAt: now,
           completedAt: now,
           completedBy,
-          paymentProofUrl: paymentProofUrl.trim(),
+          paymentProofUrl: safePaymentProofUrl,
           remark: remark || null,
         },
       })
@@ -292,7 +291,7 @@ export class WithdrawalService {
           frozenBalance: user?.frozenBalance ?? 0,
           sourceType: 'withdrawal',
           sourceId: withdrawalId,
-          description: `提现打款完成，冻结收益扣除 ¥${withdrawal.amount}，提现 ID：${withdrawalId}，凭证：${paymentProofUrl.trim()}`,
+          description: `提现打款完成，冻结收益扣除 ¥${withdrawal.amount}，提现 ID：${withdrawalId}，凭证：${safePaymentProofUrl}`,
         },
       })
 
@@ -310,7 +309,7 @@ export class WithdrawalService {
         type: 'withdrawal_completed',
         withdrawalId,
         amount: withdrawal.amount,
-        paymentProofUrl: paymentProofUrl.trim(),
+        paymentProofUrl: safePaymentProofUrl,
       })
 
       return updatedWithdrawal

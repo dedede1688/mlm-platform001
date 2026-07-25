@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logOperation } from '@/lib/utils/operation-log'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
+import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 
 // PATCH /api/admin/withdrawals/[id]/complete — 完成提现打款
@@ -18,16 +19,20 @@ export async function PATCH(
     const { id } = await params
     const { paymentProofUrl, remark } = await request.json()
 
-    if (!paymentProofUrl || !paymentProofUrl.trim()) {
+    // HV-5：校验打款凭证（域名 + 格式安全校验）
+    let safePaymentProofUrl: string
+    try {
+      safePaymentProofUrl = validatePaymentProofUrl(paymentProofUrl)
+    } catch (e: any) {
       return NextResponse.json(
-        { success: false, message: '打款凭证不能为空，请上传打款凭证' },
+        { success: false, message: e?.message || '打款凭证无效' },
         { status: 400 }
       )
     }
 
     const updated = await WithdrawalService.completeWithdrawal(id, {
       completedBy: admin.id,
-      paymentProofUrl: paymentProofUrl.trim(),
+      paymentProofUrl: safePaymentProofUrl,
       remark: remark?.trim() || undefined,
     })
 
@@ -39,7 +44,7 @@ export async function PATCH(
       oldValue: { status: WITHDRAWAL_STATUS.APPROVED },
       newValue: {
         status: WITHDRAWAL_STATUS.COMPLETED,
-        paymentProofUrl: paymentProofUrl.trim(),
+        paymentProofUrl: safePaymentProofUrl,
       },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,

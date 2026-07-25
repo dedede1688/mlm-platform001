@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { RECHARGE_STATUS, RECHARGE_PAYMENT_METHOD, RECHARGE_AUDIT_ACTION } from '@/lib/constants'
 import { RechargeSettingsService, RechargeSettings } from '@/lib/services/recharge-settings.service'
+import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 
 export interface CreateRechargeParams {
   amount: number
@@ -34,13 +35,8 @@ export class RechargeService {
       throw new Error('充值二维码尚未配置，请联系客服')
     }
 
-    // 校验付款凭证
-    if (!paymentProofUrl || !paymentProofUrl.trim()) {
-      throw new Error('请上传付款凭证')
-    }
-    if (!/^https:\/\//i.test(paymentProofUrl.trim())) {
-      throw new Error('付款凭证链接必须为 https:// 开头')
-    }
+    // HV-5：校验付款凭证（域名 + 格式安全校验）
+    const safePaymentProofUrl = validatePaymentProofUrl(paymentProofUrl)
 
     // 金额范围（来自服务端设置）
     if (amount < settings.minAmount) {
@@ -64,7 +60,7 @@ export class RechargeService {
           userId,
           amount,
           paymentMethod: RECHARGE_PAYMENT_METHOD.QR_CODE,
-          paymentProofUrl: paymentProofUrl.trim(),
+          paymentProofUrl: safePaymentProofUrl,
           status: RECHARGE_STATUS.PENDING,
           remark: remark || null,
         },
