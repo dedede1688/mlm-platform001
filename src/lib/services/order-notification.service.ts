@@ -256,6 +256,41 @@ export class OrderNotificationService {
     }
   }
 
+  static async notifyPasswordResetByAdmin(params: { userId: string; operatorId: string; reason: string }): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: params.userId }, select: { nickname: true, phone: true } })
+      if (!user) return
+      const userName = user.nickname || user.phone || '??'
+      await this.sendTemplate({
+        userId: params.userId, templateType: 'password_reset', title: '??????',
+        content: `${userName} ???????????????????${params.reason}`,
+        variables: { userName, reason: params.reason },
+        notifyName: 'notifyPasswordResetByAdmin', errorLabel: '????????', senderId: params.operatorId, sourceType: 'password_reset', sourceId: params.userId,
+      })
+    } catch (err) {
+      console.error('[notifyPasswordResetByAdmin]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('????????', { error: String(err) })
+    }
+  }
+
+  static async notifyProfileChange(params: { userId: string; operatorId: string; changes: string[] }): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: params.userId }, select: { nickname: true, phone: true } })
+      if (!user) return
+      const userName = user.nickname || user.phone || '??'
+      const changesText = params.changes.join('?')
+      await this.sendTemplate({
+        userId: params.userId, templateType: 'profile_change', title: '????????',
+        content: `${userName} ????????????????${changesText}????????????`,
+        variables: { userName, changes: changesText },
+        notifyName: 'notifyProfileChange', errorLabel: '??????????', senderId: params.operatorId, sourceType: 'profile_change', sourceId: params.userId,
+      })
+    } catch (err) {
+      console.error('[notifyProfileChange]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('??????????', { error: String(err) })
+    }
+  }
+
   static async notifyEarningsTransferred(params: {
     userId: string; amount: number; balance: number; earningsAvailable: number
   }) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // 角色等级（用于判断升降级）
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -22,7 +23,7 @@ export async function PUT(
 ) {
   try {
     const { user: admin, error: authError } = await verifyPermission(
-      request, ['support_admin', 'super_admin']
+      request, ['super_admin']
     )
     if (authError || !admin) return authError!
 

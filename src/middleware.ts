@@ -31,7 +31,7 @@ const pathRoleMap: Record<string, string[]> = {
   '/api/admin/products': ['super_admin', 'goods_admin'],
   '/api/admin/categories': ['super_admin', 'goods_admin'],
   '/api/admin/banners': ['super_admin', 'goods_admin'],
-  '/api/admin/users': ['super_admin', 'support_admin'],
+  '/api/admin/users': ['super_admin', 'support_admin', 'finance_admin'],
   '/api/admin/finance': ['super_admin', 'finance_admin', 'auditor'],
   '/api/admin/settings': ['super_admin'],
   '/api/admin/refunds': ['super_admin', 'finance_admin'],
@@ -154,6 +154,13 @@ function adminAuth(request: NextRequest, traceId: string) {
   }
 
   const matchedPath = matchPath(pathname)
+  // Batch 5A-3: 未匹配的 /api/admin/* 路径默认拒绝，防新增路由漏映射
+  if (!matchedPath) {
+    return NextResponse.json(
+      { success: false, error: '未授权的管理路径' },
+      { status: 403, headers: { 'x-trace-id': traceId } }
+    )
+  }
   if (matchedPath && userRole) {
     const requiredRoles = pathRoleMap[matchedPath]
     if (!requiredRoles.includes(userRole)) {

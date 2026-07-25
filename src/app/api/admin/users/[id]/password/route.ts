@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import bcrypt from 'bcryptjs'
 import { logger } from '@/lib/logger'
+import { OrderNotificationService } from '@/lib/services/order-notification.service'
 
 // PUT /api/admin/users/[id]/password — 管理员重置会员密码
 export async function PUT(
@@ -12,7 +13,7 @@ export async function PUT(
 ) {
   try {
     const { user: admin, error: authError } = await verifyPermission(
-      request, ['support_admin', 'super_admin']
+      request, ['super_admin']
     )
     if (authError || !admin) return authError!
 
@@ -84,6 +85,13 @@ export async function PUT(
       newValue: { action: 'password_reset_by_admin', adminPhone: admin.phone },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
+    })
+
+        // ??????????
+    await OrderNotificationService.notifyPasswordResetByAdmin({
+      userId: id,
+      operatorId: admin.id,
+      reason: reason.trim(),
     })
 
     logger.info(`[PasswordReset] 管理员 ${admin.phone} 重置了用户 ${existing.phone} 的密码，原因：${reason}`)

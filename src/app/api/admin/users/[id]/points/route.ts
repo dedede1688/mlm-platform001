@@ -12,7 +12,7 @@ export async function POST(
 ) {
   try {
     const { user: admin, error: authError } = await verifyPermission(
-      request, ['support_admin', 'super_admin']
+      request, ['finance_admin', 'super_admin']
     )
     if (authError || !admin) return authError!
 

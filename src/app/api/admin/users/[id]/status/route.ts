@@ -11,7 +11,7 @@ export async function PUT(
 ) {
   try {
     const { user: admin, error: authError } = await verifyPermission(
-      request, ['support_admin', 'super_admin']
+      request, ['super_admin']
     )
     if (authError || !admin) return authError!
 
