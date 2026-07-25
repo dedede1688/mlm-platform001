@@ -44,6 +44,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/typography": "^0.5.19",
     "@types/bcryptjs": "^2.4.6",
     "@types/dagre": "^0.7.54",
