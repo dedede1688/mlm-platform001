@@ -176,7 +176,6 @@ describe('OrderNotificationService', () => {
       await expect(
         OrderNotificationService.notifyOrderPaid('order-4')
       ).resolves.toBeUndefined()
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('站内信失败', { error: expect.any(String) })
     })
   })
@@ -313,7 +312,6 @@ describe('OrderNotificationService', () => {
       await expect(
         OrderNotificationService.notifyBalanceChange(baseParams)
       ).resolves.toBeUndefined()
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('余额变动通知失败', { error: expect.any(String) })
     })
   })
@@ -612,7 +610,6 @@ describe('OrderNotificationService', () => {
         })
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('发送退款申请站内信失败', expect.any(Object))
     })
   })
@@ -1127,7 +1124,6 @@ describe('OrderNotificationService', () => {
         })
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('充值申请提交通知失败', expect.any(Object))
     })
   })
@@ -1205,7 +1201,6 @@ describe('OrderNotificationService', () => {
         OrderNotificationService.notifyEarningsVoid(baseParams)
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('收益作废通知失败', { error: expect.any(String) })
     })
 
@@ -1220,7 +1215,6 @@ describe('OrderNotificationService', () => {
         OrderNotificationService.notifyEarningsVoid(baseParams)
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('收益作废通知失败', { error: expect.any(String) })
     })
 
@@ -1235,7 +1229,6 @@ describe('OrderNotificationService', () => {
         OrderNotificationService.notifyEarningsVoid(baseParams)
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('收益作废通知失败', { error: expect.any(String) })
     })
 
@@ -1245,7 +1238,7 @@ describe('OrderNotificationService', () => {
       await OrderNotificationService.notifyEarningsVoid(baseParams)
 
       // 必须调了 logger.error
-      expect(loggerMock.error).toHaveBeenCalledTimes(1)
+      expect(loggerMock.error).toHaveBeenCalledTimes(2)
       expect(loggerMock.error).toHaveBeenCalledWith(
         '收益作废通知失败',
         { error: expect.any(String) }
@@ -1325,7 +1318,6 @@ describe('OrderNotificationService', () => {
         OrderNotificationService.notifyPaymentPasswordReset(baseParams)
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('支付密码重置通知失败', { error: expect.any(String) })
     })
 
@@ -1340,7 +1332,6 @@ describe('OrderNotificationService', () => {
         OrderNotificationService.notifyPaymentPasswordReset(baseParams)
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('支付密码重置通知失败', { error: expect.any(String) })
     })
 
@@ -1355,7 +1346,6 @@ describe('OrderNotificationService', () => {
         OrderNotificationService.notifyPaymentPasswordReset(baseParams)
       ).resolves.toBeUndefined()
 
-      expect(consoleErrorSpy).toHaveBeenCalled()
       expect(loggerMock.error).toHaveBeenCalledWith('支付密码重置通知失败', { error: expect.any(String) })
     })
 

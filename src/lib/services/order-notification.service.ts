@@ -108,7 +108,7 @@ export class OrderNotificationService {
         notifyName: 'notifyRefundSubmitted', errorLabel: '发送退款申请站内信失败',
       })
     } catch (err) {
-      console.error('[notifyRefundSubmitted]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyRefundSubmitted]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error('发送退款申请站内信失败', { error: String(err) })
     }
   }
@@ -215,7 +215,7 @@ export class OrderNotificationService {
         notifyName: 'notifyRechargeSubmitted', errorLabel: '充值申请提交通知失败', senderId: params.operatorId, sourceType: 'recharge_request', sourceId: params.rechargeId,
       })
     } catch (err) {
-      console.error('[notifyRechargeSubmitted]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyRechargeSubmitted]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error('充值申请提交通知失败', { error: String(err) })
     }
   }
@@ -234,7 +234,7 @@ export class OrderNotificationService {
         notifyName: 'notifyEarningsVoid', errorLabel: '收益作废通知失败', senderId: params.operatorId, sourceType: 'balance_record', sourceId: params.balanceRecordId,
       })
     } catch (err) {
-      console.error('[notifyEarningsVoid]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyEarningsVoid]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error('收益作废通知失败', { error: String(err) })
     }
   }
@@ -251,7 +251,7 @@ export class OrderNotificationService {
         notifyName: 'notifyPaymentPasswordReset', errorLabel: '支付密码重置通知失败', senderId: params.operatorId, sourceType: 'payment_password', sourceId: params.userId,
       })
     } catch (err) {
-      console.error('[notifyPaymentPasswordReset]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyPaymentPasswordReset]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error('支付密码重置通知失败', { error: String(err) })
     }
   }
@@ -268,7 +268,7 @@ export class OrderNotificationService {
         notifyName: 'notifyPasswordResetByAdmin', errorLabel: '????????', senderId: params.operatorId, sourceType: 'password_reset', sourceId: params.userId,
       })
     } catch (err) {
-      console.error('[notifyPasswordResetByAdmin]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyPasswordResetByAdmin]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error('????????', { error: String(err) })
     }
   }
@@ -286,7 +286,7 @@ export class OrderNotificationService {
         notifyName: 'notifyProfileChange', errorLabel: '??????????', senderId: params.operatorId, sourceType: 'profile_change', sourceId: params.userId,
       })
     } catch (err) {
-      console.error('[notifyProfileChange]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyProfileChange]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error('??????????', { error: String(err) })
     }
   }
@@ -323,7 +323,7 @@ export class OrderNotificationService {
         batchId: batch.id, senderId: params.senderId, sourceType: params.sourceType, sourceId: params.sourceId,
       })
     } catch (err) {
-      console.error(`[${params.notifyName}]`, { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error(`[${params.notifyName}]`, { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error(params.errorLabel, { error: String(err) })
     }
   }
@@ -343,7 +343,7 @@ export class OrderNotificationService {
         },
       })
     } catch (err) {
-      console.error(`[${params.notifyName}]`, { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error(`[${params.notifyName}]`, { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
       logger.error(params.errorLabel, { error: String(err) })
     }
   }
