@@ -191,9 +191,10 @@ describe('UserService', () => {
       })
       prisma.user.update.mockResolvedValueOnce({})
       vi.mocked(PointsService.createPointsRecord).mockResolvedValueOnce({} as any)
+      vi.mocked(PointsService.createPointsUnlockSchedule).mockResolvedValueOnce({ id: 'sched-u1' })
       prisma.user.update.mockResolvedValueOnce({})
 
-      await UserService.checkAndUpgradeLevel('u1')
+      await UserService.checkAndUpgradeLevel('u1', 'order-u1')
 
       expect(prisma.user.update).toHaveBeenCalled()
     })
@@ -230,6 +231,27 @@ describe('UserService', () => {
   })
 
   describe('v54 D: 升级为经销商创建积分释放计划', () => {
+    it('升级为经销商且缺失 sourceOrderId 时抛错，不创建积分记录和释放计划', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u-d-no-src', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: 'ref-d-no-src',
+      })
+
+      const { getBusinessConfig } = await import('@/lib/config/business')
+      vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+        if (key === 'upgrade.points_per_box') return 500
+        if (key === 'upgrade.daily_unlock_rate') return 0.01
+        if (key === 'upgrade.distributor.box_count') return 10
+        if (key.startsWith('upgrade.') && key.endsWith('.sales_amount')) return 999999
+        return defaultValue
+      })
+
+      await expect(UserService.checkAndUpgradeLevel('u-d-no-src')).rejects.toThrow('升级积分发放必须绑定真实订单ID')
+
+      expect(PointsService.createPointsRecord).not.toHaveBeenCalled()
+      expect(PointsService.createPointsUnlockSchedule).not.toHaveBeenCalled()
+      expect(prisma.user.update).not.toHaveBeenCalled()
+    })
+
     it('升级为经销商后创建 PointsUnlockSchedule (rate=0.01, totalDays=100)', async () => {
       prisma.user.findUnique.mockResolvedValueOnce({
         id: 'u-d1', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: 'ref-d1',
@@ -247,7 +269,7 @@ describe('UserService', () => {
         return defaultValue
       })
 
-      await UserService.checkAndUpgradeLevel('u-d1')
+      await UserService.checkAndUpgradeLevel('u-d1', 'order-u-d1')
 
       expect(PointsService.createPointsRecord).toHaveBeenCalledTimes(1)
       expect(PointsService.createPointsUnlockSchedule).toHaveBeenCalledTimes(1)
@@ -255,7 +277,7 @@ describe('UserService', () => {
       expect(call.totalPoints).toBe(5000)
       expect(call.dailyUnlockRate).toBe(0.01)
       expect(call.totalDays).toBe(100)
-      expect(call.orderId).toBe('')
+      expect(call.orderId).toBe('order-u-d1')
     })
 
     it('传入 sourceOrderId 时 createPointsRecord sourceId 和 schedule orderId 绑定真实订单', async () => {
@@ -301,7 +323,7 @@ describe('UserService', () => {
         return defaultValue
       })
 
-      await UserService.checkAndUpgradeLevel('u-d2')
+      await UserService.checkAndUpgradeLevel('u-d2', 'order-u-d2')
 
       const call = vi.mocked(PointsService.createPointsUnlockSchedule).mock.calls[0][0]
       expect(call.dailyUnlockRate).toBe(0.02)
@@ -325,9 +347,7 @@ describe('UserService', () => {
         return defaultValue
       })
 
-      // v55.1: schedule 失败 → 整个事务回滚 → checkAndUpgradeLevel 抛错
-      await expect(UserService.checkAndUpgradeLevel('u-d3')).rejects.toThrow('DB error')
-      // 确认 createPointsRecord 被调用过（但事务回滚后 DB 不会有残留）
+      await expect(UserService.checkAndUpgradeLevel('u-d3', 'order-u-d3')).rejects.toThrow('DB error')
       expect(PointsService.createPointsRecord).toHaveBeenCalledTimes(1)
       expect(PointsService.createPointsUnlockSchedule).toHaveBeenCalledTimes(1)
     })
@@ -351,7 +371,7 @@ describe('UserService', () => {
         return defaultValue
       })
 
-      const result = await UserService.checkAndUpgradeLevel('u-tx1')
+      const result = await UserService.checkAndUpgradeLevel('u-tx1', 'order-u-tx1')
 
       // 升级成功
       expect(result).toBe(2) // DISTRIBUTOR
@@ -387,7 +407,7 @@ describe('UserService', () => {
 
       // v55.1: schedule 失败 → 事务回滚 → checkAndUpgradeLevel 抛错
       // 旧行为是升级仍成功（积分凭空多出），新行为是整体回滚
-      await expect(UserService.checkAndUpgradeLevel('u-tx2')).rejects.toThrow('Schedule DB error')
+      await expect(UserService.checkAndUpgradeLevel('u-tx2', 'order-u-tx2')).rejects.toThrow('Schedule DB error')
 
       // 确认事务被调用
       expect(prisma.$transaction).toHaveBeenCalledTimes(1)
