@@ -1011,6 +1011,28 @@ describe('RewardService', () => {
       expect(prisma.order.count).toHaveBeenCalledTimes(1)
     })
 
+    it('maxLayers=4（经销商 1 直推）时品牌管理奖会检查安置链', async () => {
+      const orderId = 'order-max4'
+      const referrerId = 'ref-max4'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId, status: 'paid', payAmount: 1000,
+        user: { id: 'buyer-max4', referrerId, id: 'buyer-max4' },
+        items: [],
+      } as any)
+      prisma.user.findUnique.mockResolvedValueOnce({ upgradeProductCount: 5 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-max4-ref', userId: referrerId })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 1 })
+      prisma.order.count.mockResolvedValueOnce(1)
+      prisma.user.findUnique.mockResolvedValue({ parentId: null })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-max4', referrerId: null, level: 1 })
+
+      await RewardService.processPaidOrderRewards(orderId)
+
+      expect(prisma.order.count).toHaveBeenCalledTimes(1)
+    })
+
     it('分红池：有 eligible users 时生成 dividend + balanceRecord', async () => {
       const orderId = 'order-div-main'
       const directorId = 'dir-main'
