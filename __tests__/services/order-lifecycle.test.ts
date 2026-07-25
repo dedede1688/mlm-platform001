@@ -48,6 +48,13 @@ vi.mock('@/lib/services/reward.service', () => ({
   },
 }))
 
+// 2b. PointsService - 静态方法
+vi.mock('@/lib/services/points.service', () => ({
+  PointsService: {
+    voidUpgradePointsForRefund: vi.fn(),
+  },
+}))
+
 // 3. OrderNotificationService - 4 个通知方法
 vi.mock('@/lib/services/order-notification.service', () => ({
   OrderNotificationService: {
@@ -91,6 +98,7 @@ vi.mock('@/lib/logger', () => ({
 // 现在可以导入被测代码
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { RewardService } from '@/lib/services/reward.service'
+import { PointsService } from '@/lib/services/points.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { getSystemParameter } from '@/lib/config/system-parameters'
@@ -493,6 +501,59 @@ describe('OrderLifecycleService', () => {
 
       await expect(OrderLifecycleService.requestRefund('order-1'))
         .rejects.toThrow('消费余额不足')
+    })
+
+    it('调用 PointsService.voidUpgradePointsForRefund 冲销升级积分', async () => {
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-void',
+        status: 'paid',
+        userId: 'user-void',
+        orderNo: 'ORD_VOID',
+        payAmount: 500,
+        pointsUsed: 0,
+        items: [],
+      } as any)
+      mocks.user.findUnique.mockResolvedValue({
+        balance: 1000, consumeBalance: 500, earningsAvailable: 0,
+        earningsPending: 0, earningsVoided: 0, frozenBalance: 0,
+        totalPoints: 1000, unlockedPoints: 500, lockedPoints: 0,
+      } as any)
+      mocks.user.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      mocks.balanceRecord.create.mockResolvedValueOnce({} as any)
+      vi.mocked(PointsService.voidUpgradePointsForRefund).mockResolvedValueOnce(undefined)
+      vi.mocked(RewardService.processRefund).mockResolvedValueOnce({} as any)
+      mocks.order.update.mockResolvedValueOnce({} as any)
+      mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-void', status: 'refunded' } as any)
+
+      await OrderLifecycleService.requestRefund('order-void')
+
+      expect(PointsService.voidUpgradePointsForRefund).toHaveBeenCalledWith('user-void', 'order-void', expect.anything())
+    })
+
+    it('voidUpgradePointsForRefund 抛错时退款不完成、订单不改 refunded', async () => {
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-void-fail',
+        status: 'paid',
+        userId: 'user-vf',
+        orderNo: 'ORD_VF',
+        payAmount: 500,
+        pointsUsed: 0,
+        items: [],
+      } as any)
+      mocks.user.findUnique.mockResolvedValue({
+        balance: 1000, consumeBalance: 500, earningsAvailable: 0,
+        earningsPending: 0, earningsVoided: 0, frozenBalance: 0,
+        totalPoints: 1000, unlockedPoints: 500, lockedPoints: 0,
+      } as any)
+      mocks.user.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      mocks.balanceRecord.create.mockResolvedValueOnce({} as any)
+      vi.mocked(PointsService.voidUpgradePointsForRefund).mockRejectedValueOnce(new Error('升级积分已被使用，不能自动完成退款，请先人工处理积分'))
+
+      await expect(OrderLifecycleService.requestRefund('order-void-fail'))
+        .rejects.toThrow('升级积分已被使用，不能自动完成退款，请先人工处理积分')
+
+      expect(RewardService.processRefund).not.toHaveBeenCalled()
+      expect(mocks.order.update).not.toHaveBeenCalled()
     })
   })
 

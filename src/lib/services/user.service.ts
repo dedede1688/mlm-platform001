@@ -113,7 +113,7 @@ export class UserService {
     return chain
   }
 
-  static async checkAndUpgradeLevel(userId: string) {
+  static async checkAndUpgradeLevel(userId: string, sourceOrderId?: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
     })
@@ -172,12 +172,13 @@ export class UserService {
               userId,
               type: 'reward',
               amount: pointsAmount,
+              sourceId: sourceOrderId,
               description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × ${pointsPerBox}）`,
             }, tx)
 
             await PointsService.createPointsUnlockSchedule({
               userId,
-              orderId: '',
+              orderId: sourceOrderId ?? '',
               totalPoints: pointsAmount,
               dailyUnlockRate,
               totalDays,

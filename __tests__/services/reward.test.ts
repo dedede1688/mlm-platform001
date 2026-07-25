@@ -621,6 +621,7 @@ describe('RewardService', () => {
     it('升级品订单 → 买家 directSalesAmount += payAmount', async () => {
       const userId = 'buyer-h1'
       const order = {
+        id: 'order-h1',
         items: [
           { product: { isUpgradeProduct: true }, quantity: 10 },
         ],
@@ -631,18 +632,17 @@ describe('RewardService', () => {
 
       await RewardService.checkUpgradeFromOrder(userId, order)
 
-      // v54 H: buyer's own directSalesAmount should be incremented
       expect(UserService.addDirectSales).toHaveBeenCalledWith(userId, 5000)
-      // referrer's directSalesAmount should also be incremented
       expect(UserService.addDirectSales).toHaveBeenCalledWith('referrer-h1', 5000)
       expect(UserService.addUpgradeProductCount).toHaveBeenCalledWith(userId, 10)
-      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith(userId)
-      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith('referrer-h1')
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith(userId, 'order-h1')
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith('referrer-h1', 'order-h1')
     })
 
     it('普通订单 → 买家 directSalesAmount += payAmount', async () => {
       const userId = 'buyer-h2'
       const order = {
+        id: 'order-h2',
         items: [
           { product: { isUpgradeProduct: false }, quantity: 1 },
         ],
@@ -653,11 +653,27 @@ describe('RewardService', () => {
 
       await RewardService.checkUpgradeFromOrder(userId, order)
 
-      // v54 H: buyer's own directSalesAmount should be incremented
       expect(UserService.addDirectSales).toHaveBeenCalledWith(userId, 500)
-      // referrer's directSalesAmount should also be incremented
       expect(UserService.addDirectSales).toHaveBeenCalledWith('referrer-h2', 500)
-      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith('referrer-h2')
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith('referrer-h2', 'order-h2')
+    })
+
+    it('升级品订单调用 checkAndUpgradeLevel 时传入 order.id', async () => {
+      const userId = 'buyer-oid'
+      const order = {
+        id: 'order-456',
+        items: [
+          { product: { isUpgradeProduct: true }, quantity: 5 },
+        ],
+        payAmount: 2500,
+      }
+
+      prisma.user.findUnique.mockResolvedValueOnce({ referrerId: 'referrer-oid' })
+
+      await RewardService.checkUpgradeFromOrder(userId, order)
+
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith(userId, 'order-456')
+      expect(UserService.checkAndUpgradeLevel).toHaveBeenCalledWith('referrer-oid', 'order-456')
     })
   })
 

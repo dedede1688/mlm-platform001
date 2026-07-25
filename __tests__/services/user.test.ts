@@ -256,6 +256,32 @@ describe('UserService', () => {
       expect(call.orderId).toBe('')
     })
 
+    it('传入 sourceOrderId 时 createPointsRecord sourceId 和 schedule orderId 绑定真实订单', async () => {
+      prisma.user.findUnique.mockResolvedValueOnce({
+        id: 'u-d-src', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: 'ref-d-src',
+      })
+      prisma.user.update.mockResolvedValue({})
+      vi.mocked(PointsService.createPointsRecord).mockResolvedValue({} as any)
+      vi.mocked(PointsService.createPointsUnlockSchedule).mockResolvedValue({ id: 'sched-d-src' })
+
+      const { getBusinessConfig } = await import('@/lib/config/business')
+      vi.mocked(getBusinessConfig).mockImplementation(async (key: string, defaultValue: any) => {
+        if (key === 'upgrade.points_per_box') return 500
+        if (key === 'upgrade.daily_unlock_rate') return 0.01
+        if (key === 'upgrade.distributor.box_count') return 10
+        if (key.startsWith('upgrade.') && key.endsWith('.sales_amount')) return 999999
+        return defaultValue
+      })
+
+      await UserService.checkAndUpgradeLevel('u-d-src', 'order-123')
+
+      const recordCall = vi.mocked(PointsService.createPointsRecord).mock.calls[0]
+      expect(recordCall[0].sourceId).toBe('order-123')
+
+      const scheduleCall = vi.mocked(PointsService.createPointsUnlockSchedule).mock.calls[0]
+      expect(scheduleCall[0].orderId).toBe('order-123')
+    })
+
     it('rate=0.02 时 totalDays=50', async () => {
       prisma.user.findUnique.mockResolvedValueOnce({
         id: 'u-d2', level: 1, upgradeProductCount: 10, directSalesAmount: 0, referrerId: null,

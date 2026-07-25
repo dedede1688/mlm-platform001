@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
+import { PointsService } from './points.service'
 import { OrderNotificationService } from './order-notification.service'
 import { ORDER_STATUS, BALANCE_SELECT } from '@/lib/constants'
 import { sendEmail } from '@/lib/notification/sendEmail'
@@ -288,6 +289,9 @@ export class OrderLifecycleService {
           })
         }
       }
+
+      // 冲销升级积分和解锁计划
+      await PointsService.voidUpgradePointsForRefund(order.userId, orderId, tx)
 
       // 扣除已发放的奖励
       await RewardService.processRefund(orderId)

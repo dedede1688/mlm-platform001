@@ -354,4 +354,69 @@ export class PointsService {
 
     return { userId, amount, reason, ...result.newValue }
   }
+
+  static async voidUpgradePointsForRefund(userId: string, orderId: string, tx: Prisma.TransactionClient) {
+    const schedules = await tx.pointsUnlockSchedule.findMany({
+      where: {
+        orderId,
+        userId,
+        status: { not: 'voided' },
+      },
+    })
+
+    if (schedules.length === 0) return
+
+    let totalVoid = 0
+    let totalUnlocked = 0
+    let totalLocked = 0
+
+    for (const schedule of schedules) {
+      totalVoid += schedule.totalPoints
+      totalUnlocked += schedule.unlockedPoints
+      totalLocked += schedule.remainingPoints
+    }
+
+    const updateResult = await tx.user.updateMany({
+      where: {
+        id: userId,
+        unlockedPoints: { gte: totalUnlocked },
+        lockedPoints: { gte: totalLocked },
+        totalPoints: { gte: totalVoid },
+      },
+      data: {
+        totalPoints: { decrement: totalVoid },
+        unlockedPoints: { decrement: totalUnlocked },
+        lockedPoints: { decrement: totalLocked },
+      },
+    })
+
+    if (updateResult.count === 0) {
+      throw new Error('升级积分已被使用，不能自动完成退款，请先人工处理积分')
+    }
+
+    await tx.pointsUnlockSchedule.updateMany({
+      where: {
+        id: { in: schedules.map(s => s.id) },
+        status: { not: 'voided' },
+      },
+      data: {
+        status: 'voided',
+        remainingPoints: 0,
+        nextUnlockDate: null,
+      },
+    })
+
+    await tx.pointsRecord.create({
+      data: {
+        userId,
+        type: 'void',
+        amount: -totalVoid,
+        sourceId: orderId,
+        description: `退款冲销升级积分（${schedules.length}个解锁计划，总积分${totalVoid}）`,
+        totalPoints: 0,
+        unlockedPoints: 0,
+        lockedPoints: 0,
+      },
+    })
+  }
 }

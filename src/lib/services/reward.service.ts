@@ -419,7 +419,7 @@ export class RewardService {
     return {}
   }
 
-  static async checkUpgradeFromOrder(userId: string, order: { items: Array<{ product: { isUpgradeProduct: boolean }; quantity: number }>; payAmount: number }) {
+  static async checkUpgradeFromOrder(userId: string, order: { id: string; items: Array<{ product: { isUpgradeProduct: boolean }; quantity: number }>; payAmount: number }) {
     const hasUpgradeProduct = order.items.some(
       (item) => item.product.isUpgradeProduct
     )
@@ -442,10 +442,10 @@ export class RewardService {
         await UserService.addDirectSales(user.referrerId, order.payAmount)
       }
 
-      await UserService.checkAndUpgradeLevel(userId)
+      await UserService.checkAndUpgradeLevel(userId, order.id)
 
       if (user?.referrerId) {
-        await UserService.checkAndUpgradeLevel(user.referrerId)
+        await UserService.checkAndUpgradeLevel(user.referrerId, order.id)
       }
     } else {
       const user = await prisma.user.findUnique({
@@ -455,7 +455,7 @@ export class RewardService {
 
       if (user?.referrerId) {
         await UserService.addDirectSales(user.referrerId, order.payAmount)
-        await UserService.checkAndUpgradeLevel(user.referrerId)
+        await UserService.checkAndUpgradeLevel(user.referrerId, order.id)
       }
     }
   }
