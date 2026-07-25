@@ -205,7 +205,7 @@ export class DividendService {
 
       // 8. 为每个用户创建分红记录（settled=false，不入账）
       const details = []
-      const dividendDataList: Array<{ userId: string; orderId: string; amount: number; userLevel: number; totalPool: number; dividendDate: Date; settled: boolean }> = []
+      const dividendDataList: Array<{ userId: string; orderId: string; amount: number; userLevel: number; totalPool: number; dividendDate: Date; settled: boolean; poolType: string }> = []
       for (const user of eligibleUsers) {
         const dividendAmount = userTotalDividends[user.id] || 0
 
@@ -218,6 +218,7 @@ export class DividendService {
             totalPool: totalDividendPool,
             dividendDate: new Date(),
             settled: false,
+            poolType: 'snapshot_pending',
           })
 
           details.push({
@@ -312,7 +313,7 @@ export class DividendService {
       }
 
       const allBalanceRecords: Array<{ userId: string; type: string; sourceType: string; sourceId: string; amount: number; balance: number; frozenBalance: number; description: string }> = []
-      const allRewards: Array<{ userId: string; type: string; orderId: string; amount: number; status: string }> = []
+        const allRewards: Array<{ userId: string; type: string; orderId: string; amount: number; status: string; idempotencyKey: string }> = []
       const allDividendIds: string[] = []
 
       // 4. 逐用户入账
@@ -365,6 +366,7 @@ export class DividendService {
             orderId: dividend.orderId,
             amount: dividend.amount,
             status: 'paid',
+            idempotencyKey: `legacy:settle:${batchId}:${dividend.id}`,
           })
         }
 

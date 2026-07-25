@@ -62,9 +62,17 @@ vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }))
 
+vi.mock('@/lib/services/order-reward-state.service', () => ({
+  OrderRewardStateService: {
+    claim: vi.fn().mockResolvedValue('claimed'),
+    markFailed: vi.fn().mockResolvedValue(undefined),
+  },
+}))
+
 import { RewardService } from '@/lib/services/reward.service'
 import { getBusinessConfig } from '@/lib/config/business'
 import { UserService } from '@/lib/services/user.service'
+import { OrderRewardStateService } from '@/lib/services/order-reward-state.service'
 
 describe('RewardService', () => {
   beforeEach(() => {
@@ -81,6 +89,8 @@ describe('RewardService', () => {
       return businessConfigValues[key] !== undefined ? businessConfigValues[key] : defaultValue
     })
     prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
+    ;(OrderRewardStateService.claim as any).mockResolvedValue('claimed')
+    ;(OrderRewardStateService.markFailed as any).mockResolvedValue(undefined)
   })
 
   describe('createReferralReward', () => {
