@@ -216,7 +216,7 @@ export class PointsService {
     let count = 0
     for (const schedule of unlockSchedules) {
       const user = await this.getUserPoints(schedule.userId)
-      const dailyAmount = Math.floor(schedule.remainingPoints * schedule.dailyUnlockRate)
+      const dailyAmount = Math.min(Math.floor(schedule.totalPoints * schedule.dailyUnlockRate), schedule.remainingPoints)
 
       await prisma.$transaction(async (tx) => {
         // 增加可用积分
