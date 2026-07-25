@@ -492,8 +492,8 @@ export class RewardService {
     }
   }
 
-  static async processRefund(orderId: string) {
-    await prisma.$transaction(async (tx) => {
+  static async processRefund(orderId: string, outerTx?: Prisma.TransactionClient) {
+    const execute = async (tx: Prisma.TransactionClient) => {
       const rewards = await tx.reward.findMany({
         where: { orderId, status: 'paid' },
       })
@@ -639,6 +639,11 @@ export class RewardService {
           await tx.balanceRecord.createMany({ data: dividendBalanceRecords })
         }
       }
-    })
+    }
+    if (outerTx) {
+      await execute(outerTx)
+    } else {
+      await prisma.$transaction(execute)
+    }
   }
 }

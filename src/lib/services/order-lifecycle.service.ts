@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
 import { PointsService } from './points.service'
 import { UserService } from './user.service'
@@ -299,7 +299,7 @@ export class OrderLifecycleService {
       await PointsService.voidUpgradePointsForRefund(orderId, tx)
 
       // 扣除已发放的奖励
-      await RewardService.processRefund(orderId)
+      await RewardService.processRefund(orderId, tx)
 
       // 更新订单状态
       await tx.order.update({
