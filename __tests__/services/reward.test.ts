@@ -91,6 +91,9 @@ describe('RewardService', () => {
     prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
     ;(OrderRewardStateService.claim as any).mockResolvedValue('claimed')
     ;(OrderRewardStateService.markFailed as any).mockResolvedValue(undefined)
+    ;(UserService.addDirectSales as any).mockReset()
+    ;(UserService.addUpgradeProductCount as any).mockReset()
+    ;(UserService.checkAndUpgradeLevel as any).mockReset()
   })
 
   describe('createReferralReward', () => {
@@ -362,7 +365,7 @@ describe('RewardService', () => {
         { id: 'user-2', balance: 300, frozenBalance: 10, earningsAvailable: 300, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
       ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.dividend.deleteMany.mockResolvedValueOnce({ count: 1 })
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
@@ -429,7 +432,7 @@ describe('RewardService', () => {
         { id: 'user-4', balance: 2000, frozenBalance: 0, earningsAvailable: 100, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
       ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.dividend.deleteMany.mockResolvedValueOnce({ count: 1 })
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
@@ -505,7 +508,7 @@ describe('RewardService', () => {
         { id: 'user-5', balance: 200, frozenBalance: 0, earningsAvailable: 170, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
       ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.dividend.deleteMany.mockResolvedValueOnce({ count: 1 })
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
@@ -534,6 +537,106 @@ describe('RewardService', () => {
 
       expect(prisma.balanceRecord.create).not.toHaveBeenCalled()
       expect(prisma.user.update).not.toHaveBeenCalled()
+    })
+
+    it('退款幂等：dividend 查询必须含 refundedAt:null，已退款的不再扣减', async () => {
+      const orderId = 'order-idempotent-div'
+
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'div-1', userId: 'user-d1', orderId, amount: 100, refundedAt: null },
+      ])
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'div-1', userId: 'user-d1', orderId, amount: 100, refundedAt: new Date() },
+      ])
+
+      prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-d1', balance: 500, frozenBalance: 0, earningsAvailable: 500, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
+
+      await RewardService.processRefund(orderId)
+
+      const dividendFindCall = prisma.dividend.findMany.mock.calls[0][0]
+      expect(dividendFindCall.where.refundedAt).toBeNull()
+
+      const updateManyCall = prisma.dividend.updateMany.mock.calls[0][0]
+      expect(updateManyCall.where.refundedAt).toBeNull()
+    })
+
+    it('退款幂等：第二次调用不再扣减收益和创建负流水', async () => {
+      const orderId = 'order-idempotent-2nd'
+
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      prisma.dividend.findMany.mockResolvedValueOnce([])
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      prisma.dividend.findMany.mockResolvedValueOnce([])
+
+      await RewardService.processRefund(orderId)
+      await RewardService.processRefund(orderId)
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()
+    })
+
+    it('退款幂等：所有退款记录使用统一 refundTime', async () => {
+      const orderId = 'order-unified-time'
+
+      prisma.reward.findMany.mockResolvedValueOnce([
+        { id: 'r-1', userId: 'user-u1', type: 'referral', orderId, amount: 50, status: 'paid' },
+      ])
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'd-1', userId: 'user-u2', orderId, amount: 30, refundedAt: null },
+      ])
+
+      prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-u1', balance: 500, frozenBalance: 0, earningsAvailable: 500, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.reward.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-u2', balance: 300, frozenBalance: 0, earningsAvailable: 300, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
+
+      await RewardService.processRefund(orderId)
+
+      const dividendUpdateCall = prisma.dividend.updateMany.mock.calls[0][0]
+      const refundTime = dividendUpdateCall.data.refundedAt
+      expect(refundTime).toBeInstanceOf(Date)
+    })
+
+    it('退款幂等：禁止 dividend deleteMany，必须用 updateMany refundedAt 保留审计记录', async () => {
+      const orderId = 'order-no-delete'
+
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'd-nd', userId: 'user-nd', orderId, amount: 50, refundedAt: null },
+      ])
+
+      prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-nd', balance: 200, frozenBalance: 0, earningsAvailable: 200, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
+
+      await RewardService.processRefund(orderId)
+
+      expect(prisma.dividend.deleteMany).not.toHaveBeenCalled()
+      expect(prisma.dividend.updateMany).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -639,15 +742,57 @@ describe('RewardService', () => {
         id: 'order-no-ref',
         status: 'paid',
         payAmount: 100,
-        user: { id: 'buyer', referrerId: null },  // 无 referrer
+        user: { id: 'buyer', referrerId: null },
         items: [],
       } as any)
       const result = await RewardService.processOrderRewards('order-no-ref')
-      // referralResult 未定义 → referralUnlockRequired=undefined, referralUnlockAmount=undefined
       expect(result.referralUnlockRequired).toBeUndefined()
       expect(result.referralUnlockAmount).toBeUndefined()
     })
+
+    it('奖励失败时不执行 checkUpgradeFromOrder', async () => {
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 'order-fail-upgrade',
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-f', referrerId: null },
+        items: [{ product: { isUpgradeProduct: true }, quantity: 1 }],
+      } as any)
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 'order-fail-upgrade',
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-f', referrerId: null },
+        items: [{ product: { isUpgradeProduct: true }, quantity: 1 }],
+      } as any)
+      prisma.$transaction.mockImplementationOnce(async () => { throw new Error('DB error') })
+      ;(OrderRewardStateService.markFailed as any).mockResolvedValueOnce(undefined)
+
+      await RewardService.processOrderRewards('order-fail-upgrade')
+
+      expect(UserService.addDirectSales).not.toHaveBeenCalled()
+      expect(UserService.addUpgradeProductCount).not.toHaveBeenCalled()
+      expect(UserService.checkAndUpgradeLevel).not.toHaveBeenCalled()
+    })
+
+    it('奖励 skipped 时不执行 checkUpgradeFromOrder', async () => {
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 'order-skip-upgrade',
+        status: 'paid',
+        payAmount: 500,
+        user: { id: 'buyer-s', referrerId: null },
+        items: [],
+      } as any)
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('already_completed')
+
+      await RewardService.processOrderRewards('order-skip-upgrade')
+
+      expect(UserService.addDirectSales).not.toHaveBeenCalled()
+      expect(UserService.checkAndUpgradeLevel).not.toHaveBeenCalled()
+    })
   })
+
 
   // ============ getUserRewardStats ============
   describe('getUserRewardStats', () => {
@@ -809,6 +954,299 @@ describe('RewardService', () => {
       prisma.user.findUnique.mockResolvedValue({ parentId: null })
       await RewardService.createBrandBonusReward('order-x', 100, 'buyer', 'referrer-2d')
       // 不抛错
+    })
+  })
+
+  // ============ processPaidOrderRewards 原子性和幂等 ============
+  describe('processPaidOrderRewards - 原子性和幂等', () => {
+    it('幂等键格式：referral 为 orderId:referral:userId:1', async () => {
+      const orderId = 'order-idem-ref'
+      const referrerId = 'ref-idem'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-idem', referrerId, id: 'buyer-idem' },
+        items: [],
+      } as any)
+      prisma.user.findUnique.mockResolvedValueOnce({ upgradeProductCount: 5 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-1', userId: referrerId })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 0 })
+      prisma.order.count.mockResolvedValueOnce(1)
+      prisma.user.findUnique.mockResolvedValue({ parentId: null })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-idem', referrerId: null, level: 1 })
+
+      await RewardService.processPaidOrderRewards(orderId)
+
+      const rewardCall = prisma.reward.create.mock.calls[0][0]
+      expect(rewardCall.data.idempotencyKey).toBe(`${orderId}:referral:${referrerId}:1`)
+    })
+
+    it('幂等键格式：brand_bonus 为 orderId:brand_bonus:userId:layer', async () => {
+      const orderId = 'order-idem-brand'
+      const targetUserId = 'target-brand'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-brand', referrerId: 'ref-brand', id: 'buyer-brand' },
+        items: [],
+      } as any)
+      prisma.user.findUnique.mockResolvedValueOnce({ upgradeProductCount: 5 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-b1', userId: 'ref-brand' })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 2 })
+      prisma.order.count.mockResolvedValueOnce(1)
+      // findBrandBonusRecipients with tx=prisma
+      prisma.user.findUnique.mockResolvedValueOnce({ parentId: targetUserId })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: targetUserId, level: 3 })
+      prisma.user.findUnique.mockResolvedValueOnce({ parentId: null })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-b2', userId: targetUserId })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+      // dividend eligible users walk
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-brand', referrerId: null, level: 1 })
+
+      await RewardService.processPaidOrderRewards(orderId)
+
+      const brandCall = prisma.reward.create.mock.calls.find((c: any) => c[0].data.type === 'brand_bonus')
+      expect(brandCall).toBeDefined()
+      expect(brandCall![0].data.idempotencyKey).toBe(`${orderId}:brand_bonus:${targetUserId}:1`)
+    })
+
+    it('幂等键格式：dividend 为 orderId:dividend:userId:poolType', async () => {
+      const orderId = 'order-idem-div'
+      const directorId = 'director-idem'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 10000,
+        user: { id: 'buyer-div', referrerId: directorId, id: 'buyer-div' },
+        items: [],
+      } as any)
+      // referral: referrer has upgrade product
+      prisma.user.findUnique.mockResolvedValueOnce({ upgradeProductCount: 5 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-d1', userId: directorId })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+      // brand bonus: referrer level + directDistributorCount
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 2 })
+      prisma.order.count.mockResolvedValueOnce(1)
+      // findBrandBonusRecipients: buyer -> null (no parent)
+      prisma.user.findUnique.mockResolvedValueOnce({ parentId: null })
+      // brand bonus sink
+      prisma.operationLog.create.mockResolvedValueOnce({})
+      // dividend eligible walk: buyer -> director -> null
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-div', referrerId: directorId, level: 1 })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: directorId, level: 3 })
+      prisma.user.findUnique.mockResolvedValueOnce({ referrerId: null, level: 3, id: directorId })
+      // dividend pool: director
+      prisma.dividend.create.mockResolvedValueOnce({ id: 'div-1', userId: directorId, amount: 500 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-div1', userId: directorId })
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: directorId, balance: 1000, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      // earningsDelta user check + update
+      prisma.user.findUnique.mockResolvedValueOnce({ id: directorId })
+      // order update
+      prisma.order.update.mockResolvedValueOnce({})
+
+      await RewardService.processPaidOrderRewards(orderId)
+
+      const dividendRewardCall = prisma.reward.create.mock.calls.find((c: any) => c[0].data.type === 'dividend')
+      expect(dividendRewardCall).toBeDefined()
+      expect(dividendRewardCall![0].data.idempotencyKey).toBe(`${orderId}:dividend:${directorId}:director`)
+    })
+
+    it('Dividend 必须包含 poolType、settled:true、settleDate、refundedAt:null', async () => {
+      const orderId = 'order-div-fields'
+      const directorId = 'director-fields'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 10000,
+        user: { id: 'buyer-f', referrerId: directorId, id: 'buyer-f' },
+        items: [],
+      } as any)
+      // referral
+      prisma.user.findUnique.mockResolvedValueOnce({ upgradeProductCount: 5 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-f1', userId: directorId })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+      // brand bonus
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 2 })
+      prisma.order.count.mockResolvedValueOnce(1)
+      prisma.user.findUnique.mockResolvedValueOnce({ parentId: null })
+      prisma.operationLog.create.mockResolvedValueOnce({})
+      // dividend walk
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-f', referrerId: directorId, level: 1 })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: directorId, level: 3 })
+      prisma.user.findUnique.mockResolvedValueOnce({ referrerId: null, level: 3, id: directorId })
+      // dividend pool: director
+      prisma.dividend.create.mockResolvedValueOnce({ id: 'div-f1', userId: directorId, amount: 500 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'rw-f2', userId: directorId })
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: directorId, balance: 1000, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      // earningsDelta
+      prisma.user.findUnique.mockResolvedValueOnce({ id: directorId })
+      prisma.order.update.mockResolvedValueOnce({})
+
+      await RewardService.processPaidOrderRewards(orderId)
+
+      const dividendCall = prisma.dividend.create.mock.calls[0][0]
+      expect(dividendCall.data.poolType).toBe('director')
+      expect(dividendCall.data.settled).toBe(true)
+      expect(dividendCall.data.settleDate).toBeInstanceOf(Date)
+      expect(dividendCall.data.refundedAt).toBeNull()
+    })
+
+    it('正向流水 sourceId 必须使用实际 Reward.id 或 Dividend.id', async () => {
+      const orderId = 'order-source-id'
+      const referrerId = 'ref-src'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-src', referrerId, id: 'buyer-src' },
+        items: [],
+      } as any)
+      prisma.user.findUnique.mockResolvedValueOnce({ upgradeProductCount: 5 })
+      prisma.reward.create.mockResolvedValueOnce({ id: 'real-reward-id', userId: referrerId })
+      prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+      prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 0 })
+      prisma.order.count.mockResolvedValueOnce(1)
+      prisma.user.findUnique.mockResolvedValue({ parentId: null })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-src', referrerId: null, level: 1 })
+
+      await RewardService.processPaidOrderRewards(orderId)
+
+      const brCall = prisma.balanceRecord.create.mock.calls[0][0]
+      expect(brCall.data.sourceId).toBe('real-reward-id')
+    })
+
+    it('连续调用两次：第一次 completed，第二次 skipped', async () => {
+      const orderId = 'order-twice'
+      ;(OrderRewardStateService.claim as any)
+        .mockResolvedValueOnce('claimed')
+        .mockResolvedValueOnce('already_completed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-tw', referrerId: null, id: 'buyer-tw' },
+        items: [],
+      } as any)
+
+      const result1 = await RewardService.processPaidOrderRewards(orderId)
+      expect(result1.status).toBe('completed')
+
+      const result2 = await RewardService.processPaidOrderRewards(orderId)
+      expect(result2.status).toBe('skipped')
+    })
+
+    it('事务回滚时 Order 的 rewardStatus 不变', async () => {
+      const orderId = 'order-rollback'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-rb', referrerId: 'ref-rb', id: 'buyer-rb' },
+        items: [],
+      } as any)
+
+      const committedWrites: string[] = []
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => {
+        const fakeTx = new Proxy(prisma, {
+          get(target, prop) {
+            if (prop === 'reward') {
+              return {
+                ...target.reward,
+                create: vi.fn().mockImplementation(async (data: any) => {
+                  committedWrites.push('reward.create')
+                  return { id: 'rw-rb', ...data.data }
+                }),
+              }
+            }
+            if (prop === 'user') {
+              return {
+                ...target.user,
+                findUnique: target.user.findUnique,
+                update: vi.fn().mockImplementation(async () => {
+                  committedWrites.push('user.update')
+                }),
+              }
+            }
+            if (prop === 'order') {
+              return {
+                ...target.order,
+                update: vi.fn().mockImplementation(async () => {
+                  committedWrites.push('order.update')
+                }),
+              }
+            }
+            if (prop === 'balanceRecord') return target.balanceRecord
+            if (prop === 'dividend') return target.dividend
+            if (prop === 'operationLog') return target.operationLog
+            return (target as any)[prop]
+          },
+        })
+
+        prisma.user.findUnique.mockResolvedValueOnce({ upgradeProductCount: 5 })
+        prisma.user.findUnique.mockResolvedValueOnce({ balance: 500, frozenBalance: 0, consumeBalance: 0, earningsAvailable: 100, earningsPending: 0, earningsVoided: 0 })
+        prisma.user.findUnique.mockResolvedValueOnce({ level: 3, directDistributorCount: 0 })
+        prisma.order.count.mockResolvedValueOnce(1)
+        prisma.user.findUnique.mockResolvedValue({ parentId: null })
+        prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-rb', referrerId: null, level: 1 })
+        prisma.balanceRecord.create.mockResolvedValueOnce({})
+
+        throw new Error('Simulated transaction rollback')
+      })
+
+      const result = await RewardService.processPaidOrderRewards(orderId)
+      expect(result.status).toBe('failed')
+      expect(committedWrites).not.toContain('order.update')
+    })
+
+    it('Order 只在全部成功后才更新 rewardStatus=completed', async () => {
+      const orderId = 'order-final-status'
+      ;(OrderRewardStateService.claim as any).mockResolvedValueOnce('claimed')
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: orderId,
+        status: 'paid',
+        payAmount: 1000,
+        user: { id: 'buyer-fs', referrerId: null, id: 'buyer-fs' },
+        items: [],
+      } as any)
+
+      const orderUpdates: any[] = []
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => {
+        const fakeTx = new Proxy(prisma, {
+          get(target, prop) {
+            if (prop === 'order') {
+              return {
+                ...target.order,
+                update: vi.fn().mockImplementation(async (data: any) => {
+                  orderUpdates.push(data)
+                }),
+              }
+            }
+            return (target as any)[prop]
+          },
+        })
+        return fn(fakeTx)
+      })
+
+      await RewardService.processPaidOrderRewards(orderId)
+
+      if (orderUpdates.length > 0) {
+        const lastUpdate = orderUpdates[orderUpdates.length - 1]
+        expect(lastUpdate.data.rewardStatus).toBe('completed')
+      }
     })
   })
 })

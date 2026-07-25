@@ -78,7 +78,7 @@ export class OrderRewardStateService {
     const errorMessage = sanitizeError(error)
 
     await prisma.order.updateMany({
-      where: { id: orderId },
+      where: { id: orderId, rewardStatus: 'processing' },
       data: {
         rewardStatus: 'failed',
         rewardAttempts: { increment: 1 },

@@ -157,5 +157,19 @@ describe('OrderRewardStateService', () => {
       expect(call.data.rewardLastError).not.toContain('abc123')
       expect(call.data.rewardLastError).not.toContain('secret')
     })
+
+    it('markFailed 只更新 rewardStatus=processing 的订单', async () => {
+      await OrderRewardStateService.markFailed('order-f5', new Error('test'))
+      const call = prisma.order.updateMany.mock.calls[0][0]
+      expect(call.where.id).toBe('order-f5')
+      expect(call.where.rewardStatus).toBe('processing')
+    })
+
+    it('markFailed 不会把 completed 降级为 failed', async () => {
+      prisma.order.updateMany.mockResolvedValueOnce({ count: 0 })
+      await OrderRewardStateService.markFailed('order-completed', new Error('late error'))
+      const call = prisma.order.updateMany.mock.calls[0][0]
+      expect(call.where.rewardStatus).toBe('processing')
+    })
   })
 })

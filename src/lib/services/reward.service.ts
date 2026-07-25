@@ -25,7 +25,8 @@ export type RewardProcessOutcome =
 
 async function findBrandBonusRecipients(
   buyerId: string,
-  maxLayers: number
+  maxLayers: number,
+  tx: any
 ): Promise<Array<{ userId: string; layer: number }>> {
   const recipients: Array<{ userId: string; layer: number }> = []
   let currentId: string | null = buyerId
@@ -34,7 +35,7 @@ async function findBrandBonusRecipients(
   const MAX_DEPTH = 50
 
   while (layer < maxLayers && currentId && recipients.length < MAX_DEPTH) {
-    const user: { parentId: string | null } | null = await prisma.user.findUnique({
+    const user: { parentId: string | null } | null = await tx.user.findUnique({
       where: { id: currentId },
       select: { parentId: true },
     })
@@ -42,7 +43,7 @@ async function findBrandBonusRecipients(
     if (visited.has(user.parentId)) break
     visited.add(user.parentId)
 
-    const parent = await prisma.user.findUnique({
+    const parent = await tx.user.findUnique({
       where: { id: user.parentId },
       select: { id: true, level: true },
     })
@@ -164,7 +165,7 @@ export class RewardService {
               })
               const targetLayer = ((paidCount - 1) % 10) + 1
 
-              const recipients = await findBrandBonusRecipients(buyer.id, maxLayers)
+              const recipients = await findBrandBonusRecipients(buyer.id, maxLayers, tx)
               const target = recipients.find(r => r.layer === targetLayer)
 
               if (target) {
@@ -449,7 +450,7 @@ export class RewardService {
     })
     const targetLayer = ((paidCount - 1) % 10) + 1
 
-    const recipients = await findBrandBonusRecipients(buyerId, maxLayers)
+    const recipients = await findBrandBonusRecipients(buyerId, maxLayers, prisma)
     const target = recipients.find(r => r.layer === targetLayer)
 
     if (!target) {
@@ -652,7 +653,7 @@ export class RewardService {
 
     const result = await this.processPaidOrderRewards(orderId)
 
-    if (result.status === 'completed' || result.status === 'failed') {
+    if (result.status === 'completed') {
       await this.checkUpgradeFromOrder(buyer.id, order)
     }
 
@@ -742,8 +743,10 @@ export class RewardService {
     })
 
     const dividends = await prisma.dividend.findMany({
-      where: { orderId },
+      where: { orderId, refundedAt: null },
     })
+
+    const refundTime = new Date()
 
     await prisma.$transaction(async (tx) => {
       const rewardUserIds = [...new Set(rewards.map(r => r.userId))]
@@ -863,8 +866,8 @@ export class RewardService {
 
       if (dividends.length > 0) {
         await tx.dividend.updateMany({
-          where: { id: { in: dividends.map(d => d.id) } },
-          data: { refundedAt: new Date() },
+          where: { id: { in: dividends.map(d => d.id) }, refundedAt: null },
+          data: { refundedAt: refundTime },
         })
       }
 
