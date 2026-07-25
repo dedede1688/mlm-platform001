@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { UserService } from '@/lib/services/user.service'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
@@ -31,7 +32,6 @@ const registerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // v52.1: rate-limit - IP 维度，3 次/分钟（防批量注册）
     const clientIP = getClientIP(request)
     const ipLimitResult = checkRateLimit(`register:ip:${clientIP}`, 3, 60 * 1000)
     if (!ipLimitResult.allowed) {
@@ -39,8 +39,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-
-    // 使用 zod 校验输入
     const validationResult = registerSchema.safeParse(body)
     if (!validationResult.success) {
       const errors = validationResult.error.issues
@@ -53,7 +51,6 @@ export async function POST(request: NextRequest) {
 
     const { phone, password, nickname, referrerCode } = validationResult.data
 
-    // 检查手机号是否已注册
     const existingUser = await prisma.user.findUnique({
       where: { phone },
     })
@@ -65,7 +62,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 查找推荐人
     let referrerId: string | undefined
     if (referrerCode) {
       const referrer = await prisma.user.findFirst({
@@ -82,10 +78,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 加密密码
     const passwordHash = await bcrypt.hash(password, 10)
 
-    // 创建用户
     const user = await UserService.createUser({
       phone,
       passwordHash,
@@ -104,6 +98,13 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    // v60.x HV-4: P2002 并发注册保护 — 数据库唯一约束作为最终防线
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json(
+        { success: false, message: '该手机号已注册' },
+        { status: 400 }
+      )
+    }
     console.error('Register error:', error)
     const errMsg = error instanceof Error ? error.message : '未知错误'
     return NextResponse.json(
