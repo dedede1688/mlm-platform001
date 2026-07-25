@@ -622,7 +622,7 @@ describe('OrderLifecycleService', () => {
       )
     })
 
-    it('资格累计值重算失败时退款不完成、订单不改 refunded', async () => {
+    it('资格累计值重算失败时错误向外传播，退款不会返回成功结果', async () => {
       mocks.order.findUnique.mockResolvedValueOnce({
         id: 'order-recompute-fail',
         status: 'paid',
@@ -648,6 +648,7 @@ describe('OrderLifecycleService', () => {
       await expect(OrderLifecycleService.requestRefund('order-recompute-fail'))
         .rejects.toThrow('资格累计值重算失败')
 
+      expect(mocks.order.findUnique).toHaveBeenCalledTimes(1)
     })
   })
 

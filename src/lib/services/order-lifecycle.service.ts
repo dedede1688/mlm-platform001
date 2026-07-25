@@ -32,10 +32,7 @@ export class OrderLifecycleService {
     // 查订单
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: {
-        user: { select: { referrerId: true } },
-        items: { include: { product: { select: { isUpgradeProduct: true } } } },
-      },
+
     })
     if (!order) throw new Error('订单不存在')
     if (order.status !== ORDER_STATUS.PENDING) throw new Error('订单不存在或状态已变更')
