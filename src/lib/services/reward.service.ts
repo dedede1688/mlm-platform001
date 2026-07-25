@@ -738,141 +738,153 @@ export class RewardService {
   }
 
   static async processRefund(orderId: string) {
-    const rewards = await prisma.reward.findMany({
-      where: { orderId, status: 'paid' },
-    })
-
-    const dividends = await prisma.dividend.findMany({
-      where: { orderId, refundedAt: null },
-    })
-
-    const refundTime = new Date()
-
     await prisma.$transaction(async (tx) => {
-      const rewardUserIds = [...new Set(rewards.map(r => r.userId))]
-      const rewardUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
-      if (rewardUserIds.length > 0) {
-        const users = await tx.user.findMany({
-          where: { id: { in: rewardUserIds } },
-          select: { id: true, ...BALANCE_SELECT },
-        })
-        for (const u of users) rewardUsersMap.set(u.id, u)
-      }
+      const rewards = await tx.reward.findMany({
+        where: { orderId, status: 'paid' },
+      })
 
-      const rewardBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
+      const dividends = await tx.dividend.findMany({
+        where: { orderId, refundedAt: null },
+      })
 
-      for (const reward of rewards) {
-        const user = rewardUsersMap.get(reward.userId)
-        if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
+      if (rewards.length === 0 && dividends.length === 0) return
 
-        const deductFromAvailable = Math.min(user.earningsAvailable, reward.amount)
-        const voidedAmount = reward.amount - deductFromAvailable
-
-        const afterRefundReward = {
-          consumeBalance: user.consumeBalance,
-          earningsAvailable: user.earningsAvailable - deductFromAvailable,
-          earningsPending: user.earningsPending,
-          earningsVoided: user.earningsVoided + voidedAmount,
-        }
-
-        const updateData: Record<string, { decrement?: number; increment?: number }> = {
-          earningsAvailable: { decrement: deductFromAvailable },
-        }
-        if (voidedAmount > 0) {
-          updateData.earningsVoided = { increment: voidedAmount }
-        }
-        await tx.user.update({
-          where: { id: reward.userId },
-          data: updateData,
-        })
-
-        const voidDesc = voidedAmount > 0
-          ? `，其中可提现收益扣减 ¥${deductFromAvailable.toFixed(2)}，作废收益 ¥${voidedAmount.toFixed(2)}`
-          : `，可提现收益扣减 ¥${reward.amount.toFixed(2)}`
-        rewardBalanceRecords.push({
-          userId: reward.userId,
-          type: 'refund_reward',
-          amount: -reward.amount,
-          balance: user.balance,
-          frozenBalance: user.frozenBalance,
-          sourceType: 'reward',
-          sourceId: reward.id,
-          description: `扣回奖励（${reward.type}），余额不变${voidDesc}，订单退款${format4FieldDelta(user, afterRefundReward)}`,
-        })
-      }
+      const refundTime = new Date()
 
       if (rewards.length > 0) {
-        await tx.reward.updateMany({
-          where: { id: { in: rewards.map(r => r.id) } },
+        const rewardClaimed = await tx.reward.updateMany({
+          where: { id: { in: rewards.map(r => r.id) }, status: 'paid' },
           data: { status: 'refunded' },
         })
-      }
 
-      if (rewardBalanceRecords.length > 0) {
-        await tx.balanceRecord.createMany({ data: rewardBalanceRecords })
-      }
+        if (rewardClaimed.count === 0) return
 
-      const dividendUserIds = [...new Set(dividends.map(d => d.userId))]
-      const dividendUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
-      if (dividendUserIds.length > 0) {
-        const users = await tx.user.findMany({
-          where: { id: { in: dividendUserIds } },
-          select: { id: true, ...BALANCE_SELECT },
-        })
-        for (const u of users) dividendUsersMap.set(u.id, u)
-      }
+        const claimedRewardIds = new Set(rewards.map(r => r.id))
+        const claimedRewards = rewards.filter(r => claimedRewardIds.has(r.id))
 
-      const dividendBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
-
-      for (const dividend of dividends) {
-        const user = dividendUsersMap.get(dividend.userId)
-        if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
-
-        const deductFromAvailableDiv = Math.min(user.earningsAvailable, dividend.amount)
-        const voidedAmountDiv = dividend.amount - deductFromAvailableDiv
-
-        const afterRefundDiv = {
-          consumeBalance: user.consumeBalance,
-          earningsAvailable: user.earningsAvailable - deductFromAvailableDiv,
-          earningsPending: user.earningsPending,
-          earningsVoided: user.earningsVoided + voidedAmountDiv,
+        const rewardUserIds = [...new Set(claimedRewards.map(r => r.userId))]
+        const rewardUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
+        if (rewardUserIds.length > 0) {
+          const users = await tx.user.findMany({
+            where: { id: { in: rewardUserIds } },
+            select: { id: true, ...BALANCE_SELECT },
+          })
+          for (const u of users) rewardUsersMap.set(u.id, u)
         }
 
-        const updateDataDiv: Record<string, { decrement?: number; increment?: number }> = {
-          earningsAvailable: { decrement: deductFromAvailableDiv },
-        }
-        if (voidedAmountDiv > 0) {
-          updateDataDiv.earningsVoided = { increment: voidedAmountDiv }
-        }
-        await tx.user.update({
-          where: { id: dividend.userId },
-          data: updateDataDiv,
-        })
+        const rewardBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
 
-        const voidDescDiv = voidedAmountDiv > 0
-          ? `，其中可提现收益扣减 ¥${deductFromAvailableDiv.toFixed(2)}，作废收益 ¥${voidedAmountDiv.toFixed(2)}`
-          : `，可提现收益扣减 ¥${dividend.amount.toFixed(2)}`
-        dividendBalanceRecords.push({
-          userId: dividend.userId,
-          type: 'refund_dividend',
-          amount: -dividend.amount,
-          balance: user.balance,
-          frozenBalance: user.frozenBalance,
-          sourceType: 'reward',
-          sourceId: dividend.id,
-          description: `扣回分红，余额不变${voidDescDiv}，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
-        })
+        for (const reward of claimedRewards) {
+          const user = rewardUsersMap.get(reward.userId)
+          if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
+
+          const deductFromAvailable = Math.min(user.earningsAvailable, reward.amount)
+          const voidedAmount = reward.amount - deductFromAvailable
+
+          const afterRefundReward = {
+            consumeBalance: user.consumeBalance,
+            earningsAvailable: user.earningsAvailable - deductFromAvailable,
+            earningsPending: user.earningsPending,
+            earningsVoided: user.earningsVoided + voidedAmount,
+          }
+
+          const updateData: Record<string, { decrement?: number; increment?: number }> = {
+            earningsAvailable: { decrement: deductFromAvailable },
+          }
+          if (voidedAmount > 0) {
+            updateData.earningsVoided = { increment: voidedAmount }
+          }
+          await tx.user.update({
+            where: { id: reward.userId },
+            data: updateData,
+          })
+
+          const voidDesc = voidedAmount > 0
+            ? `，其中可提现收益扣减 ¥${deductFromAvailable.toFixed(2)}，作废收益 ¥${voidedAmount.toFixed(2)}`
+            : `，可提现收益扣减 ¥${reward.amount.toFixed(2)}`
+          rewardBalanceRecords.push({
+            userId: reward.userId,
+            type: 'refund_reward',
+            amount: -reward.amount,
+            balance: user.balance,
+            frozenBalance: user.frozenBalance,
+            sourceType: 'reward',
+            sourceId: reward.id,
+            description: `扣回奖励（${reward.type}），余额不变${voidDesc}，订单退款${format4FieldDelta(user, afterRefundReward)}`,
+          })
+        }
+
+        if (rewardBalanceRecords.length > 0) {
+          await tx.balanceRecord.createMany({ data: rewardBalanceRecords })
+        }
       }
 
       if (dividends.length > 0) {
-        await tx.dividend.updateMany({
+        const dividendClaimed = await tx.dividend.updateMany({
           where: { id: { in: dividends.map(d => d.id) }, refundedAt: null },
           data: { refundedAt: refundTime },
         })
-      }
 
-      if (dividendBalanceRecords.length > 0) {
-        await tx.balanceRecord.createMany({ data: dividendBalanceRecords })
+        if (dividendClaimed.count === 0) return
+
+        const claimedDividendIds = new Set(dividends.map(d => d.id))
+        const claimedDividends = dividends.filter(d => claimedDividendIds.has(d.id))
+
+        const dividendUserIds = [...new Set(claimedDividends.map(d => d.userId))]
+        const dividendUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
+        if (dividendUserIds.length > 0) {
+          const users = await tx.user.findMany({
+            where: { id: { in: dividendUserIds } },
+            select: { id: true, ...BALANCE_SELECT },
+          })
+          for (const u of users) dividendUsersMap.set(u.id, u)
+        }
+
+        const dividendBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
+
+        for (const dividend of claimedDividends) {
+          const user = dividendUsersMap.get(dividend.userId)
+          if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
+
+          const deductFromAvailableDiv = Math.min(user.earningsAvailable, dividend.amount)
+          const voidedAmountDiv = dividend.amount - deductFromAvailableDiv
+
+          const afterRefundDiv = {
+            consumeBalance: user.consumeBalance,
+            earningsAvailable: user.earningsAvailable - deductFromAvailableDiv,
+            earningsPending: user.earningsPending,
+            earningsVoided: user.earningsVoided + voidedAmountDiv,
+          }
+
+          const updateDataDiv: Record<string, { decrement?: number; increment?: number }> = {
+            earningsAvailable: { decrement: deductFromAvailableDiv },
+          }
+          if (voidedAmountDiv > 0) {
+            updateDataDiv.earningsVoided = { increment: voidedAmountDiv }
+          }
+          await tx.user.update({
+            where: { id: dividend.userId },
+            data: updateDataDiv,
+          })
+
+          const voidDescDiv = voidedAmountDiv > 0
+            ? `，其中可提现收益扣减 ¥${deductFromAvailableDiv.toFixed(2)}，作废收益 ¥${voidedAmountDiv.toFixed(2)}`
+            : `，可提现收益扣减 ¥${dividend.amount.toFixed(2)}`
+          dividendBalanceRecords.push({
+            userId: dividend.userId,
+            type: 'refund_dividend',
+            amount: -dividend.amount,
+            balance: user.balance,
+            frozenBalance: user.frozenBalance,
+            sourceType: 'reward',
+            sourceId: dividend.id,
+            description: `扣回分红，余额不变${voidDescDiv}，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
+          })
+        }
+
+        if (dividendBalanceRecords.length > 0) {
+          await tx.balanceRecord.createMany({ data: dividendBalanceRecords })
+        }
       }
     })
   }

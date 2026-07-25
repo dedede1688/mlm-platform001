@@ -455,13 +455,30 @@ describe('RewardService', () => {
     it('throws "用户不存在" in processRefund when reward user not found', async () => {
       const orderId = 'order-refund-user-missing'
 
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+
       prisma.reward.findMany.mockResolvedValueOnce([
         { id: 'reward-r4', userId: 'user-orphan', type: 'brand_bonus', orderId, amount: 30, status: 'paid' },
       ])
       prisma.dividend.findMany.mockResolvedValueOnce([])
+      prisma.reward.updateMany.mockResolvedValueOnce({ count: 1 })
+
+      prisma.user.findMany.mockResolvedValueOnce([])
+
+      await expect(RewardService.processRefund(orderId))
+        .rejects.toThrow('不存在')
+    })
+
+    it('throws "用户不存在" in processRefund when dividend user not found', async () => {
+      const orderId = 'order-refund-div-missing'
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
 
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'dividend-x', userId: 'user-orphan-div', orderId, amount: 50, refundedAt: null },
+      ])
+      prisma.dividend.updateMany.mockImplementationOnce(async () => ({ count: 1 }))
       prisma.user.findMany.mockResolvedValueOnce([])
 
       await expect(RewardService.processRefund(orderId))
@@ -469,21 +486,6 @@ describe('RewardService', () => {
     })
 
     // v60.3 batch 7: 补 line 455 - processRefund 中 dividend user.findUnique 返回 null
-    it('throws "用户不存在" in processRefund when dividend user not found (line 455)', async () => {
-      const orderId = 'order-refund-div-missing'
-
-      prisma.reward.findMany.mockResolvedValueOnce([])
-      prisma.dividend.findMany.mockResolvedValueOnce([
-        { id: 'dividend-x', userId: 'user-orphan-div', orderId, amount: 50 },
-      ])
-
-      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
-
-      prisma.user.findMany.mockResolvedValueOnce([])
-
-      await expect(RewardService.processRefund(orderId))
-        .rejects.toThrow('不存在')
-    })
 
     it('should handle both rewards and dividends in single transaction', async () => {
       const orderId = 'order-refund-5'
@@ -542,21 +544,17 @@ describe('RewardService', () => {
     it('退款幂等：dividend 查询必须含 refundedAt:null，已退款的不再扣减', async () => {
       const orderId = 'order-idempotent-div'
 
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+
       prisma.reward.findMany.mockResolvedValueOnce([])
       prisma.dividend.findMany.mockResolvedValueOnce([
         { id: 'div-1', userId: 'user-d1', orderId, amount: 100, refundedAt: null },
       ])
-      prisma.dividend.findMany.mockResolvedValueOnce([
-        { id: 'div-1', userId: 'user-d1', orderId, amount: 100, refundedAt: new Date() },
-      ])
-
-      prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma))
-
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.user.findMany.mockResolvedValueOnce([
         { id: 'user-d1', balance: 500, frozenBalance: 0, earningsAvailable: 500, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
       ])
       prisma.user.update.mockResolvedValueOnce({})
-      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
@@ -568,19 +566,180 @@ describe('RewardService', () => {
       expect(updateManyCall.where.refundedAt).toBeNull()
     })
 
-    it('退款幂等：第二次调用不再扣减收益和创建负流水', async () => {
-      const orderId = 'order-idempotent-2nd'
+    it('退款幂等：第一次有 paid Reward 完成退款，第二次不再扣款和写负流水', async () => {
+      const orderId = 'order-idempotent-reward-real'
 
-      prisma.reward.findMany.mockResolvedValueOnce([])
-      prisma.dividend.findMany.mockResolvedValueOnce([])
-      prisma.reward.findMany.mockResolvedValueOnce([])
-      prisma.dividend.findMany.mockResolvedValueOnce([])
+      const pendingReward = { id: 'r-idem', userId: 'user-idem', type: 'referral', orderId, amount: 100, status: 'paid' }
+      const refundedReward = { ...pendingReward, status: 'refunded' }
+
+      prisma.$transaction
+        .mockImplementationOnce(async (fn: any) => fn(prisma))
+        .mockImplementationOnce(async (fn: any) => fn(prisma))
+
+      prisma.reward.findMany
+        .mockResolvedValueOnce([pendingReward])
+        .mockResolvedValueOnce([refundedReward])
+      prisma.dividend.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+      prisma.reward.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 })
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-idem', balance: 500, frozenBalance: 0, earningsAvailable: 500, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
 
       await RewardService.processRefund(orderId)
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1)
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+
+      await RewardService.processRefund(orderId)
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1)
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+    })
+
+    it('退款幂等：第一次有 refundedAt:null Dividend 完成退款，第二次不再扣款和写负流水', async () => {
+      const orderId = 'order-idempotent-div-real'
+
+      const pendingDiv = { id: 'd-idem', userId: 'user-div-idem', orderId, amount: 50, refundedAt: null }
+      const refundedDiv = { ...pendingDiv, refundedAt: new Date() }
+
+      prisma.$transaction
+        .mockImplementationOnce(async (fn: any) => fn(prisma))
+        .mockImplementationOnce(async (fn: any) => fn(prisma))
+
+      prisma.reward.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+      prisma.dividend.findMany
+        .mockResolvedValueOnce([pendingDiv])
+        .mockResolvedValueOnce([refundedDiv])
+      prisma.dividend.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 })
+
+      prisma.user.findMany.mockResolvedValueOnce([
+        { id: 'user-div-idem', balance: 300, frozenBalance: 0, earningsAvailable: 300, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+      ])
+      prisma.user.update.mockResolvedValueOnce({})
+      prisma.balanceRecord.createMany.mockResolvedValueOnce({ count: 1 })
+
+      await RewardService.processRefund(orderId)
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1)
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+
+      await RewardService.processRefund(orderId)
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1)
+      expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
+    })
+
+    it('并发抢占：reward updateMany count=0 时不扣款不写负流水', async () => {
+      const orderId = 'order-race-reward'
+
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+
+      prisma.reward.findMany.mockResolvedValueOnce([
+        { id: 'r-race', userId: 'user-race', type: 'referral', orderId, amount: 100, status: 'paid' },
+      ])
+      prisma.dividend.findMany.mockResolvedValueOnce([])
+      prisma.reward.updateMany.mockResolvedValueOnce({ count: 0 })
+
       await RewardService.processRefund(orderId)
 
       expect(prisma.user.update).not.toHaveBeenCalled()
       expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()
+    })
+
+    it('并发抢占：dividend updateMany count=0 时不扣款不写负流水', async () => {
+      const orderId = 'order-race-dividend'
+
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'd-race', userId: 'user-race-div', orderId, amount: 50, refundedAt: null },
+      ])
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 0 })
+
+      await RewardService.processRefund(orderId)
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()
+    })
+
+    it('真实事务回滚：事务中途失败后已执行的写入不生效', async () => {
+      const orderId = 'order-real-rollback'
+
+      const committedState: string[] = []
+      const pendingState: string[] = []
+
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => {
+        const fakeTx = new Proxy(prisma, {
+          get(target, prop) {
+            if (prop === 'reward') {
+              return {
+                findMany: vi.fn().mockResolvedValue([
+                  { id: 'r-rl', userId: 'user-rl', type: 'referral', orderId, amount: 100, status: 'paid' },
+                ]),
+                updateMany: vi.fn().mockImplementation(async (args: any) => {
+                  pendingState.push('reward.updateMany')
+                  committedState.push('reward.updateMany')
+                  return { count: 1 }
+                }),
+              }
+            }
+            if (prop === 'dividend') {
+              return {
+                findMany: vi.fn().mockResolvedValue([]),
+              }
+            }
+            if (prop === 'user') {
+              return {
+                ...target.user,
+                findMany: vi.fn().mockResolvedValue([
+                  { id: 'user-rl', balance: 500, frozenBalance: 0, earningsAvailable: 500, consumeBalance: 0, earningsPending: 0, earningsVoided: 0, earningsFrozen: 0 },
+                ]),
+                update: vi.fn().mockImplementation(async () => {
+                  pendingState.push('user.update')
+                  committedState.push('user.update')
+                }),
+              }
+            }
+            if (prop === 'balanceRecord') {
+              return {
+                createMany: vi.fn().mockImplementation(async () => {
+                  pendingState.push('balanceRecord.createMany')
+                  throw new Error('Simulated write failure after partial commit')
+                }),
+              }
+            }
+            return (target as any)[prop]
+          },
+        })
+
+        try {
+          await fn(fakeTx)
+        } catch (e) {
+          while (committedState.length > 0) {
+            committedState.pop()
+          }
+          throw e
+        }
+      })
+
+      await expect(RewardService.processRefund(orderId)).rejects.toThrow('Simulated write failure')
+
+      expect(pendingState).toContain('reward.updateMany')
+      expect(pendingState).toContain('user.update')
+      expect(pendingState).toContain('balanceRecord.createMany')
+      expect(committedState).toHaveLength(0)
     })
 
     it('退款幂等：所有退款记录使用统一 refundTime', async () => {
