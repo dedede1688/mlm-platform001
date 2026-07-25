@@ -5,9 +5,9 @@ import { PointsService } from '@/lib/services/points.service'
 // POST /api/admin/points/void — 管理员作废用户积分
 export async function POST(request: NextRequest) {
   try {
-    // 鉴权：仅 super_admin 和 points_admin
+    // 鉴权：仅 super_admin 和 finance_admin
     const { user: admin, error: authError } = await verifyPermission(
-      request, ['super_admin', 'points_admin']
+      request, ['super_admin', 'finance_admin']
     )
     if (authError || !admin) return authError!
 

@@ -32,7 +32,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Action[]> = {
   finance_admin: ['view', 'approve'],
   support_admin: ['view'],
   auditor: ['view'],
-  points_admin: ['view'],
 }
 
 /** 检查角色是否有某个操作权限 */
