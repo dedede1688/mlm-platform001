@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
 import { PointsService } from './points.service'
+import { UserService } from './user.service'
 import { OrderNotificationService } from './order-notification.service'
 import { ORDER_STATUS, BALANCE_SELECT } from '@/lib/constants'
 import { sendEmail } from '@/lib/notification/sendEmail'
@@ -31,6 +32,10 @@ export class OrderLifecycleService {
     // 查订单
     const order = await prisma.order.findUnique({
       where: { id: orderId },
+      include: {
+        user: { select: { referrerId: true } },
+        items: { include: { product: { select: { isUpgradeProduct: true } } } },
+      },
     })
     if (!order) throw new Error('订单不存在')
     if (order.status !== ORDER_STATUS.PENDING) throw new Error('订单不存在或状态已变更')
@@ -211,7 +216,10 @@ export class OrderLifecycleService {
   static async requestRefund(orderId: string, _reason?: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: {
+        user: { select: { referrerId: true } },
+        items: { include: { product: { select: { isUpgradeProduct: true } } } },
+      },
     })
 
     if (!order) throw new Error('订单不存在')
@@ -303,6 +311,11 @@ export class OrderLifecycleService {
           status: ORDER_STATUS.REFUNDED,
         },
       })
+
+      await UserService.recomputeQualificationStatsForUsers(
+        [order.userId, order.user?.referrerId].filter((id): id is string => Boolean(id)),
+        tx
+      )
     })
 
     return prisma.order.findUnique({ where: { id: orderId } })

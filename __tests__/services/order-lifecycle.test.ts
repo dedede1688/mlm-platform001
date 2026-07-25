@@ -55,6 +55,13 @@ vi.mock('@/lib/services/points.service', () => ({
   },
 }))
 
+// 2c. UserService - 静态方法
+vi.mock('@/lib/services/user.service', () => ({
+  UserService: {
+    recomputeQualificationStatsForUsers: vi.fn(),
+  },
+}))
+
 // 3. OrderNotificationService - 4 个通知方法
 vi.mock('@/lib/services/order-notification.service', () => ({
   OrderNotificationService: {
@@ -99,6 +106,7 @@ vi.mock('@/lib/logger', () => ({
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { RewardService } from '@/lib/services/reward.service'
 import { PointsService } from '@/lib/services/points.service'
+import { UserService } from '@/lib/services/user.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { getSystemParameter } from '@/lib/config/system-parameters'
@@ -122,6 +130,7 @@ describe('OrderLifecycleService', () => {
     // v57.11: 支付密码锁定函数默认 mock
     ;(checkPaymentPasswordLock as any).mockResolvedValue({ locked: false })
     ;(resetPaymentPasswordLock as any).mockResolvedValue(undefined)
+    vi.mocked(UserService.recomputeQualificationStatsForUsers).mockResolvedValue(undefined)
   })
 
   // ============ verifyPayment ============
@@ -555,6 +564,90 @@ describe('OrderLifecycleService', () => {
 
       expect(RewardService.processRefund).not.toHaveBeenCalled()
       expect(mocks.order.update).not.toHaveBeenCalled()
+    })
+
+    it('退款完成时在同一事务内重算买家和当前推荐人的资格累计值', async () => {
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-recompute',
+        status: 'paid',
+        userId: 'buyer-1',
+        orderNo: 'ORD_RECOMPUTE',
+        payAmount: 500,
+        pointsUsed: 0,
+        user: { referrerId: 'ref-1' },
+        items: [{ productId: 'prod-upgrade', quantity: 2, product: { isUpgradeProduct: true } }],
+      } as any)
+      mocks.user.findUnique.mockResolvedValue({
+        balance: 1000, consumeBalance: 500, earningsAvailable: 0,
+        earningsPending: 0, earningsVoided: 0, frozenBalance: 0,
+        totalPoints: 1000, unlockedPoints: 500, lockedPoints: 0,
+      } as any)
+      mocks.product.update.mockResolvedValue({} as any)
+      mocks.user.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      mocks.balanceRecord.create.mockResolvedValueOnce({} as any)
+      vi.mocked(PointsService.voidUpgradePointsForRefund).mockResolvedValueOnce(undefined)
+      vi.mocked(RewardService.processRefund).mockResolvedValueOnce({} as any)
+      mocks.order.update.mockResolvedValueOnce({} as any)
+      mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-recompute', status: 'refunded' } as any)
+
+      await OrderLifecycleService.requestRefund('order-recompute')
+
+      expect(UserService.recomputeQualificationStatsForUsers).toHaveBeenCalledWith(
+        ['buyer-1', 'ref-1'],
+        expect.anything()
+      )
+    })
+
+    it('退款完成时没有推荐人也会重算买家资格累计值', async () => {
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-buyer-only',
+        status: 'paid',
+        userId: 'buyer-only',
+        orderNo: 'ORD_BUYER_ONLY',
+        payAmount: 0,
+        pointsUsed: 0,
+        user: { referrerId: null },
+        items: [],
+      } as any)
+      vi.mocked(PointsService.voidUpgradePointsForRefund).mockResolvedValueOnce(undefined)
+      vi.mocked(RewardService.processRefund).mockResolvedValueOnce({} as any)
+      mocks.order.update.mockResolvedValueOnce({} as any)
+      mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-buyer-only', status: 'refunded' } as any)
+
+      await OrderLifecycleService.requestRefund('order-buyer-only')
+
+      expect(UserService.recomputeQualificationStatsForUsers).toHaveBeenCalledWith(
+        ['buyer-only'],
+        expect.anything()
+      )
+    })
+
+    it('资格累计值重算失败时退款不完成、订单不改 refunded', async () => {
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-recompute-fail',
+        status: 'paid',
+        userId: 'buyer-fail',
+        orderNo: 'ORD_RECOMPUTE_FAIL',
+        payAmount: 500,
+        pointsUsed: 0,
+        user: { referrerId: 'ref-fail' },
+        items: [],
+      } as any)
+      mocks.user.findUnique.mockResolvedValue({
+        balance: 1000, consumeBalance: 500, earningsAvailable: 0,
+        earningsPending: 0, earningsVoided: 0, frozenBalance: 0,
+        totalPoints: 1000, unlockedPoints: 500, lockedPoints: 0,
+      } as any)
+      mocks.user.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      mocks.balanceRecord.create.mockResolvedValueOnce({} as any)
+      vi.mocked(PointsService.voidUpgradePointsForRefund).mockResolvedValueOnce(undefined)
+      vi.mocked(RewardService.processRefund).mockResolvedValueOnce({} as any)
+      vi.mocked(UserService.recomputeQualificationStatsForUsers)
+        .mockRejectedValueOnce(new Error('资格累计值重算失败'))
+
+      await expect(OrderLifecycleService.requestRefund('order-recompute-fail'))
+        .rejects.toThrow('资格累计值重算失败')
+
     })
   })
 
