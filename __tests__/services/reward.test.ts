@@ -597,7 +597,7 @@ describe('RewardService', () => {
       expect(prisma.user.update).toHaveBeenCalledTimes(1)
       expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
 
-      await RewardService.processRefund(orderId)
+      await expect(RewardService.processRefund(orderId)).rejects.toThrow('退款抢占不完整')
 
       expect(prisma.user.update).toHaveBeenCalledTimes(1)
       expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
@@ -634,13 +634,13 @@ describe('RewardService', () => {
       expect(prisma.user.update).toHaveBeenCalledTimes(1)
       expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
 
-      await RewardService.processRefund(orderId)
+      await expect(RewardService.processRefund(orderId)).rejects.toThrow('退款抢占不完整')
 
       expect(prisma.user.update).toHaveBeenCalledTimes(1)
       expect(prisma.balanceRecord.createMany).toHaveBeenCalledTimes(1)
     })
 
-    it('并发抢占：reward updateMany count=0 时不扣款不写负流水', async () => {
+    it('并发抢占：reward updateMany count=0 时抛错，不扣款不写负流水', async () => {
       const orderId = 'order-race-reward'
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
@@ -651,13 +651,13 @@ describe('RewardService', () => {
       prisma.dividend.findMany.mockResolvedValueOnce([])
       prisma.reward.updateMany.mockResolvedValueOnce({ count: 0 })
 
-      await RewardService.processRefund(orderId)
+      await expect(RewardService.processRefund(orderId)).rejects.toThrow('退款抢占不完整')
 
       expect(prisma.user.update).not.toHaveBeenCalled()
       expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()
     })
 
-    it('并发抢占：dividend updateMany count=0 时不扣款不写负流水', async () => {
+    it('并发抢占：dividend updateMany count=0 时抛错，不扣款不写负流水', async () => {
       const orderId = 'order-race-dividend'
 
       prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
@@ -668,7 +668,43 @@ describe('RewardService', () => {
       ])
       prisma.dividend.updateMany.mockResolvedValueOnce({ count: 0 })
 
-      await RewardService.processRefund(orderId)
+      await expect(RewardService.processRefund(orderId)).rejects.toThrow('退款抢占不完整')
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()
+    })
+
+    it('部分抢占：Reward 查到 2 条但 updateMany.count=1 时抛错回滚', async () => {
+      const orderId = 'order-partial-reward'
+
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+
+      prisma.reward.findMany.mockResolvedValueOnce([
+        { id: 'r-p1', userId: 'user-p1', type: 'referral', orderId, amount: 100, status: 'paid' },
+        { id: 'r-p2', userId: 'user-p2', type: 'brand_bonus', orderId, amount: 50, status: 'paid' },
+      ])
+      prisma.dividend.findMany.mockResolvedValueOnce([])
+      prisma.reward.updateMany.mockResolvedValueOnce({ count: 1 })
+
+      await expect(RewardService.processRefund(orderId)).rejects.toThrow('退款抢占不完整')
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()
+    })
+
+    it('部分抢占：Dividend 查到 2 条但 updateMany.count=1 时抛错回滚', async () => {
+      const orderId = 'order-partial-dividend'
+
+      prisma.$transaction.mockImplementationOnce(async (fn: any) => fn(prisma))
+
+      prisma.reward.findMany.mockResolvedValueOnce([])
+      prisma.dividend.findMany.mockResolvedValueOnce([
+        { id: 'd-p1', userId: 'user-dp1', orderId, amount: 100, refundedAt: null },
+        { id: 'd-p2', userId: 'user-dp2', orderId, amount: 50, refundedAt: null },
+      ])
+      prisma.dividend.updateMany.mockResolvedValueOnce({ count: 1 })
+
+      await expect(RewardService.processRefund(orderId)).rejects.toThrow('退款抢占不完整')
 
       expect(prisma.user.update).not.toHaveBeenCalled()
       expect(prisma.balanceRecord.createMany).not.toHaveBeenCalled()

@@ -757,12 +757,11 @@ export class RewardService {
           data: { status: 'refunded' },
         })
 
-        if (rewardClaimed.count === 0) return
+        if (rewardClaimed.count !== rewards.length) {
+          throw new Error(`退款抢占不完整：预期 ${rewards.length} 条 Reward，实际抢占 ${rewardClaimed.count} 条`)
+        }
 
-        const claimedRewardIds = new Set(rewards.map(r => r.id))
-        const claimedRewards = rewards.filter(r => claimedRewardIds.has(r.id))
-
-        const rewardUserIds = [...new Set(claimedRewards.map(r => r.userId))]
+        const rewardUserIds = [...new Set(rewards.map(r => r.userId))]
         const rewardUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
         if (rewardUserIds.length > 0) {
           const users = await tx.user.findMany({
@@ -774,7 +773,7 @@ export class RewardService {
 
         const rewardBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
 
-        for (const reward of claimedRewards) {
+        for (const reward of rewards) {
           const user = rewardUsersMap.get(reward.userId)
           if (!user) throw new Error(`用户 ${reward.userId} 不存在`)
 
@@ -825,12 +824,11 @@ export class RewardService {
           data: { refundedAt: refundTime },
         })
 
-        if (dividendClaimed.count === 0) return
+        if (dividendClaimed.count !== dividends.length) {
+          throw new Error(`退款抢占不完整：预期 ${dividends.length} 条 Dividend，实际抢占 ${dividendClaimed.count} 条`)
+        }
 
-        const claimedDividendIds = new Set(dividends.map(d => d.id))
-        const claimedDividends = dividends.filter(d => claimedDividendIds.has(d.id))
-
-        const dividendUserIds = [...new Set(claimedDividends.map(d => d.userId))]
+        const dividendUserIds = [...new Set(dividends.map(d => d.userId))]
         const dividendUsersMap = new Map<string, { id: string; balance: number; frozenBalance: number; consumeBalance: number; earningsAvailable: number; earningsPending: number; earningsVoided: number; earningsFrozen: number }>()
         if (dividendUserIds.length > 0) {
           const users = await tx.user.findMany({
@@ -842,7 +840,7 @@ export class RewardService {
 
         const dividendBalanceRecords: Array<{ userId: string; type: string; amount: number; balance: number; frozenBalance: number; sourceType: string; sourceId: string; description: string }> = []
 
-        for (const dividend of claimedDividends) {
+        for (const dividend of dividends) {
           const user = dividendUsersMap.get(dividend.userId)
           if (!user) throw new Error(`用户 ${dividend.userId} 不存在`)
 
