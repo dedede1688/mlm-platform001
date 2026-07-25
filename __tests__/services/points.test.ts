@@ -362,17 +362,63 @@ describe('PointsService', () => {
     })
   })
 
-  describe('createPointsUnlockSchedule (179-186)', () => {
-    it('creates schedule with no tx (uses prisma direct) and empty orderId', async () => {
-      // user.update (lock points)
+  describe('createPointsUnlockSchedule — orderId hard guard', () => {
+    it('throws when orderId is null', async () => {
+      await expect(
+        PointsService.createPointsUnlockSchedule({
+          userId: 'u1',
+          orderId: null,
+          totalPoints: 1000,
+          dailyUnlockRate: 0.01,
+          totalDays: 100,
+          nextUnlockDate: new Date(),
+        })
+      ).rejects.toThrow('创建升级积分解锁计划必须绑定真实订单ID')
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.pointsUnlockSchedule.create).not.toHaveBeenCalled()
+    })
+
+    it('throws when orderId is empty string', async () => {
+      await expect(
+        PointsService.createPointsUnlockSchedule({
+          userId: 'u1',
+          orderId: '',
+          totalPoints: 1000,
+          dailyUnlockRate: 0.01,
+          totalDays: 100,
+          nextUnlockDate: new Date(),
+        })
+      ).rejects.toThrow('创建升级积分解锁计划必须绑定真实订单ID')
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.pointsUnlockSchedule.create).not.toHaveBeenCalled()
+    })
+
+    it('throws when orderId is whitespace-only', async () => {
+      await expect(
+        PointsService.createPointsUnlockSchedule({
+          userId: 'u1',
+          orderId: '   ',
+          totalPoints: 1000,
+          dailyUnlockRate: 0.01,
+          totalDays: 100,
+          nextUnlockDate: new Date(),
+        })
+      ).rejects.toThrow('创建升级积分解锁计划必须绑定真实订单ID')
+
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.pointsUnlockSchedule.create).not.toHaveBeenCalled()
+    })
+
+    it('creates schedule with valid orderId (no tx)', async () => {
       prisma.user.update.mockResolvedValueOnce({})
-      // pointsUnlockSchedule.create
       prisma.pointsUnlockSchedule.create.mockResolvedValueOnce({ id: 'sch-1' })
 
       const nextUnlock = new Date()
       const result = await PointsService.createPointsUnlockSchedule({
         userId: 'u1',
-        orderId: null,
+        orderId: 'order-abc',
         totalPoints: 1000,
         dailyUnlockRate: 0.01,
         totalDays: 100,
@@ -380,19 +426,17 @@ describe('PointsService', () => {
       })
 
       expect(result).toEqual({ id: 'sch-1' })
-      // lockedPoints increment
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'u1' },
           data: { lockedPoints: { increment: 1000 } },
         })
       )
-      // schedule created with orderId default to ''
       expect(prisma.pointsUnlockSchedule.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             userId: 'u1',
-            orderId: '',  // null → '' 兜底
+            orderId: 'order-abc',
             totalPoints: 1000,
             remainingPoints: 1000,
             completedDays: 0,
@@ -401,26 +445,40 @@ describe('PointsService', () => {
       )
     })
 
-    it('uses provided orderId when not null', async () => {
-      prisma.user.update.mockResolvedValueOnce({})
-      prisma.pointsUnlockSchedule.create.mockResolvedValueOnce({ id: 'sch-2' })
+    it('creates schedule with valid orderId (with tx)', async () => {
+      const txMock = {
+        user: { update: vi.fn().mockResolvedValue({}) },
+        pointsUnlockSchedule: { create: vi.fn().mockResolvedValue({ id: 'sch-tx' }) },
+      }
 
-      await PointsService.createPointsUnlockSchedule({
-        userId: 'u2',
-        orderId: 'order-123',
-        totalPoints: 500,
-        dailyUnlockRate: 0.02,
-        totalDays: 50,
-        nextUnlockDate: new Date(),
-      })
+      const result = await PointsService.createPointsUnlockSchedule(
+        {
+          userId: 'u2',
+          orderId: 'order-tx-1',
+          totalPoints: 500,
+          dailyUnlockRate: 0.02,
+          totalDays: 50,
+          nextUnlockDate: new Date(),
+        },
+        txMock as any
+      )
 
-      expect(prisma.pointsUnlockSchedule.create).toHaveBeenCalledWith(
+      expect(result).toEqual({ id: 'sch-tx' })
+      expect(txMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u2' },
+          data: { lockedPoints: { increment: 500 } },
+        })
+      )
+      expect(txMock.pointsUnlockSchedule.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            orderId: 'order-123',
+            orderId: 'order-tx-1',
           }),
         })
       )
+      expect(prisma.user.update).not.toHaveBeenCalled()
+      expect(prisma.pointsUnlockSchedule.create).not.toHaveBeenCalled()
     })
   })
 

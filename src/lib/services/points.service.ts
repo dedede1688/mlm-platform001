@@ -177,6 +177,10 @@ export class PointsService {
     tx?: Prisma.TransactionClient,
   ): Promise<{ id: string }> {
     const client = tx ?? prisma
+    const orderId = data.orderId?.trim()
+    if (!orderId) {
+      throw new Error('创建升级积分解锁计划必须绑定真实订单ID')
+    }
     // 将积分锁定到 lockedPoints，dailyUnlock 会逐步释放到 unlockedPoints
     await client.user.update({
       where: { id: data.userId },
@@ -186,7 +190,7 @@ export class PointsService {
     return client.pointsUnlockSchedule.create({
       data: {
         userId: data.userId,
-        orderId: data.orderId || '',
+        orderId,
         totalPoints: data.totalPoints,
         unlockedPoints: 0,
         remainingPoints: data.totalPoints,
