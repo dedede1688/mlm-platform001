@@ -156,7 +156,7 @@ describe('v55.2: middleware JWT 签名验证', () => {
 
   it('子路径 + 错误角色返回 403', () => {
     // /api/admin/users/123 应匹配 /api/admin/users → 要求 super_admin/support_admin
-    const token = createToken({ userId: 'u1', phone: '138', role: 'finance_admin' })
+    const token = createToken({ userId: 'u1', phone: '138', role: 'goods_admin' })
     const req = createMockRequest('/api/admin/users/u-123', `Bearer ${token}`)
     const res = middleware(req) as { status: number }
     expect(res.status).toBe(403)

@@ -9,7 +9,7 @@ const source = readFileSync(
 
 describe('后台分红结算页面鉴权', () => {
   it('使用统一 token，并在缺失时跳转到有效登录页', () => {
-    expect(source).toContain("localStorage.getItem('token')")
+    expect(source).toContain("getAuthToken()")
     expect(source).not.toContain("localStorage.getItem('adminToken')")
     expect(source).toContain('/login?redirect=')
     expect(source).not.toContain("router.push('/admin/login')")
