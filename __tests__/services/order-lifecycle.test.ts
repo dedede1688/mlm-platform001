@@ -527,7 +527,8 @@ describe('OrderLifecycleService', () => {
 
       await OrderLifecycleService.requestRefund('order-void')
 
-      expect(PointsService.voidUpgradePointsForRefund).toHaveBeenCalledWith('user-void', 'order-void', expect.anything())
+      // v4A-1: 新签名 voidUpgradePointsForRefund(orderId, tx) — 按 orderId 查所有用户
+      expect(PointsService.voidUpgradePointsForRefund).toHaveBeenCalledWith('order-void', expect.anything())
     })
 
     it('voidUpgradePointsForRefund 抛错时退款不完成、订单不改 refunded', async () => {

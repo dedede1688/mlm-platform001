@@ -425,26 +425,33 @@ describe('PointsService', () => {
   })
 
   // ============ voidUpgradePointsForRefund ============
+  // v4A-1: 签名改为 (orderId, tx)，按 orderId 查所有未 voided schedule 并按 userId 分组冲销
   describe('voidUpgradePointsForRefund', () => {
     it('没有对应 schedule 时不更新用户、不写 PointsRecord、不报错', async () => {
       prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([])
 
-      await PointsService.voidUpgradePointsForRefund('user-1', 'order-1', prisma as any)
+      await PointsService.voidUpgradePointsForRefund('order-1', prisma as any)
 
       expect(prisma.user.updateMany).not.toHaveBeenCalled()
       expect(prisma.pointsUnlockSchedule.updateMany).not.toHaveBeenCalled()
       expect(prisma.pointsRecord.create).not.toHaveBeenCalled()
     })
 
-    it('active schedule 部分已解锁时原子扣减积分、作废 schedule、写 PointsRecord', async () => {
+    it('active schedule 部分已解锁时原子扣减积分、作废 schedule、写 PointsRecord（真实快照）', async () => {
       prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([
         { id: 'sch-1', userId: 'user-1', orderId: 'order-1', totalPoints: 5000, unlockedPoints: 1000, remainingPoints: 4000, status: 'active' },
       ] as any)
       prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
       prisma.pointsUnlockSchedule.updateMany.mockResolvedValueOnce({ count: 1 })
+      // 扣减后 user 真实快照
+      prisma.user.findUnique.mockResolvedValueOnce({
+        totalPoints: 9500,
+        unlockedPoints: 4000,
+        lockedPoints: 5500,
+      } as any)
       prisma.pointsRecord.create.mockResolvedValueOnce({})
 
-      await PointsService.voidUpgradePointsForRefund('user-1', 'order-1', prisma as any)
+      await PointsService.voidUpgradePointsForRefund('order-1', prisma as any)
 
       const updateCall = prisma.user.updateMany.mock.calls[0][0]
       expect(updateCall.where).toMatchObject({
@@ -463,10 +470,15 @@ describe('PointsService', () => {
       expect(scheduleCall.where).toMatchObject({ id: { in: ['sch-1'] }, status: { not: 'voided' } })
       expect(scheduleCall.data).toMatchObject({ status: 'voided', remainingPoints: 0, nextUnlockDate: null })
 
+      // v4A-1: pointsRecord 必须写真实快照，禁止 0
       const recordCall = prisma.pointsRecord.create.mock.calls[0][0]
       expect(recordCall.data.type).toBe('void')
       expect(recordCall.data.amount).toBe(-5000)
       expect(recordCall.data.sourceId).toBe('order-1')
+      expect(recordCall.data.userId).toBe('user-1')
+      expect(recordCall.data.totalPoints).toBe(9500)
+      expect(recordCall.data.unlockedPoints).toBe(4000)
+      expect(recordCall.data.lockedPoints).toBe(5500)
     })
 
     it('已解锁积分不足时抛错，不作废 schedule、不写 pointsRecord', async () => {
@@ -475,19 +487,94 @@ describe('PointsService', () => {
       ] as any)
       prisma.user.updateMany.mockResolvedValueOnce({ count: 0 })
 
-      await expect(PointsService.voidUpgradePointsForRefund('user-2', 'order-2', prisma as any))
+      await expect(PointsService.voidUpgradePointsForRefund('order-2', prisma as any))
         .rejects.toThrow('升级积分已被使用，不能自动完成退款，请先人工处理积分')
 
       expect(prisma.pointsUnlockSchedule.updateMany).not.toHaveBeenCalled()
       expect(prisma.pointsRecord.create).not.toHaveBeenCalled()
     })
 
+    it('schedule 抢占不完整（count < group.length）时抛错，不写 pointsRecord', async () => {
+      // 模拟并发场景：原本查到了 2 条，但 updateMany 只成功 1 条
+      prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([
+        { id: 'sch-3a', userId: 'user-3', orderId: 'order-3', totalPoints: 3000, unlockedPoints: 500, remainingPoints: 2500, status: 'active' },
+        { id: 'sch-3b', userId: 'user-3', orderId: 'order-3', totalPoints: 2000, unlockedPoints: 0, remainingPoints: 2000, status: 'active' },
+      ] as any)
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      // schedule 抢占只成功 1 条（期望 2 条）
+      prisma.pointsUnlockSchedule.updateMany.mockResolvedValueOnce({ count: 1 })
+
+      await expect(PointsService.voidUpgradePointsForRefund('order-3', prisma as any))
+        .rejects.toThrow('升级积分解锁计划状态已变化，请重试退款或转人工处理')
+
+      expect(prisma.pointsRecord.create).not.toHaveBeenCalled()
+    })
+
     it('已作废的 schedule 不重复作废', async () => {
       prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([])
 
-      await PointsService.voidUpgradePointsForRefund('user-3', 'order-3', prisma as any)
+      await PointsService.voidUpgradePointsForRefund('order-4', prisma as any)
 
       expect(prisma.pointsUnlockSchedule.updateMany).not.toHaveBeenCalled()
+    })
+
+    // v4A-1: 推荐人因 checkAndUpgradeLevel(referrerId, order.id) 也会创建 schedule
+    it('同一 orderId 下多个 user 的 schedule 都会被冲销', async () => {
+      // 买家 + 推荐人，2 个 user 共 3 条 schedule
+      prisma.pointsUnlockSchedule.findMany.mockResolvedValueOnce([
+        { id: 'sch-buyer-1', userId: 'buyer', orderId: 'order-multi', totalPoints: 5000, unlockedPoints: 1000, remainingPoints: 4000, status: 'active' },
+        { id: 'sch-ref-1', userId: 'referrer', orderId: 'order-multi', totalPoints: 3000, unlockedPoints: 300, remainingPoints: 2700, status: 'active' },
+        { id: 'sch-ref-2', userId: 'referrer', orderId: 'order-multi', totalPoints: 1000, unlockedPoints: 0, remainingPoints: 1000, status: 'active' },
+      ] as any)
+      // user 1: buyer
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.pointsUnlockSchedule.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.user.findUnique.mockResolvedValueOnce({
+        totalPoints: 9500,
+        unlockedPoints: 4000,
+        lockedPoints: 5500,
+      } as any)
+      prisma.pointsRecord.create.mockResolvedValueOnce({})
+      // user 2: referrer（同一 orderId 下的另一组）
+      prisma.user.updateMany.mockResolvedValueOnce({ count: 1 })
+      prisma.pointsUnlockSchedule.updateMany.mockResolvedValueOnce({ count: 2 })
+      prisma.user.findUnique.mockResolvedValueOnce({
+        totalPoints: 7000,
+        unlockedPoints: 3000,
+        lockedPoints: 4000,
+      } as any)
+      prisma.pointsRecord.create.mockResolvedValueOnce({})
+
+      await PointsService.voidUpgradePointsForRefund('order-multi', prisma as any)
+
+      // 验证两个 user 都被处理
+      expect(prisma.user.updateMany).toHaveBeenCalledTimes(2)
+      expect(prisma.pointsUnlockSchedule.updateMany).toHaveBeenCalledTimes(2)
+      expect(prisma.pointsRecord.create).toHaveBeenCalledTimes(2)
+
+      // buyer 组：1 条 schedule
+      const buyerScheduleCall = prisma.pointsUnlockSchedule.updateMany.mock.calls[0][0]
+      expect(buyerScheduleCall.where.id.in).toEqual(['sch-buyer-1'])
+
+      // referrer 组：2 条 schedule
+      const refScheduleCall = prisma.pointsUnlockSchedule.updateMany.mock.calls[1][0]
+      expect(refScheduleCall.where.id.in).toEqual(['sch-ref-1', 'sch-ref-2'])
+
+      // buyer 流水：真实快照
+      const buyerRecord = prisma.pointsRecord.create.mock.calls[0][0]
+      expect(buyerRecord.data.userId).toBe('buyer')
+      expect(buyerRecord.data.amount).toBe(-5000)
+      expect(buyerRecord.data.totalPoints).toBe(9500)
+      expect(buyerRecord.data.unlockedPoints).toBe(4000)
+      expect(buyerRecord.data.lockedPoints).toBe(5500)
+
+      // referrer 流水：真实快照
+      const refRecord = prisma.pointsRecord.create.mock.calls[1][0]
+      expect(refRecord.data.userId).toBe('referrer')
+      expect(refRecord.data.amount).toBe(-4000) // 3000 + 1000
+      expect(refRecord.data.totalPoints).toBe(7000)
+      expect(refRecord.data.unlockedPoints).toBe(3000)
+      expect(refRecord.data.lockedPoints).toBe(4000)
     })
   })
 })

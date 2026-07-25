@@ -290,8 +290,8 @@ export class OrderLifecycleService {
         }
       }
 
-      // 冲销升级积分和解锁计划
-      await PointsService.voidUpgradePointsForRefund(order.userId, orderId, tx)
+      // 冲销升级积分和解锁计划（按 orderId 查所有用户，包括推荐人因升级而创建的 schedule）
+      await PointsService.voidUpgradePointsForRefund(orderId, tx)
 
       // 扣除已发放的奖励
       await RewardService.processRefund(orderId)

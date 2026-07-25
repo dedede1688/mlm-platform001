@@ -355,68 +355,91 @@ export class PointsService {
     return { userId, amount, reason, ...result.newValue }
   }
 
-  static async voidUpgradePointsForRefund(userId: string, orderId: string, tx: Prisma.TransactionClient) {
+  // v4A-1: 按 orderId 查所有未 voided 的 schedule，按 userId 分组冲销
+  // 推荐人也会因 checkAndUpgradeLevel(referrerId, order.id) 拿到 schedule，
+  // 退款时必须一并冲销，不能只处理买家本人。
+  static async voidUpgradePointsForRefund(orderId: string, tx: Prisma.TransactionClient) {
     const schedules = await tx.pointsUnlockSchedule.findMany({
       where: {
         orderId,
-        userId,
         status: { not: 'voided' },
       },
     })
 
     if (schedules.length === 0) return
 
-    let totalVoid = 0
-    let totalUnlocked = 0
-    let totalLocked = 0
-
-    for (const schedule of schedules) {
-      totalVoid += schedule.totalPoints
-      totalUnlocked += schedule.unlockedPoints
-      totalLocked += schedule.remainingPoints
+    // 按 userId 分组
+    const grouped = new Map<string, typeof schedules>()
+    for (const s of schedules) {
+      const list = grouped.get(s.userId) ?? []
+      list.push(s)
+      grouped.set(s.userId, list)
     }
 
-    const updateResult = await tx.user.updateMany({
-      where: {
-        id: userId,
-        unlockedPoints: { gte: totalUnlocked },
-        lockedPoints: { gte: totalLocked },
-        totalPoints: { gte: totalVoid },
-      },
-      data: {
-        totalPoints: { decrement: totalVoid },
-        unlockedPoints: { decrement: totalUnlocked },
-        lockedPoints: { decrement: totalLocked },
-      },
-    })
+    for (const [userId, group] of grouped) {
+      let totalVoid = 0
+      let totalUnlocked = 0
+      let totalLocked = 0
+      for (const s of group) {
+        totalVoid += s.totalPoints
+        totalUnlocked += s.unlockedPoints
+        totalLocked += s.remainingPoints
+      }
 
-    if (updateResult.count === 0) {
-      throw new Error('升级积分已被使用，不能自动完成退款，请先人工处理积分')
+      // 原子扣减用户积分（防并发透支）
+      const updateResult = await tx.user.updateMany({
+        where: {
+          id: userId,
+          unlockedPoints: { gte: totalUnlocked },
+          lockedPoints: { gte: totalLocked },
+          totalPoints: { gte: totalVoid },
+        },
+        data: {
+          totalPoints: { decrement: totalVoid },
+          unlockedPoints: { decrement: totalUnlocked },
+          lockedPoints: { decrement: totalLocked },
+        },
+      })
+
+      if (updateResult.count === 0) {
+        throw new Error('升级积分已被使用，不能自动完成退款，请先人工处理积分')
+      }
+
+      // 抢占 schedule（防并发作废）；count 必须等于该组长度，否则抛错回滚
+      const scheduleResult = await tx.pointsUnlockSchedule.updateMany({
+        where: {
+          id: { in: group.map(s => s.id) },
+          status: { not: 'voided' },
+        },
+        data: {
+          status: 'voided',
+          remainingPoints: 0,
+          nextUnlockDate: null,
+        },
+      })
+
+      if (scheduleResult.count !== group.length) {
+        throw new Error('升级积分解锁计划状态已变化，请重试退款或转人工处理')
+      }
+
+      // 查询扣减后的真实积分快照（不写 0）
+      const afterUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { totalPoints: true, unlockedPoints: true, lockedPoints: true },
+      })
+
+      await tx.pointsRecord.create({
+        data: {
+          userId,
+          type: 'void',
+          amount: -totalVoid,
+          sourceId: orderId,
+          description: `退款冲销升级积分（${group.length}个解锁计划，总积分${totalVoid}）`,
+          totalPoints: afterUser?.totalPoints ?? 0,
+          unlockedPoints: afterUser?.unlockedPoints ?? 0,
+          lockedPoints: afterUser?.lockedPoints ?? 0,
+        },
+      })
     }
-
-    await tx.pointsUnlockSchedule.updateMany({
-      where: {
-        id: { in: schedules.map(s => s.id) },
-        status: { not: 'voided' },
-      },
-      data: {
-        status: 'voided',
-        remainingPoints: 0,
-        nextUnlockDate: null,
-      },
-    })
-
-    await tx.pointsRecord.create({
-      data: {
-        userId,
-        type: 'void',
-        amount: -totalVoid,
-        sourceId: orderId,
-        description: `退款冲销升级积分（${schedules.length}个解锁计划，总积分${totalVoid}）`,
-        totalPoints: 0,
-        unlockedPoints: 0,
-        lockedPoints: 0,
-      },
-    })
   }
 }
