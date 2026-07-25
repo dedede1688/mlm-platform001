@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { PointsService } from './points.service'
 import { getBusinessConfig } from '@/lib/config/business'
+import type { Prisma } from '@prisma/client'
 
 export class UserService {
   static async createUser(data: {
@@ -253,5 +254,70 @@ export class UserService {
         },
       },
     })
+  }
+
+  static async recomputeQualificationStatsForUsers(
+    userIds: string[],
+    tx?: Prisma.TransactionClient
+  ): Promise<void> {
+    const client = tx ?? prisma
+    const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)))
+    const validStatuses = ['paid', 'shipped', 'completed']
+
+    for (const userId of uniqueUserIds) {
+      const ownSales = await client.order.aggregate({
+        where: {
+          userId,
+          status: { in: validStatuses },
+          rewardStatus: 'completed',
+        },
+        _sum: { payAmount: true },
+      })
+
+      const directChildren = await client.user.findMany({
+        where: { referrerId: userId },
+        select: { id: true },
+      })
+      const directChildIds = directChildren.map((child) => child.id)
+
+      const directChildrenSales = directChildIds.length > 0
+        ? await client.order.aggregate({
+          where: {
+            userId: { in: directChildIds },
+            status: { in: validStatuses },
+            rewardStatus: 'completed',
+          },
+          _sum: { payAmount: true },
+        })
+        : { _sum: { payAmount: 0 } }
+
+      const upgradeProducts = await client.orderItem.aggregate({
+        where: {
+          order: {
+            userId,
+            status: { in: validStatuses },
+            rewardStatus: 'completed',
+          },
+          product: { isUpgradeProduct: true },
+        },
+        _sum: { quantity: true },
+      })
+
+      const directDistributorCount = await client.user.count({
+        where: {
+          referrerId: userId,
+          level: { gte: MEMBER_LEVELS.DISTRIBUTOR },
+        },
+      })
+
+      await client.user.update({
+        where: { id: userId },
+        data: {
+          directSalesAmount: Number(ownSales._sum.payAmount ?? 0) + Number(directChildrenSales._sum.payAmount ?? 0),
+          upgradeProductCount: Number(upgradeProducts._sum.quantity ?? 0),
+          directDistributorCount,
+        },
+      })
+    }
   }
 }

@@ -14,6 +14,8 @@ vi.mock('@/lib/prisma', () => {
 
   const mockPrisma: any = {
     user: createMockChain(),
+    order: createMockChain(),
+    orderItem: createMockChain(),
     pointsRecord: createMockChain(),
     $transaction: vi.fn(),
   }
@@ -474,6 +476,114 @@ describe('UserService', () => {
         where: { id: 'u1' },
         data: { upgradeProductCount: { increment: 5 } },
       })
+    })
+  })
+
+  describe('recomputeQualificationStatsForUsers', () => {
+    it('recomputes sales, upgrade product count and direct distributor count from valid current data', async () => {
+      prisma.order.aggregate
+        .mockResolvedValueOnce({ _sum: { payAmount: 1200 } })
+        .mockResolvedValueOnce({ _sum: { payAmount: 800 } })
+      prisma.user.findMany.mockResolvedValueOnce([{ id: 'child-1' }, { id: 'child-2' }])
+      prisma.orderItem.aggregate.mockResolvedValueOnce({ _sum: { quantity: 3 } })
+      prisma.user.count.mockResolvedValueOnce(1)
+      prisma.user.update.mockResolvedValueOnce({} as any)
+
+      await UserService.recomputeQualificationStatsForUsers(['u-main'])
+
+      expect(prisma.order.aggregate).toHaveBeenNthCalledWith(1, {
+        where: {
+          userId: 'u-main',
+          status: { in: ['paid', 'shipped', 'completed'] },
+          rewardStatus: 'completed',
+        },
+        _sum: { payAmount: true },
+      })
+      expect(prisma.user.findMany).toHaveBeenCalledWith({
+        where: { referrerId: 'u-main' },
+        select: { id: true },
+      })
+      expect(prisma.order.aggregate).toHaveBeenNthCalledWith(2, {
+        where: {
+          userId: { in: ['child-1', 'child-2'] },
+          status: { in: ['paid', 'shipped', 'completed'] },
+          rewardStatus: 'completed',
+        },
+        _sum: { payAmount: true },
+      })
+      expect(prisma.orderItem.aggregate).toHaveBeenCalledWith({
+        where: {
+          order: {
+            userId: 'u-main',
+            status: { in: ['paid', 'shipped', 'completed'] },
+            rewardStatus: 'completed',
+          },
+          product: { isUpgradeProduct: true },
+        },
+        _sum: { quantity: true },
+      })
+      expect(prisma.user.count).toHaveBeenCalledWith({
+        where: {
+          referrerId: 'u-main',
+          level: { gte: 2 },
+        },
+      })
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-main' },
+        data: {
+          directSalesAmount: 2000,
+          upgradeProductCount: 3,
+          directDistributorCount: 1,
+        },
+      })
+    })
+
+    it('deduplicates user ids and handles users without current direct children', async () => {
+      prisma.order.aggregate
+        .mockResolvedValueOnce({ _sum: { payAmount: null } })
+        .mockResolvedValueOnce({ _sum: { payAmount: 0 } })
+      prisma.user.findMany.mockResolvedValueOnce([])
+      prisma.orderItem.aggregate.mockResolvedValueOnce({ _sum: { quantity: null } })
+      prisma.user.count.mockResolvedValueOnce(0)
+      prisma.user.update.mockResolvedValueOnce({} as any)
+
+      await UserService.recomputeQualificationStatsForUsers(['u-one', 'u-one'])
+
+      expect(prisma.user.update).toHaveBeenCalledTimes(1)
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-one' },
+        data: {
+          directSalesAmount: 0,
+          upgradeProductCount: 0,
+          directDistributorCount: 0,
+        },
+      })
+    })
+
+    it('uses the provided transaction client when supplied', async () => {
+      const tx: any = {
+        order: { aggregate: vi.fn()
+          .mockResolvedValueOnce({ _sum: { payAmount: 100 } })
+          .mockResolvedValueOnce({ _sum: { payAmount: 50 } }) },
+        orderItem: { aggregate: vi.fn().mockResolvedValueOnce({ _sum: { quantity: 2 } }) },
+        user: {
+          findMany: vi.fn().mockResolvedValueOnce([{ id: 'child-tx' }]),
+          count: vi.fn().mockResolvedValueOnce(1),
+          update: vi.fn().mockResolvedValueOnce({}),
+        },
+      }
+
+      await UserService.recomputeQualificationStatsForUsers(['u-tx'], tx)
+
+      expect(tx.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-tx' },
+        data: {
+          directSalesAmount: 150,
+          upgradeProductCount: 2,
+          directDistributorCount: 1,
+        },
+      })
+      expect(prisma.user.update).not.toHaveBeenCalled()
     })
   })
 })
