@@ -15,6 +15,7 @@ import RichTextEditor from '@/components/RichTextEditor'
 import VideoUpload from '@/components/VideoUpload'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface Product {
   id: string
@@ -143,7 +144,7 @@ const canDelete = useMemo(() => hasPermission(userRole, 'delete'), [userRole, pe
 
   // 获取 token
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (storedToken) {
       setToken(storedToken)
       fetchProducts(storedToken, 1)

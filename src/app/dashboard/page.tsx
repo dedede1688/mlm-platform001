@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import { formatMoney } from '@/lib/utils/format'
 import AvatarUploadModal from '@/components/dashboard/AvatarUploadModal'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -94,7 +95,7 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) {
       router.push('/login')
       return
@@ -173,7 +174,7 @@ export default function DashboardPage() {
   }
 
   const handleSaveAvatar = async (avatarUrl: string) => {
-    const token = localStorage.getItem('token') || ''
+    const token = getAuthToken() || ''
     const res = await fetch('/api/users/me', {
       method: 'PUT',
       headers: {

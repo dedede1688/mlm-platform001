@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Loader2, ArrowRight, AlertCircle } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface EarningsTransferModalProps {
   open: boolean
@@ -74,7 +75,7 @@ export function EarningsTransferModal({
       return
     }
 
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) {
       setErrorMsg('请先登录')
       return

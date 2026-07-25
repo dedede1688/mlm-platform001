@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Inbox, User, CheckCircle, Circle, Loader2 } from 'lucide-react'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface BatchDetail {
   id: string
@@ -44,7 +45,7 @@ export default function BatchDetailPage() {
   async function fetchBatch() {
     setLoading(true)
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+      const token = typeof window !== 'undefined' ? getAuthToken() || '' : ''
       const res = await fetch(`/api/admin/notification-history/${params.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       })

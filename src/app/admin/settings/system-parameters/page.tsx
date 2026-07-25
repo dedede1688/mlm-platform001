@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // v50 C: 扩展支持 boolean 类型 + 分组
 interface SystemParameterDef {
@@ -50,7 +51,7 @@ export default function SystemParametersPage() {
 
   const load = async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const r = await fetch('/api/admin/system-config/parameters', {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -67,7 +68,7 @@ export default function SystemParametersPage() {
     setSaving(key)
     setMessage(null)
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       let value: number | boolean
       if (type === 'boolean') {
         value = editingBool[key] ?? false

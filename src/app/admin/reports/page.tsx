@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { BarChart3, Users, DollarSign, TrendingUp, Loader2, Filter, Download } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // v51.2: CSV 下载 helper（fetch + blob + 触发浏览器下载）
 async function downloadCsv(url: string, fallbackFilename: string) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+  const token = typeof window !== 'undefined' ? getAuthToken() || '' : ''
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     alert('下载失败：' + res.status)
@@ -75,7 +76,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+    const token = typeof window !== 'undefined' ? getAuthToken() || '' : ''
     if (!token) return
 
     const fetchReport = async <T,>(url: string): Promise<T | null> => {

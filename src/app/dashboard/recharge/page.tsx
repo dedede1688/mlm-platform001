@@ -12,6 +12,7 @@ import ImageUpload from '@/components/ImageUpload'
 import ProofViewerModal from '@/components/ProofViewerModal'
 import RechargeQrPanel from '@/components/recharge/RechargeQrPanel'
 import { formatMoney } from '@/lib/utils/format'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 /**
  * 充值设置（第一包单二维码结构）
@@ -82,7 +83,7 @@ export default function RechargePage() {
   const [proofViewerUrl, setProofViewerUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

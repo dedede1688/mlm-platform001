@@ -7,6 +7,7 @@ import {
   ArrowUp, ArrowDown, X, Save
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----
 
@@ -80,7 +81,7 @@ export default function BannersPage() {
 
   const fetchBanners = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch('/api/admin/banners', {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -198,7 +199,7 @@ export default function BannersPage() {
     setMessage(null)
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const payload = {
         banners: formData.map(item => ({
           ...item,

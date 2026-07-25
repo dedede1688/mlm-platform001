@@ -5,6 +5,7 @@ import {
   Bell, Plus, Edit2, Trash2, CheckCircle, AlertCircle,
   Loader2, X, Mail, MessageSquare, ToggleLeft, ToggleRight, Send
 } from 'lucide-react'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -150,7 +151,7 @@ export default function AdminNotificationsPage() {
 
   const fetchTemplates = async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch('/api/admin/notifications', {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -207,7 +208,7 @@ export default function AdminNotificationsPage() {
     setSaving(true)
     setMessage(null)
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const url = editingId
         ? `/api/admin/notifications/${editingId}`
         : '/api/admin/notifications'
@@ -240,7 +241,7 @@ export default function AdminNotificationsPage() {
 
   const handleToggleEnabled = async (template: NotificationTemplate) => {
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch(`/api/admin/notifications/${template.id}`, {
         method: 'PUT',
         headers: {
@@ -263,7 +264,7 @@ export default function AdminNotificationsPage() {
   const handleDelete = async () => {
     if (!deletingId) return
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch(`/api/admin/notifications/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -295,7 +296,7 @@ export default function AdminNotificationsPage() {
       }
       const res = await fetch('/api/admin/notifications/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
         body: JSON.stringify(body),
       })
       const data = await res.json()

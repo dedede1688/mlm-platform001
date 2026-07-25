@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Inbox, Eye, Loader2, User } from 'lucide-react'
 import Link from 'next/link'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface NotificationBatch {
   id: string
@@ -40,7 +41,7 @@ export default function NotificationHistoryPage() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20' })
       if (typeFilter) params.set('type', typeFilter)
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+      const token = typeof window !== 'undefined' ? getAuthToken() || '' : ''
       const res = await fetch(`/api/admin/notification-history?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       })

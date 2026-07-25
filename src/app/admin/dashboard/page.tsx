@@ -11,6 +11,7 @@ import {
 import dynamic from 'next/dynamic'
 import { formatMoney } from '@/lib/utils/format'
 import { logger } from '@/lib/logger'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // 动态导入 recharts 组件，减少初始加载体积
 const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false })
@@ -122,7 +123,7 @@ export default function AdminDashboardPage() {
     else setLoading(true)
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       if (!token) return
 
       const [statsRes, trendRes, summaryRes] = await Promise.all([

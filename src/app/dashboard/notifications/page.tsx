@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, CheckCircle, Loader2, ChevronRight } from 'lucide-react'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface Notification {
   id: string
@@ -25,7 +26,7 @@ export default function NotificationsPage() {
   const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
-    const t = localStorage.getItem('token')
+    const t = getAuthToken()
     if (t) { setToken(t); fetchNotifications(t, 1) }
   }, [])
 

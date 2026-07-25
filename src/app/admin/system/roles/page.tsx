@@ -7,6 +7,7 @@ import {
   LayoutGrid, KeyRound,
 } from 'lucide-react'
 import { ACTIONS, ACTION_LABELS, Action } from '@/lib/admin-permissions'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 6 大类分组(跟 admin-menu.ts 顺序一致) ----
 
@@ -88,7 +89,7 @@ export default function RolesPage() {
   const [isActionCustomized, setIsActionCustomized] = useState(false)
 
   useEffect(() => {
-    const t = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+    const t = typeof window !== 'undefined' ? getAuthToken() || '' : ''
     setToken(t)
   }, [])
 

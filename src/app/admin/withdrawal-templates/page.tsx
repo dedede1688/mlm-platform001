@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FileText, Plus, Pencil, Trash2, X, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface Template {
   id: string
@@ -22,7 +23,7 @@ export default function WithdrawalTemplatesPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
-    const t = localStorage.getItem('token')
+    const t = getAuthToken()
     if (t) { setToken(t); fetchTemplates(t) }
   }, [])
 

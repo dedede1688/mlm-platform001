@@ -7,6 +7,7 @@ import {
   X, Eye, Truck, Package, CheckCircle, XCircle, CreditCard
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----
 
@@ -122,7 +123,7 @@ export default function AdminOrdersPage() {
 
   // 获取 token
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     // v68:解析当前用户角色
     try {
       const u = JSON.parse(localStorage.getItem('user') || '{}')

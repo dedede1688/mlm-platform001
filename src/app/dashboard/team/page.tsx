@@ -8,6 +8,7 @@ import {
   Search, UserPlus, Copy, Check, List, Network
 } from 'lucide-react'
 import ReferralTreeView, { TreeNode } from '@/components/ReferralTreeView'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -56,7 +57,7 @@ export default function TeamPage() {
   const pageSize = 10
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return
@@ -88,7 +89,7 @@ export default function TeamPage() {
   }
 
   const fetchTreeData = async () => {
-    const authToken = localStorage.getItem('token')
+    const authToken = getAuthToken()
     if (!authToken) return
     try {
       const res = await fetch('/api/users/team?tree=true', {

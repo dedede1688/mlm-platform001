@@ -12,6 +12,7 @@ import {
   refundReasonRequiresImages,
   validateRefundApplication,
 } from '@/lib/refunds/refund-validation'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -61,7 +62,7 @@ export default function RefundApplyPage() {
   const formInvalid = !currentValidation.success
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

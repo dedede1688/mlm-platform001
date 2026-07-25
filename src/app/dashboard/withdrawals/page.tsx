@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface UserInfo {
   id: string
@@ -63,7 +64,7 @@ export default function WithdrawalsPage() {
   const [showTransferModal, setShowTransferModal] = useState(false)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

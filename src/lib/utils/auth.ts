@@ -33,7 +33,7 @@ export function generateToken(userId: string, phone: string, role?: string) {
   return jwt.sign(
     { userId, phone, role },
     getJwtSecret(),
-    { expiresIn: '7d' }
+    { expiresIn: '1d' } // v5B: ? 7d ??? 1d??? token ??????
   )
 }
 

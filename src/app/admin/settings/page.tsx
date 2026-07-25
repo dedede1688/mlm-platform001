@@ -7,6 +7,8 @@ import {
   ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2,
   FileText, Shield, HelpCircle, Info, Image as ImageIcon, Search, CreditCard, Upload, X
 } from 'lucide-react'
+import { sanitizeHtml } from '@/lib/utils/sanitize-html'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 默认 HTML 兜底函数 ----
 
@@ -449,7 +451,7 @@ function HtmlEditor({
             prose prose-gray max-w-none
             prose-headings:text-gray-900 prose-p:text-gray-600 prose-p:leading-relaxed
             prose-a:text-blue-600"
-          dangerouslySetInnerHTML={{ __html: value || '<p class="text-gray-300">暂无内容</p>' }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(value || '<p class="text-gray-300">暂无内容</p>') }}
         />
       ) : (
         <textarea
@@ -486,7 +488,7 @@ export default function AdminSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch('/api/admin/settings', {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -535,7 +537,7 @@ export default function AdminSettingsPage() {
     setMessage(null)
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: {

@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx'
 import ReferralTreePanel from '@/components/ReferralTreePanel'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----
 
@@ -272,7 +273,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
 
   // 获取 token
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (storedToken) {
       setToken(storedToken)
       fetchUsers(storedToken, 1)

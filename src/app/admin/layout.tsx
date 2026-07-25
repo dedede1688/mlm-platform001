@@ -8,6 +8,7 @@ import {
   ShieldAlert
 } from 'lucide-react'
 import { MENU_ITEMS, ROLE_MENUS } from '@/lib/admin-menu'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 所有管理员角色（用于权限验证） ----
 const ALL_ADMIN_ROLES = Object.keys(ROLE_MENUS)
@@ -66,7 +67,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let cancelled = false
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       if (!token) {
         router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
         return
@@ -152,11 +153,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let cancelled = false
     Promise.all([
       fetch('/api/admin/roles', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+        headers: { Authorization: `Bearer ${getAuthToken() || ''}` },
       }).then(r => r.json()),
       // v68:同时拉操作权限
       fetch('/api/admin/role-permissions', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` },
+        headers: { Authorization: `Bearer ${getAuthToken() || ''}` },
       }).then(r => r.json()),
     ])
       .then(([menusData, permsData]) => {

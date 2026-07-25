@@ -12,6 +12,7 @@ import {
 import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
 import PaymentPasswordModal from '@/components/dashboard/PaymentPasswordModal'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -74,7 +75,7 @@ export default function OrdersPage() {
   const pageSize = 8
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

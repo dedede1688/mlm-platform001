@@ -29,35 +29,28 @@ export async function POST(request: NextRequest) {
     }
 
     // 查找用户
-    logger.info(`[Login] 查找用户, phone: ${phone}`)
     const user = await prisma.user.findUnique({
       where: { phone },
     })
-    logger.info(`[Login] 用户查找结果: ${user ? `找到用户 id=${user.id}, role=${user.role}` : '未找到用户'}`)
 
     if (!user) {
       return errorResponse('用户不存在', 400)
     }
 
     // 验证密码
-    logger.info('[Login] 开始验证密码')
     const isValid = await bcrypt.compare(password, user.passwordHash)
-    logger.info(`[Login] 密码验证结果: ${isValid}`)
 
     if (!isValid) {
       return errorResponse('密码错误', 400)
     }
 
     // 生成 JWT
-    logger.info(`[Login] 生成 JWT Token, userId: ${user.id}`)
     // 调试：记录密钥指纹，与 middleware 对照
     const secret = process.env.JWT_SECRET || ''
     const fp = secret ? `${secret.substring(0, 4)}...${secret.length}chars` : 'EMPTY!'
-    logger.info(`[Login] JWT_SECRET fingerprint: ${fp}`)
     const token = generateToken(user.id, user.phone, user.role)
-    logger.info(`[Login] Token 生成成功, 长度: ${token.length}`)
 
-    logger.info('[Login] 登录成功，返回响应')
+    logger.info(`[Login] ????, role: ${user.role}`)
     return NextResponse.json({
       success: true,
       data: {

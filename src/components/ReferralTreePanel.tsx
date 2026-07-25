@@ -6,6 +6,7 @@ import ReferralTreeView, {
   TreeNode,
   TreeSummary,
 } from './ReferralTreeView'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -96,7 +97,7 @@ export default function ReferralTreePanel({ userId, userName, onClose }: Referra
 
   // 获取 token
   useEffect(() => {
-    const t = localStorage.getItem('token')
+    const t = getAuthToken()
     if (t) setToken(t)
   }, [])
 

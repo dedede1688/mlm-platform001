@@ -13,6 +13,7 @@ import { formatMoney } from '@/lib/utils/format'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
 import OrderAfterSalesCard from '@/components/orders/OrderAfterSalesCard'
 import PaymentPasswordModal from '@/components/dashboard/PaymentPasswordModal'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -104,7 +105,7 @@ export default function OrderDetailPage() {
   const [transferInitialAmount, setTransferInitialAmount] = useState<number | undefined>(undefined)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return
@@ -167,7 +168,7 @@ export default function OrderDetailPage() {
 
   const handlePayConfirm = async (password: string) => {
     if (!order) return
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) { router.push('/login'); return }
     try {
       const res = await fetch(`/api/orders/${order.id}/verify-payment`, {
@@ -465,7 +466,7 @@ export default function OrderDetailPage() {
           initialAmount={transferInitialAmount}
           onSuccess={() => {
             // 刷新用户资金信息
-            const storedToken = localStorage.getItem('token')
+            const storedToken = getAuthToken()
             if (storedToken) {
               fetchUserBalance(storedToken)
             }

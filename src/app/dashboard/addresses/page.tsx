@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { AddressForm, AddressFormData } from '@/components/address/AddressForm'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface Address {
   id: string
@@ -49,7 +50,7 @@ export default function AddressesPage() {
   }, [])
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) {
       router.push('/login')
       return
@@ -68,7 +69,7 @@ export default function AddressesPage() {
   }, [router, fetchAddresses])
 
   const handleCreate = async (formData: AddressFormData) => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) return
     setSubmitting(true)
     try {
@@ -96,7 +97,7 @@ export default function AddressesPage() {
   }
 
   const handleUpdate = async (id: string, formData: AddressFormData) => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) return
     setSubmitting(true)
     try {
@@ -125,7 +126,7 @@ export default function AddressesPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定删除该地址吗？此操作不可恢复。')) return
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) return
     setDeletingId(id)
     try {
@@ -148,7 +149,7 @@ export default function AddressesPage() {
   }
 
   const handleSetDefault = async (id: string) => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) return
     setSettingDefaultId(id)
     try {

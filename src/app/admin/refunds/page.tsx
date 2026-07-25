@@ -14,6 +14,7 @@ import RefundApplicationHistory, {
   buildRefundAttemptView,
   type RefundHistoryRecord,
 } from '@/components/admin/refunds/RefundApplicationHistory'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // v68:大额退款阈值,超过需要二次确认
 const LARGE_REFUND_THRESHOLD = 1000
@@ -111,7 +112,7 @@ export default function AdminRefundsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (storedToken) {
       setToken(storedToken)
       fetchRefunds(storedToken, 1)

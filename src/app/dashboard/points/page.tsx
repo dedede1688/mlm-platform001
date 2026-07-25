@@ -9,6 +9,7 @@ import {
   Lock, ArrowDownToLine, LogIn, X, Loader2
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -133,7 +134,7 @@ export default function PointsPage() {
   const [feePercent, setFeePercent] = useState<number>(DEFAULT_FEE_PERCENT)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

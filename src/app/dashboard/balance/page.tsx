@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface BalanceRecord {
   id: string
@@ -69,7 +70,7 @@ export default function BalancePage() {
   const [showTransferModal, setShowTransferModal] = useState(false)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return
@@ -314,7 +315,7 @@ export default function BalancePage() {
         earningsAvailable={userEarningsAvailable}
         balance={userBalance ?? 0}
         onSuccess={() => {
-          const storedToken = localStorage.getItem('token')
+          const storedToken = getAuthToken()
           if (storedToken) {
             fetchUser(storedToken)
             fetchRecords(storedToken)

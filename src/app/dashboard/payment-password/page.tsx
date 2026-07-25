@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -30,7 +31,7 @@ export default function PaymentPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

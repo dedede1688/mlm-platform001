@@ -5,6 +5,7 @@ import {
   Loader2, AlertCircle, Plus, Edit2, Trash2, FolderTree,
   ChevronRight, ChevronDown, Folder, FolderOpen, Save
 } from 'lucide-react'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----
 
@@ -91,7 +92,7 @@ export default function CategoriesPage() {
   // 获取分类列表
   const fetchCategories = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch('/api/admin/categories', {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -192,7 +193,7 @@ export default function CategoriesPage() {
     setMessage(null)
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const payload = {
         name: formData.name.trim(),
         parentId: formData.parentId || null,
@@ -248,7 +249,7 @@ export default function CategoriesPage() {
     setDeleting(true)
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       const res = await fetch(`/api/admin/categories/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },

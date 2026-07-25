@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 import { toast } from '@/components/ToastProvider'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -64,7 +65,7 @@ export default function PaymentPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token) {
       router.push('/login')
       return
@@ -110,7 +111,7 @@ export default function PaymentPage() {
   }
 
   const handleMockPay = async () => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (!token || !order) return
     const password = window.prompt('请输入 6 位支付密码')
     if (!password) return

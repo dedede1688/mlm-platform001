@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getAuthToken, setAuthToken, removeAuthToken, getAuthUser, setAuthUser, removeAuthUser, migrateFromLegacyStorage } from '@/lib/utils/auth-token'
 
 interface UserInfo {
   id?: string
@@ -26,46 +27,44 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setToken: (token) => {
     if (token) {
-      localStorage.setItem('token', token)
+      setAuthToken(token)
     } else {
-      localStorage.removeItem('token')
+      removeAuthToken()
     }
     set({ token })
   },
 
   setUser: (user) => {
     if (user) {
-      localStorage.setItem('user', JSON.stringify(user))
+      setAuthUser(user as any)
     } else {
-      localStorage.removeItem('user')
+      removeAuthUser()
     }
     set({ user })
   },
 
   login: (token, user) => {
-    localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(user))
+    setAuthToken(token)
+    setAuthUser(user as any)
     set({ token, user })
   },
 
   logout: () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    removeAuthToken()
+    removeAuthUser()
     set({ token: null, user: null })
     // 触发自定义事件通知其他组件
     window.dispatchEvent(new Event('auth-change'))
   },
 
   syncFromStorage: () => {
-    const token = localStorage.getItem('token')
-    const userStr = localStorage.getItem('user')
+    migrateFromLegacyStorage()
+    const token = getAuthToken()
     let user: UserInfo | null = null
-    if (userStr) {
-      try {
-        user = JSON.parse(userStr)
-      } catch {
-        user = null
-      }
+    try {
+      user = getAuthUser() as UserInfo | null
+    } catch {
+      user = null
     }
     set({ token, user })
   },

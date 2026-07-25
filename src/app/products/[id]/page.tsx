@@ -9,6 +9,8 @@ import {
   ChevronLeft, ChevronRight, Package, ShoppingCart, Zap, Tag, Shield,
   X, Loader2, FlaskConical, CheckCircle2, AlertCircle, RefreshCw
 } from 'lucide-react'
+import { sanitizeHtml } from '@/lib/utils/sanitize-html'
+import { getAuthToken } from '@/lib/utils/auth-token'
 import { toast } from '@/components/ToastProvider'
 import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress, CheckoutLockedShipping } from '@/components/checkout/CheckoutDialog'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
@@ -139,7 +141,7 @@ export default function ProductDetailPage() {
   const lastRestoreKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (storedToken) {
       setToken(storedToken)
       fetchUser(storedToken)
@@ -974,7 +976,7 @@ export default function ProductDetailPage() {
             {activeTab === 'desc' ? (
               <div className="prose prose-sm max-w-none text-gray-600 [&_img]:max-w-full [&_img]:h-auto">
                 {product.description ? (
-                  <div dangerouslySetInnerHTML={{ __html: product.description }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }} />
                 ) : (
                   <div className="text-center py-8">
                     <FlaskConical className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -986,7 +988,7 @@ export default function ProductDetailPage() {
             ) : (
               <div className="prose prose-sm max-w-none text-gray-600">
                 {product.research ? (
-                  <div dangerouslySetInnerHTML={{ __html: product.research }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.research) }} />
                 ) : (
                   <div className="text-center py-8">
                     <FlaskConical className="w-10 h-10 text-gray-300 mx-auto mb-3" />

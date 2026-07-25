@@ -9,6 +9,7 @@ import {
   Calendar, Coins
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -84,7 +85,7 @@ export default function RewardsPage() {
   const pageSize = 10
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

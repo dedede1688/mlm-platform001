@@ -8,6 +8,7 @@ import { ShoppingCart, Trash2, ShoppingBag, ArrowRight, Loader2, Coins } from 'l
 import { toast } from '@/components/ToastProvider'
 import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress } from '@/components/checkout/CheckoutDialog'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface CartProduct {
   id: string
@@ -71,7 +72,7 @@ export default function CartPage() {
   const currentShortage = currentPendingPayment?.shortage ?? 0
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push('/login')
       return

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Phone, ShoppingCart, LogOut, Bell } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/useAuthStore'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface PublicSettings {
   siteName: string
@@ -67,7 +68,7 @@ export default function Header() {
   useEffect(() => {
     if (!user) return
     const fetchUnread = () => {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : ''
+      const token = typeof window !== 'undefined' ? getAuthToken() || '' : ''
       fetch('/api/notifications/unread-count', {
         cache: 'no-store',
         credentials: 'include',

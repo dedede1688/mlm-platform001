@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   FileText, Loader2, ChevronLeft, ChevronRight, Filter
 } from 'lucide-react'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----
 
@@ -87,7 +88,7 @@ export default function OperationLogsPage() {
   const fetchLogs = useCallback(async () => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       if (!token) return
 
       const params = new URLSearchParams({ page: String(page), pageSize: '20' })

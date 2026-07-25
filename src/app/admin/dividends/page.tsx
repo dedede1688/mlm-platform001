@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Loader2, Wallet, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
+import { getAuthToken } from '@/lib/utils/auth-token'
 
 interface TodaySummary {
   totalAmount: number
@@ -25,7 +26,7 @@ export default function AdminDividendsPage() {
   const [settleLoading, setSettleLoading] = useState(false)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
+    const storedToken = getAuthToken()
     if (!storedToken) {
       router.push(`/login?redirect=${encodeURIComponent('/admin/dividends')}`)
       return
