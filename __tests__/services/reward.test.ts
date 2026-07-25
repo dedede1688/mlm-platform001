@@ -375,6 +375,8 @@ describe('RewardService', () => {
       expect(call.data[0].type).toBe('refund_dividend')
       expect(call.data[0].amount).toBe(-50)
       expect(call.data[0].balance).toBe(300)
+      expect(call.data[0].sourceType).toBe('dividend')
+      expect(call.data[0].sourceId).toBe('dividend-d1')
 
       const userUpdateCall = prisma.user.update.mock.calls[0][0]
       expect(userUpdateCall.data).toMatchObject({

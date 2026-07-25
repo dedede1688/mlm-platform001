@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { UserService } from './user.service'
 import { MEMBER_LEVELS, BALANCE_SELECT } from '@/lib/constants'
@@ -23,10 +24,12 @@ export type RewardProcessOutcome =
     }
   | { status: 'failed'; orderId: string; error: string }
 
+type RewardQueryClient = Pick<Prisma.TransactionClient, 'user'>
+
 async function findBrandBonusRecipients(
   buyerId: string,
   maxLayers: number,
-  tx: any
+  tx: RewardQueryClient
 ): Promise<Array<{ userId: string; layer: number }>> {
   const recipients: Array<{ userId: string; layer: number }> = []
   let currentId: string | null = buyerId
@@ -874,7 +877,7 @@ export class RewardService {
             amount: -dividend.amount,
             balance: user.balance,
             frozenBalance: user.frozenBalance,
-            sourceType: 'reward',
+            sourceType: 'dividend',
             sourceId: dividend.id,
             description: `扣回分红，余额不变${voidDescDiv}，订单退款${format4FieldDelta(user, afterRefundDiv)}`,
           })
