@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/utils/auth'
-import { logger } from '@/lib/logger'
-import { UserService } from '@/lib/services/user.service'
+﻿import { NextRequest } from "next/server"
+import { verifyToken } from "@/lib/utils/auth"
+import { errorResponse, successResponse } from "@/lib/api-response"
+import { logger } from "@/lib/logger"
+import { UserService } from "@/lib/services/user.service"
 
 const MAX_DEPTH = 10
 
@@ -58,15 +59,15 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 })
+      return errorResponse("未登录", 401)
     }
 
     const { searchParams } = new URL(request.url)
-    const mode = searchParams.get('tree')
+    const mode = searchParams.get("tree")
 
-    if (mode === 'true') {
+    if (mode === "true") {
       const tree = await fetchChildren(auth.userId, 0)
-      return NextResponse.json({ success: true, data: tree })
+      return successResponse(tree)
     }
 
     const teamMembers = await UserService.getReferrals(auth.userId)
@@ -80,9 +81,9 @@ export async function GET(request: NextRequest) {
       directCount: 0,
     }))
 
-    return NextResponse.json({ success: true, data: formattedMembers })
+    return successResponse(formattedMembers)
   } catch (error) {
-    logger.error('获取团队成员失败:', error)
-    return NextResponse.json({ success: false, error: '获取团队成员失败' }, { status: 500 })
+    logger.error("获取团队成员失败:", error)
+    return errorResponse("获取团队成员失败", 500)
   }
 }
