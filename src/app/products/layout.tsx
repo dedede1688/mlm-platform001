@@ -1,3 +1,4 @@
+import { safeJsonLd } from '@/lib/utils/sanitize-html';
 // v53.1: 商品列表页 server layout
 // 职责：
 // 1. 静态 metadata（标题/描述/canonical/OG）

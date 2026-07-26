@@ -59,3 +59,12 @@ export function stripHtmlTags(html: string): string {
   if (!html || typeof html !== 'string') return ''
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim()
 }
+/**
+ * 安全输出 JSON-LD：转义 </ 防止突破 <script> 标签
+ * C-11: 防止 product.name 等用户输入含 </script> 造成 XSS
+ */
+export function safeJsonLd(json: string): string {
+  return json.replace(/<\//g, '<\\/')
+}
+
+

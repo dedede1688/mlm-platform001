@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { safeJsonLd } from '@/lib/utils/sanitize-html';
 import { Geist, Geist_Mono } from "next/font/google";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -136,7 +137,7 @@ export default function RootLayout({
           {/* v53.0: 全站 Organization JSON-LD（增强 Google 知识图谱收录） */}
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+            dangerouslySetInnerHTML={{ __html: safeJsonLd(JSON.stringify(organizationLd)) }}
           />
           <Header />
           <main className="flex-1">{children}</main>

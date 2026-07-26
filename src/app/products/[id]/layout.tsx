@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
+import { safeJsonLd } from '@/lib/utils/sanitize-html';
 
 // v52.3: 产品详情页 server layout
 // 职责：
