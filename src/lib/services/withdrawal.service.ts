@@ -364,7 +364,6 @@ export class WithdrawalService {
     const [withdrawals, total] = await Promise.all([
       prisma.withdrawal.findMany({
         where: { status: WITHDRAWAL_STATUS.PENDING },
-        include: { user: true },
         orderBy: { createdAt: 'asc' },
         skip,
         take: limit,

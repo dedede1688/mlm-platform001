@@ -29,7 +29,7 @@ export class RewardService {
   static async processOrderRewards(orderId: string): Promise<{ referralUnlockRequired?: boolean; referralUnlockAmount?: number }> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: true, items: { include: { product: true } } },
+      include: { user: { select: { id: true, referrerId: true } }, items: { include: { product: true } } },
     })
 
     if (!order || order.status !== 'paid') return {}

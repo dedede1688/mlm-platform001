@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger'
 
 export class OrderNotificationService {
   static async notifyOrderPaid(orderId: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { user: true } })
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { user: { select: { nickname: true, phone: true } } } })
     if (!order) return
     await this.sendTemplate({
       userId: order.userId, templateType: 'order_paid', title: '订单支付通知',
@@ -15,7 +15,7 @@ export class OrderNotificationService {
   }
 
   static async notifyOrderShipped(orderId: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { user: true } })
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { user: { select: { nickname: true, phone: true } } } })
     if (!order) return
     await this.sendTemplate({
       userId: order.userId, templateType: 'order_shipped', title: '订单发货通知',
@@ -114,7 +114,7 @@ export class OrderNotificationService {
   }
 
   static async notifyOrderCompleted(orderId: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { user: true } })
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { user: { select: { nickname: true, phone: true } } } })
     if (!order) return
     await this.sendTemplate({
       userId: order.userId, templateType: 'order_completed', title: '订单完成通知',
@@ -125,7 +125,7 @@ export class OrderNotificationService {
   }
 
   static async notifyOrderCancelled(params: { orderId: string; reason?: string }) {
-    const order = await prisma.order.findUnique({ where: { id: params.orderId }, include: { user: true } })
+    const order = await prisma.order.findUnique({ where: { id: params.orderId }, include: { user: { select: { nickname: true, phone: true } } } })
     if (!order) return
     const reason = params.reason || '管理员操作'
     await this.sendTemplate({

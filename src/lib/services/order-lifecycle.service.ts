@@ -112,7 +112,7 @@ export class OrderLifecycleService {
 
       return await tx.order.findUnique({
         where: { id: orderId },
-        include: { user: true, items: { include: { product: true } } },
+        include: { user: { select: { email: true, phone: true, nickname: true } }, items: { include: { product: true } } },
       })
     })
 
@@ -140,7 +140,7 @@ export class OrderLifecycleService {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: true },
+      include: { user: { select: { email: true, phone: true, nickname: true } } },
     })
     if (!order) throw new Error('订单不存在')
 
@@ -180,7 +180,7 @@ export class OrderLifecycleService {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: true },
+      include: { user: { select: { email: true, phone: true, nickname: true } } },
     })
     if (!order) throw new Error('订单不存在')
     await OrderNotificationService.notifyOrderCompleted(orderId)
@@ -382,7 +382,7 @@ export class OrderLifecycleService {
       })
     })
 
-    const cancelledOrder = await prisma.order.findUnique({ where: { id: orderId }, include: { user: true } })
+    const cancelledOrder = await prisma.order.findUnique({ where: { id: orderId }, include: { user: { select: { email: true, phone: true, nickname: true } } } })
     if (cancelledOrder) {
       await OrderNotificationService.notifyOrderCancelled({
         orderId,
