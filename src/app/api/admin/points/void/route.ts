@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { PointsService } from '@/lib/services/points.service'
 
@@ -16,40 +17,24 @@ export async function POST(request: NextRequest) {
 
     // 参数校验
     if (!userId || typeof userId !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'userId 必填' },
-        { status: 400 }
-      )
+      return errorResponse('userId 必填', 400)
     }
 
     if (typeof amount !== 'number' || amount <= 0 || !Number.isInteger(amount)) {
-      return NextResponse.json(
-        { success: false, error: 'amount 必须为正整数' },
-        { status: 400 }
-      )
+      return errorResponse('amount 必须为正整数', 400)
     }
 
     if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: '作废原因必填' },
-        { status: 400 }
-      )
+      return errorResponse('作废原因必填', 400)
     }
 
     const result = await PointsService.voidPoints(admin.id, userId, amount, reason.trim())
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-      message: '积分作废成功',
-    })
+    return successResponse(result, '积分作废成功')
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : '积分作废失败'
     const status = message.includes('不存在') || message.includes('必填') || message.includes('必须大于') || message.includes('不足')
       ? 400 : 500
-    return NextResponse.json(
-      { success: false, error: message },
-      { status }
-    )
+    return errorResponse(message, status)
   }
 }

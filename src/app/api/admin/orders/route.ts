@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { OrderService } from '@/lib/services/order.service'
 import { logger } from '@/lib/logger'
 
-// GET /api/admin/orders ?? ???????????
+// GET /api/admin/orders — 获取所有订单列表
 export async function GET(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
@@ -17,19 +18,20 @@ export async function GET(request: NextRequest) {
       search: searchParams.get('search')?.trim() || undefined,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: result.orders,
-      message: '????????',
-      pagination: {
-        page: result.page,
-        pageSize: result.pageSize,
-        total: result.total,
-        totalPages: Math.ceil(result.total / result.pageSize),
+    return successResponse(
+      {
+        records: result.orders,
+        pagination: {
+          page: result.page,
+          pageSize: result.pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / result.pageSize),
+        },
       },
-    })
+      '获取订单列表成功'
+    )
   } catch (error) {
     logger.error('Admin get orders error:', error)
-    return NextResponse.json({ success: false, message: '????????' }, { status: 500 })
+    return errorResponse('获取订单列表失败', 500)
   }
 }

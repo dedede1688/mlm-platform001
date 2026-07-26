@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logOperation } from '@/lib/utils/operation-log'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 // PATCH /api/admin/withdrawals/[id]/complete — 完成提现打款
 // 只允许 super_admin / finance_admin
@@ -25,10 +26,7 @@ export async function PATCH(
     try {
       safePaymentProofUrl = validatePaymentProofUrl(paymentProofUrl)
     } catch (e: unknown) {
-      return NextResponse.json(
-        { success: false, message: e instanceof Error ? e.message : '打款凭证无效' },
-        { status: 400 }
-      )
+      return errorResponse(e instanceof Error ? e.message : '打款凭证无效', 400)
     }
 
     const updated = await WithdrawalService.completeWithdrawal(id, {
@@ -51,11 +49,7 @@ export async function PATCH(
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: updated,
-      message: '提现打款已完成，冻结收益已扣除',
-    })
+    return successResponse(updated, '提现打款已完成，冻结收益已扣除')
   } catch (error: unknown) {
     logger.error('Admin complete withdrawal error:', error)
     const errMsg = error instanceof Error ? error.message : ''
@@ -63,9 +57,6 @@ export async function PATCH(
       : errMsg === '只有已审核通过的提现才能完成打款' ? 400
       : errMsg === '打款凭证不能为空' ? 400
       : 500
-    return NextResponse.json(
-      { success: false, message: error instanceof Error ? error.message : '完成提现打款失败' },
-      { status }
-    )
+    return errorResponse(error instanceof Error ? error.message : '完成提现打款失败', status)
   }
 }

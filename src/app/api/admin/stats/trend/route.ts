@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { logger } from "@/lib/logger"
 import { StatsService } from "@/lib/services/stats.service"
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 // ---- GET /api/admin/stats/trend?days=7 ----
 
@@ -14,12 +15,9 @@ export async function GET(request: NextRequest) {
     const days = Math.min(Math.max(Number(searchParams.get("days")) || 7, 1), 90)
 
     const data = await StatsService.getTrend(days)
-    return NextResponse.json({ success: true, data })
+    return successResponse(data)
   } catch (error) {
     logger.error("获取趋势数据失败:", error)
-    return NextResponse.json(
-      { success: false, error: "获取趋势数据失败" },
-      { status: 500 }
-    )
+    return errorResponse("获取趋势数据失败", 500)
   }
 }

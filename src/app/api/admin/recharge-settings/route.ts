@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { RechargeSettingsService, UpdateRechargeSettingsInput, RechargeSettingsValidationError } from '@/lib/services/recharge-settings.service'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 const ALLOWED_ROLES = ['super_admin', 'finance_admin']
 
@@ -22,10 +23,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const settings = await RechargeSettingsService.getSettings()
-    return NextResponse.json({ success: true, data: settings })
+    return successResponse(settings)
   } catch (cause) {
     logger.error('Get recharge settings error:', cause)
-    return NextResponse.json({ success: false, error: '获取充值设置失败' }, { status: 500 })
+    return errorResponse('获取充值设置失败', 500)
   }
 }
 
@@ -63,14 +64,11 @@ export async function PUT(request: NextRequest) {
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    return NextResponse.json({ success: true, data: result.current })
+    return successResponse(result.current)
   } catch (cause: unknown) {
     // 业务校验错误（可预期参数错误）→ 400 + 具体中文文案
     if (cause instanceof RechargeSettingsValidationError) {
-      return NextResponse.json(
-        { success: false, error: cause.message },
-        { status: 400 }
-      )
+      return errorResponse(cause.message, 400)
     }
 
     // 数据库 / 事务 / 未知异常 → 500 + 通用文案（不暴露内部信息）
@@ -88,9 +86,6 @@ export async function PUT(request: NextRequest) {
           : undefined,
     })
 
-    return NextResponse.json(
-      { success: false, error: '保存充值设置失败' },
-      { status: 500 }
-    )
+    return errorResponse('保存充值设置失败', 500)
   }
 }

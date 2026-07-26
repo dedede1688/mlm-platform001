@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { logger } from "@/lib/logger"
 import { ReportService } from "@/lib/services/report.service"
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 // GET /api/admin/reports/members — 会员报告（v51.1）
 export async function GET(request: NextRequest) {
@@ -10,9 +11,9 @@ export async function GET(request: NextRequest) {
     if (authError || !admin) return authError!
 
     const data = await ReportService.getMembersReport()
-    return NextResponse.json({ success: true, data })
+    return successResponse(data)
   } catch (error) {
     logger.error("[Members Report Error]", error)
-    return NextResponse.json({ success: false, message: "服务器错误" }, { status: 500 })
+    return errorResponse("服务器错误", 500)
   }
 }

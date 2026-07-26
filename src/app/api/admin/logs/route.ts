@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest } from "next/server"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { LogService } from "@/lib/services/log.service"
 import { logger } from "@/lib/logger"
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 // GET /api/admin/logs — 获取操作日志列表（super_admin, auditor）
 export async function GET(request: NextRequest) {
@@ -26,22 +27,20 @@ export async function GET(request: NextRequest) {
       endDate: endDate || undefined,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: logs,
-      message: "获取操作日志成功",
-      pagination: {
-        page,
-        pageSize: svcPagination.limit,
-        total: svcPagination.total,
-        totalPages: svcPagination.totalPages,
+    return successResponse(
+      {
+        records: logs,
+        pagination: {
+          page,
+          pageSize: svcPagination.limit,
+          total: svcPagination.total,
+          totalPages: svcPagination.totalPages,
+        },
       },
-    })
+      "获取操作日志成功"
+    )
   } catch (error) {
     logger.error("Admin get operation logs error:", error)
-    return NextResponse.json(
-      { success: false, message: "获取操作日志失败" },
-      { status: 500 }
-    )
+    return errorResponse("获取操作日志失败", 500)
   }
 }

@@ -1,17 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { NotificationService } from '@/lib/services/notification.service'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function GET(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
     if (authError || !admin) return authError!
     const templates = await NotificationService.getAllTemplates()
-    return NextResponse.json({ success: true, data: templates })
+    return successResponse(templates)
   } catch (error) {
-    logger.error('????????:', error)
-    return NextResponse.json({ success: false, error: '????????' }, { status: 500 })
+    logger.error('获取通知模板列表失败:', error)
+    return errorResponse('获取通知模板列表失败', 500)
   }
 }
 
@@ -22,23 +23,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { type, channel, subject, content, enabled } = body
     if (!type || !channel || !content) {
-      return NextResponse.json({ success: false, error: '????????????' }, { status: 400 })
+      return errorResponse('类型、渠道和内容不能为空', 400)
     }
     if (!['email', 'sms', 'in_app'].includes(channel)) {
-      return NextResponse.json({ success: false, error: '????? email?sms ? in_app' }, { status: 400 })
+      return errorResponse('渠道必须是 email、sms 或 in_app', 400)
     }
     if (channel === 'email' && !subject) {
-      return NextResponse.json({ success: false, error: '??????????' }, { status: 400 })
+      return errorResponse('邮件渠道必须提供主题', 400)
     }
     const existing = await NotificationService.findTemplateByTypeChannel(type, channel)
     if (existing) {
-      const chLabel = channel === 'email' ? '??' : channel === 'sms' ? '??' : '???'
-      return NextResponse.json({ success: false, error: `??"${type}"?${chLabel}?????` }, { status: 400 })
+      const chLabel = channel === 'email' ? '邮件' : channel === 'sms' ? '短信' : '站内信'
+      return errorResponse(`类型"${type}"在${chLabel}渠道已存在`, 400)
     }
     const template = await NotificationService.createTemplate({ type, channel, subject: subject ?? null, content, enabled: enabled ?? true })
-    return NextResponse.json({ success: true, data: template }, { status: 201 })
+    return successResponse(template)
   } catch (error) {
-    logger.error('????????:', error)
-    return NextResponse.json({ success: false, error: '????????' }, { status: 500 })
+    logger.error('创建通知模板失败:', error)
+    return errorResponse('创建通知模板失败', 500)
   }
 }

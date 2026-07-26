@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyPermission } from '@/lib/utils/admin-auth'
-import { CategoryService } from '@/lib/services/category.service'
-import { logger } from '@/lib/logger'
+﻿import { NextRequest } from "next/server"
+import { verifyPermission } from "@/lib/utils/admin-auth"
+import { CategoryService } from "@/lib/services/category.service"
+import { logger } from "@/lib/logger"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 interface CategoryItem {
   id: string
@@ -12,16 +13,10 @@ interface CategoryItem {
   updatedAt: string
 }
 
-interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
-}
-
 /** GET：获取所有分类 */
 export async function GET(request: NextRequest) {
   try {
-    const { error: authError } = await verifyPermission(request, ['super_admin', 'goods_admin'])
+    const { error: authError } = await verifyPermission(request, ["super_admin", "goods_admin"])
     if (authError) return authError
 
     const categories = await CategoryService.listAll()
@@ -34,23 +29,17 @@ export async function GET(request: NextRequest) {
       updatedAt: c.updatedAt.toISOString(),
     }))
 
-    return NextResponse.json<ApiResponse<CategoryItem[]>>({
-      success: true,
-      data: items,
-    })
+    return successResponse(items)
   } catch (error) {
-    logger.error('获取分类列表失败:', error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: '获取分类列表失败' },
-      { status: 500 }
-    )
+    logger.error("获取分类列表失败:", error)
+    return errorResponse("获取分类列表失败", 500)
   }
 }
 
 /** POST：创建分类 */
 export async function POST(request: NextRequest) {
   try {
-    const { error: authError } = await verifyPermission(request, ['super_admin', 'goods_admin'])
+    const { error: authError } = await verifyPermission(request, ["super_admin", "goods_admin"])
     if (authError) return authError
 
     const body = await request.json() as {
@@ -60,10 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!body.name || !body.name.trim()) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: '分类名称必填' },
-        { status: 400 }
-      )
+      return errorResponse("分类名称必填", 400)
     }
 
     const category = await CategoryService.create({
@@ -72,22 +58,16 @@ export async function POST(request: NextRequest) {
       sortOrder: body.sortOrder,
     })
 
-    return NextResponse.json<ApiResponse<CategoryItem>>(
-      { success: true, data: {
-        id: category.id,
-        name: category.name,
-        parentId: category.parentId,
-        sortOrder: category.sortOrder,
-        createdAt: category.createdAt.toISOString(),
-        updatedAt: category.updatedAt.toISOString(),
-      } },
-      { status: 201 }
-    )
+    return successResponse({
+      id: category.id,
+      name: category.name,
+      parentId: category.parentId,
+      sortOrder: category.sortOrder,
+      createdAt: category.createdAt.toISOString(),
+      updatedAt: category.updatedAt.toISOString(),
+    })
   } catch (error) {
-    logger.error('创建分类失败:', error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: error instanceof Error ? error.message : '创建分类失败' },
-      { status: 500 }
-    )
+    logger.error("创建分类失败:", error)
+    return errorResponse(error instanceof Error ? error.message : "创建分类失败", 500)
   }
 }

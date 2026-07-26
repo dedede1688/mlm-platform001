@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logger } from '@/lib/logger'
 import { UserService } from '@/lib/services/user.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,12 +20,15 @@ export async function GET(request: NextRequest) {
       sortBy: searchParams.get('sortBy')?.trim() || 'createdAt',
       sortOrder: searchParams.get('sortOrder')?.trim() || 'desc',
     })
-    return NextResponse.json({
-      success: true, data: result.users, message: '获取会员列表成功',
-      pagination: { page: result.page, pageSize: result.pageSize, total: result.total, totalPages: Math.ceil(result.total / result.pageSize) },
-    })
+    return successResponse(
+      {
+        records: result.users,
+        pagination: { page: result.page, pageSize: result.pageSize, total: result.total, totalPages: Math.ceil(result.total / result.pageSize) },
+      },
+      '获取会员列表成功'
+    )
   } catch (error) {
     logger.error('Admin get users error:', error)
-    return NextResponse.json({ success: false, message: '获取会员列表失败' }, { status: 500 })
+    return errorResponse('获取会员列表失败', 500)
   }
 }

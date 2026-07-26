@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { OrderService } from '@/lib/services/order.service'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   pending: ['paid', 'cancelled'],
@@ -13,7 +14,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
 const ALLOWED_STATUSES = ['paid', 'shipped', 'completed', 'cancelled']
 
-// PATCH /api/admin/orders/[id]/status ?? ?????????
+// PATCH /api/admin/orders/[id]/status — 更新订单状态
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['super_admin', 'goods_admin'])
@@ -21,18 +22,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { id } = await params
     const order = await OrderService.getOrderById(id)
-    if (!order) return NextResponse.json({ success: false, error: '?????' }, { status: 404 })
+    if (!order) return errorResponse('订单不存在', 404)
 
     const body = await request.json()
     const { status, trackingNumber, reason } = body as { status?: string; trackingNumber?: string; reason?: string }
 
     if (!status || !ALLOWED_STATUSES.includes(status)) {
-      return NextResponse.json({ success: false, error: `status ??? ${ALLOWED_STATUSES.join('/')}` }, { status: 400 })
+      return errorResponse(`status 必须为 ${ALLOWED_STATUSES.join('/')}`, 400)
     }
 
     const allowedNext = VALID_TRANSITIONS[order.status]
     if (!allowedNext || !allowedNext.includes(status)) {
-      return NextResponse.json({ success: false, error: `???? ${order.status} ????? ${status}` }, { status: 400 })
+      return errorResponse(`不允许从 ${order.status} 变更为 ${status}`, 400)
     }
 
     const data: Record<string, unknown> = { status }
@@ -57,12 +58,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (status === 'shipped') await OrderNotificationService.notifyOrderShipped(id)
     else if (status === 'completed') await OrderNotificationService.notifyOrderCompleted(id)
     else if (status === 'cancelled') await OrderNotificationService.notifyOrderCancelled({
-      orderId: id, reason: typeof reason === 'string' && reason.trim() ? reason.trim() : '?????',
+      orderId: id, reason: typeof reason === 'string' && reason.trim() ? reason.trim() : '管理员取消',
     })
 
-    return NextResponse.json({ success: true, data: updated })
+    return successResponse(updated)
   } catch (error) {
     logger.error('Admin update order status error:', error)
-    return NextResponse.json({ success: false, error: '????????' }, { status: 500 })
+    return errorResponse('更新订单状态失败', 500)
   }
 }

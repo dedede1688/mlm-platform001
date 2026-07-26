@@ -1,8 +1,9 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
-import { verifyPermission } from '@/lib/utils/admin-auth'
-import { logOperation } from '@/lib/utils/operation-log'
-import { logger } from '@/lib/logger'
-import { ProductService } from '@/lib/services/product.service'
+﻿import { NextRequest } from "next/server"
+import { verifyPermission } from "@/lib/utils/admin-auth"
+import { logOperation } from "@/lib/utils/operation-log"
+import { logger } from "@/lib/logger"
+import { ProductService } from "@/lib/services/product.service"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 // GET /api/admin/products/[id] —— 获取单个商品详情
 export async function GET(
@@ -10,30 +11,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ["goods_admin", "super_admin"])
     if (authError || !admin) return authError!
 
     const { id } = await params
     const product = await ProductService.getProductById(id, true)
 
     if (!product) {
-      return NextResponse.json(
-        { success: false, message: '商品不存在' },
-        { status: 404 }
-      )
+      return errorResponse("商品不存在", 404)
     }
 
-    return NextResponse.json({
-      success: true,
-      data: product,
-      message: '获取商品详情成功',
-    })
+    return successResponse(product, "获取商品详情成功")
   } catch (error) {
-    logger.error('Admin get product error:', error)
-    return NextResponse.json(
-      { success: false, message: '获取商品详情失败' },
-      { status: 500 }
-    )
+    logger.error("Admin get product error:", error)
+    return errorResponse("获取商品详情失败", 500)
   }
 }
 
@@ -43,7 +34,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ["goods_admin", "super_admin"])
     if (authError || !admin) return authError!
 
     const { id } = await params
@@ -51,10 +42,7 @@ export async function PUT(
     // 检查商品是否存在
     const existing = await ProductService.getProductById(id)
     if (!existing) {
-      return NextResponse.json(
-        { success: false, message: '商品不存在' },
-        { status: 404 }
-      )
+      return errorResponse("商品不存在", 404)
     }
 
     const body = await request.json()
@@ -63,11 +51,8 @@ export async function PUT(
     const data: Record<string, unknown> = {}
 
     if (body.name !== undefined) {
-      if (!body.name || typeof body.name !== 'string') {
-        return NextResponse.json(
-          { success: false, message: '商品名称不能为空' },
-          { status: 400 }
-        )
+      if (!body.name || typeof body.name !== "string") {
+        return errorResponse("商品名称不能为空", 400)
       }
       data.name = body.name
     }
@@ -83,10 +68,7 @@ export async function PUT(
     if (body.retailPrice !== undefined) {
       const price = Number(body.retailPrice)
       if (isNaN(price) || price <= 0) {
-        return NextResponse.json(
-          { success: false, message: '零售价必须大于0' },
-          { status: 400 }
-        )
+        return errorResponse("零售价必须大于0", 400)
       }
       data.retailPrice = price
     }
@@ -94,10 +76,7 @@ export async function PUT(
     if (body.memberPrice !== undefined) {
       const price = Number(body.memberPrice)
       if (isNaN(price) || price <= 0) {
-        return NextResponse.json(
-          { success: false, message: '会员价必须大于0' },
-          { status: 400 }
-        )
+        return errorResponse("会员价必须大于0", 400)
       }
       data.memberPrice = price
     }
@@ -106,10 +85,7 @@ export async function PUT(
     const finalRetail = data.retailPrice != null ? data.retailPrice : existing.retailPrice
     const finalMember = data.memberPrice != null ? data.memberPrice : existing.memberPrice
     if (Number(finalMember) > Number(finalRetail)) {
-      return NextResponse.json(
-        { success: false, message: '会员价不能大于零售价' },
-        { status: 400 }
-      )
+      return errorResponse("会员价不能大于零售价", 400)
     }
 
     if (body.stock !== undefined) {
@@ -123,37 +99,24 @@ export async function PUT(
     if (body.maxPointsRatio !== undefined) {
       const ratio = Number(body.maxPointsRatio)
       if (isNaN(ratio) || ratio < 0) {
-        return NextResponse.json(
-          { success: false, message: '积分抵扣比例不能为负数' },
-          { status: 400 }
-        )
+        return errorResponse("积分抵扣比例不能为负数", 400)
       }
-      // 升级产品强制为0，普通产品最高不超过50
       data.maxPointsRatio = existing.isUpgradeProduct ? 0 : Math.min(50, ratio)
     }
 
     if (body.benefits !== undefined) {
       if (body.benefits !== null && !Array.isArray(body.benefits)) {
-        return NextResponse.json(
-          { success: false, message: 'benefits 必须为字符串数组' },
-          { status: 400 }
-        )
+        return errorResponse("benefits 必须为字符串数组", 400)
       }
-      if (body.benefits && body.benefits.some((b: unknown) => typeof b !== 'string')) {
-        return NextResponse.json(
-          { success: false, message: 'benefits 数组元素必须为字符串' },
-          { status: 400 }
-        )
+      if (body.benefits && body.benefits.some((b: unknown) => typeof b !== "string")) {
+        return errorResponse("benefits 数组元素必须为字符串", 400)
       }
       data.benefits = body.benefits && body.benefits.length > 0 ? body.benefits : null
     }
 
     if (body.status !== undefined) {
-      if (!['active', 'inactive'].includes(body.status)) {
-        return NextResponse.json(
-          { success: false, message: 'status 只能为 active 或 inactive' },
-          { status: 400 }
-        )
+      if (!["active", "inactive"].includes(body.status)) {
+        return errorResponse("status 只能为 active 或 inactive", 400)
       }
       data.status = body.status
     }
@@ -167,10 +130,7 @@ export async function PUT(
       if (body.categoryId) {
         const exists = await ProductService.categoryExists(body.categoryId)
         if (!exists) {
-          return NextResponse.json(
-            { success: false, message: '所选分类不存在' },
-            { status: 400 }
-          )
+          return errorResponse("所选分类不存在", 400)
         }
       }
       data.categoryId = body.categoryId || null
@@ -179,10 +139,7 @@ export async function PUT(
     // specs
     if (body.specs !== undefined) {
       if (body.specs && !Array.isArray(body.specs)) {
-        return NextResponse.json(
-          { success: false, message: 'specs 必须为数组格式' },
-          { status: 400 }
-        )
+        return errorResponse("specs 必须为数组格式", 400)
       }
       data.specs = body.specs || null
     }
@@ -195,16 +152,10 @@ export async function PUT(
     // images
     if (body.images !== undefined) {
       if (body.images !== null && !Array.isArray(body.images)) {
-        return NextResponse.json(
-          { success: false, message: 'images 必须为字符串数组' },
-          { status: 400 }
-        )
+        return errorResponse("images 必须为字符串数组", 400)
       }
-      if (body.images && body.images.some((img: unknown) => typeof img !== 'string')) {
-        return NextResponse.json(
-          { success: false, message: 'images 数组元素必须为字符串URL' },
-          { status: 400 }
-        )
+      if (body.images && body.images.some((img: unknown) => typeof img !== "string")) {
+        return errorResponse("images 数组元素必须为字符串URL", 400)
       }
       data.images = body.images && body.images.length > 0 ? body.images : null
     }
@@ -215,10 +166,7 @@ export async function PUT(
     }
 
     if (Object.keys(data).length === 0) {
-      return NextResponse.json(
-        { success: false, message: '没有提供需要更新的字段' },
-        { status: 400 }
-      )
+      return errorResponse("没有提供需要更新的字段", 400)
     }
 
     const product = await ProductService.updateProduct(id, data)
@@ -226,26 +174,19 @@ export async function PUT(
     // 记录操作日志
     await logOperation({
       userId: admin.id,
-      action: 'UPDATE',
-      module: 'product',
+      action: "UPDATE",
+      module: "product",
       targetId: id,
       oldValue: existing as unknown as Record<string, unknown>,
       newValue: data,
-      ip: request.headers.get('x-forwarded-for') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
+      ip: request.headers.get("x-forwarded-for") || undefined,
+      userAgent: request.headers.get("user-agent") || undefined,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: product,
-      message: '商品更新成功',
-    })
+    return successResponse(product, "商品更新成功")
   } catch (error) {
-    logger.error('Admin update product error:', error)
-    return NextResponse.json(
-      { success: false, message: '更新商品失败' },
-      { status: 500 }
-    )
+    logger.error("Admin update product error:", error)
+    return errorResponse("更新商品失败", 500)
   }
 }
 
@@ -255,7 +196,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ["goods_admin", "super_admin"])
     if (authError || !admin) return authError!
 
     const { id } = await params
@@ -263,17 +204,11 @@ export async function DELETE(
     // 检查商品是否存在
     const existing = await ProductService.getProductById(id)
     if (!existing) {
-      return NextResponse.json(
-        { success: false, message: '商品不存在' },
-        { status: 404 }
-      )
+      return errorResponse("商品不存在", 404)
     }
 
-    if (existing.status === 'deleted') {
-      return NextResponse.json(
-        { success: false, message: '商品已被删除' },
-        { status: 400 }
-      )
+    if (existing.status === "deleted") {
+      return errorResponse("商品已被删除", 400)
     }
 
     // 软删除：设置 status='deleted'
@@ -282,25 +217,18 @@ export async function DELETE(
     // 记录操作日志
     await logOperation({
       userId: admin.id,
-      action: 'DELETE',
-      module: 'product',
+      action: "DELETE",
+      module: "product",
       targetId: id,
       oldValue: { name: existing.name, status: existing.status },
-      newValue: { status: 'deleted' },
-      ip: request.headers.get('x-forwarded-for') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
+      newValue: { status: "deleted" },
+      ip: request.headers.get("x-forwarded-for") || undefined,
+      userAgent: request.headers.get("user-agent") || undefined,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: null,
-      message: '商品已删除',
-    })
+    return successResponse(null, "商品已删除")
   } catch (error) {
-    logger.error('Admin delete product error:', error)
-    return NextResponse.json(
-      { success: false, message: '删除商品失败' },
-      { status: 500 }
-    )
+    logger.error("Admin delete product error:", error)
+    return errorResponse("删除商品失败", 500)
   }
 }

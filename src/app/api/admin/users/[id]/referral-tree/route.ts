@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logger } from '@/lib/logger'
 import { UserService } from '@/lib/services/user.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,12 +11,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params
     const user = await UserService.getUserById(id)
     if (!user || user.status === 'deleted') {
-      return NextResponse.json({ success: false, message: '用户不存在' }, { status: 404 })
+      return errorResponse('用户不存在', 404)
     }
     const tree = await UserService.buildReferralTree(id, 0, 3)
-    return NextResponse.json({ success: true, data: tree, message: '获取推荐关系树成功' })
+    return successResponse(tree, '获取推荐关系树成功')
   } catch (error) {
     logger.error('Admin get referral tree error:', error)
-    return NextResponse.json({ success: false, message: '获取推荐关系树失败' }, { status: 500 })
+    return errorResponse('获取推荐关系树失败', 500)
   }
 }

@@ -1,6 +1,7 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest } from "next/server"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { BannerService } from "@/lib/services/banner.service"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 // ---- 类型定义 ----
 
@@ -11,12 +12,6 @@ interface BannerItem {
   title?: string
   alt?: string
   order: number
-}
-
-interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
 }
 
 /** 将数据库记录转换为前端 BannerItem 格式 */
@@ -47,16 +42,10 @@ export async function GET(request: NextRequest) {
     const records = await BannerService.getAll()
     const banners = records.map(toBannerItem)
 
-    return NextResponse.json<ApiResponse<BannerItem[]>>({
-      success: true,
-      data: banners,
-    })
+    return successResponse(banners)
   } catch (error) {
     console.error("获取轮播图列表失败", error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "获取轮播图列表失败" },
-      { status: 500 }
-    )
+    return errorResponse("获取轮播图列表失败", 500)
   }
 }
 
@@ -75,10 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!body.imageUrl) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "imageUrl 必填" },
-        { status: 400 }
-      )
+      return errorResponse("imageUrl 必填", 400)
     }
 
     const record = await BannerService.create({
@@ -89,16 +75,10 @@ export async function POST(request: NextRequest) {
       order: body.order,
     })
 
-    return NextResponse.json<ApiResponse<BannerItem>>(
-      { success: true, data: toBannerItem(record) },
-      { status: 201 }
-    )
+    return successResponse(toBannerItem(record))
   } catch (error) {
     console.error("创建轮播图失败", error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "创建轮播图失败" },
-      { status: 500 }
-    )
+    return errorResponse("创建轮播图失败", 500)
   }
 }
 
@@ -114,25 +94,16 @@ export async function PUT(request: NextRequest) {
     // 基本验证
     for (const banner of newBanners) {
       if (!banner.imageUrl) {
-        return NextResponse.json<ApiResponse<never>>(
-          { success: false, error: "每条轮播图必须有 imageUrl" },
-          { status: 400 }
-        )
+        return errorResponse("每条轮播图必须有 imageUrl", 400)
       }
     }
 
     await BannerService.replaceAll(newBanners)
 
-    return NextResponse.json<ApiResponse<BannerItem[]>>({
-      success: true,
-      data: [],
-    })
+    return successResponse([])
   } catch (error) {
     console.error("保存轮播图失败", error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "保存轮播图失败" },
-      { status: 500 }
-    )
+    return errorResponse("保存轮播图失败", 500)
   }
 }
 
@@ -146,29 +117,18 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id")
 
     if (!id) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "缺少 id 参数" },
-        { status: 400 }
-      )
+      return errorResponse("缺少 id 参数", 400)
     }
 
     await BannerService.delete(id)
 
-    return NextResponse.json<ApiResponse<never>>({
-      success: true,
-    })
+    return successResponse(null)
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : ""
     if (errMsg === "轮播图不存在") {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "轮播图不存在" },
-        { status: 404 }
-      )
+      return errorResponse("轮播图不存在", 404)
     }
     console.error("删除轮播图失败", error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "删除轮播图失败" },
-      { status: 500 }
-    )
+    return errorResponse("删除轮播图失败", 500)
   }
 }

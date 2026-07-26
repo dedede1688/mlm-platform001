@@ -1,9 +1,10 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { logger } from '@/lib/logger'
 import { UserService } from '@/lib/services/user.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,11 +13,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params
     const body = await request.json()
     const { status, reason } = body
-    if (!status || !['active', 'frozen'].includes(status)) { return NextResponse.json({ success: false, message: 'status 必须为 active 或 frozen' }, { status: 400 }) }
-    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) { return NextResponse.json({ success: false, message: '原因至少 5 个字' }, { status: 400 }) }
+    if (!status || !['active', 'frozen'].includes(status)) { return errorResponse('status 必须为 active 或 frozen', 400) }
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) { return errorResponse('原因至少 5 个字', 400) }
     const existing = await UserService.getUserById(id)
-    if (!existing || existing.status === 'deleted') { return NextResponse.json({ success: false, message: '用户不存在' }, { status: 404 }) }
-    if (existing.status === status) { return NextResponse.json({ success: false, message: '状态未变化' }, { status: 400 }) }
+    if (!existing || existing.status === 'deleted') { return errorResponse('用户不存在', 404) }
+    if (existing.status === status) { return errorResponse('状态未变化', 400) }
     const updated = await UserService.updateUserStatus(id, status)
     await logOperation({
       userId: admin.id, action: 'UPDATE', module: 'user', targetId: id,
@@ -26,9 +27,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
     await OrderNotificationService.notifyUserStatusChange({ userId: id, status, reason, operatorId: admin.id })
     const actionLabel = status === 'active' ? '解封' : '冻结'
-    return NextResponse.json({ success: true, data: { status: updated.status }, message: `状态已${actionLabel}` })
+    return successResponse({ status: updated.status }, `状态已${actionLabel}`)
   } catch (error) {
     logger.error('Change status error:', error)
-    return NextResponse.json({ success: false, message: '状态变更失败' }, { status: 500 })
+    return errorResponse('状态变更失败', 500)
   }
 }

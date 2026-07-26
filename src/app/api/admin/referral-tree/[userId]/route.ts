@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest } from "next/server"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { logger } from "@/lib/logger"
 import { UserService } from "@/lib/services/user.service"
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 // ---- v38: 内存缓存 (30s TTL) ----
 
@@ -37,17 +38,17 @@ export async function GET(
   // v38: cache check
   const cacheKey = getCacheKey(userId, maxLevel, mode, boundaryDownLevel)
   const cached = getCached(cacheKey)
-  if (cached) return NextResponse.json(cached)
+  if (cached) return successResponse(cached)
 
   try {
     const response = await UserService.getAdminReferralTree(userId, maxLevel, mode, boundaryDownLevel)
-    if (!response) return NextResponse.json({ success: false, error: "用户不存在" }, { status: 404 })
+    if (!response) return errorResponse("用户不存在", 404)
 
     // v38: cache write
     apiCache.set(cacheKey, { data: response, timestamp: Date.now() })
-    return NextResponse.json(response)
+    return successResponse(response)
   } catch (error) {
     logger.error("获取推荐树失败", error)
-    return NextResponse.json({ success: false, error: "获取推荐树失败" }, { status: 500 })
+    return errorResponse("获取推荐树失败", 500)
   }
 }

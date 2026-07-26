@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { RechargeService } from '@/lib/services/recharge.service'
 import { logger } from '@/lib/logger'
@@ -24,21 +25,12 @@ export async function GET(
     const data = await RechargeService.getAdminRechargeRequestById(id)
 
     if (!data) {
-      return NextResponse.json(
-        { success: false, message: '充值申请不存在' },
-        { status: 404 }
-      )
+      return errorResponse('充值申请不存在', 404)
     }
 
-    return NextResponse.json({
-      success: true,
-      data,
-    })
+    return successResponse(data)
   } catch (error) {
     logger.error('Admin get recharge detail error:', error)
-    return NextResponse.json(
-      { success: false, message: '获取充值申请详情失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取充值详情失败', 500)
   }
 }

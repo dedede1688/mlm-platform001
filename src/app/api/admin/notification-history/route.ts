@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { NotificationService } from '@/lib/services/notification.service'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,9 +15,9 @@ export async function GET(request: NextRequest) {
       type: searchParams.get('type') || undefined,
       status: searchParams.get('status') || undefined,
     })
-    return NextResponse.json({ success: true, data: result })
+    return successResponse(result)
   } catch (error) {
-    logger.error('?????????:', error)
-    return NextResponse.json({ success: false, error: '?????????' }, { status: 500 })
+    logger.error('获取通知历史列表失败:', error)
+    return errorResponse('获取通知历史列表失败', 500)
   }
 }

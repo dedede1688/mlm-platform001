@@ -1,20 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyPermission } from '@/lib/utils/admin-auth'
-import { RewardService } from '@/lib/services/reward.service'
-import { logger } from '@/lib/logger'
+﻿import { NextRequest } from "next/server"
+import { verifyPermission } from "@/lib/utils/admin-auth"
+import { RewardService } from "@/lib/services/reward.service"
+import { logger } from "@/lib/logger"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 export async function GET(request: NextRequest) {
   try {
-    const { user: admin, error: authError } = await verifyPermission(request, ['finance_admin', 'super_admin'])
+    const { user: admin, error: authError } = await verifyPermission(request, ["finance_admin", "super_admin"])
     if (authError || !admin) return authError!
 
     const { searchParams } = new URL(request.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '20')))
-    const type = searchParams.get('type')?.trim() || ''
-    const search = searchParams.get('search')?.trim() || ''
-    const startDate = searchParams.get('startDate')?.trim() || ''
-    const endDate = searchParams.get('endDate')?.trim() || ''
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"))
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "20")))
+    const type = searchParams.get("type")?.trim() || ""
+    const search = searchParams.get("search")?.trim() || ""
+    const startDate = searchParams.get("startDate")?.trim() || ""
+    const endDate = searchParams.get("endDate")?.trim() || ""
 
     const { rewards, rewardTotal, dividends, dividendTotal, rewardStats, dividendStats } =
       await RewardService.getRewardsList({ page, pageSize, type: type || undefined, search: search || undefined, startDate: startDate || undefined, endDate: endDate || undefined })
@@ -45,25 +46,23 @@ export async function GET(request: NextRequest) {
       id: d.id,
       userId: d.userId,
       user: d.user,
-      type: 'dividend' as const,
+      type: "dividend" as const,
       amount: d.amount,
       orderId: d.orderId,
       orderNo: d.order?.orderNo || null,
       fromUserId: null,
       level: null,
-      status: 'paid' as const,
+      status: "paid" as const,
       createdAt: d.createdAt,
     }))
 
-    if (type === 'dividend') {
-      const stats = buildStats(rStats, dStats)
-      return NextResponse.json({
-        success: true,
-        data: formattedDividends,
-        message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u6210\u529f',
-        pagination: { page, pageSize, total: dTotal, totalPages: Math.ceil(dTotal / pageSize) },
-        stats,
-      })
+    const stats = buildStats(rStats, dStats)
+
+    if (type === "dividend") {
+      return successResponse(
+        { records: formattedDividends, pagination: { page, pageSize, total: dTotal, totalPages: Math.ceil(dTotal / pageSize) }, stats },
+        "获取奖励流水成功"
+      )
     }
 
     if (type) {
@@ -72,14 +71,10 @@ export async function GET(request: NextRequest) {
         amount: r.amount, orderId: r.orderId, orderNo: r.order?.orderNo || null,
         fromUserId: r.fromUserId, level: r.level, status: r.status, createdAt: r.createdAt,
       }))
-      const stats = buildStats(rStats, dStats)
-      return NextResponse.json({
-        success: true,
-        data: formattedRewards,
-        message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u6210\u529f',
-        pagination: { page, pageSize, total: rTotal, totalPages: Math.ceil(rTotal / pageSize) },
-        stats,
-      })
+      return successResponse(
+        { records: formattedRewards, pagination: { page, pageSize, total: rTotal, totalPages: Math.ceil(rTotal / pageSize) }, stats },
+        "获取奖励流水成功"
+      )
     }
 
     const allRewards = [
@@ -92,21 +87,14 @@ export async function GET(request: NextRequest) {
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
     const totalCount = rTotal + dTotal
-    const stats = buildStats(rStats, dStats)
 
-    return NextResponse.json({
-      success: true,
-      data: allRewards,
-      message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u6210\u529f',
-      pagination: { page, pageSize, total: totalCount, totalPages: Math.ceil(totalCount / pageSize) },
-      stats,
-    })
-  } catch (error) {
-    logger.error('Admin get rewards error:', error)
-    return NextResponse.json(
-      { success: false, message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u5931\u8d25' },
-      { status: 500 }
+    return successResponse(
+      { records: allRewards, pagination: { page, pageSize, total: totalCount, totalPages: Math.ceil(totalCount / pageSize) }, stats },
+      "获取奖励流水成功"
     )
+  } catch (error) {
+    logger.error("Admin get rewards error:", error)
+    return errorResponse(error instanceof Error ? error.message : "获取奖励流水失败", 500)
   }
 }
 

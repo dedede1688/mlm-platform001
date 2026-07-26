@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { logger } from "@/lib/logger"
 import { ReportService } from "@/lib/services/report.service"
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 // GET /api/admin/reports/finance — 财务报告（v51.1）
 export async function GET(request: NextRequest) {
@@ -13,9 +14,9 @@ export async function GET(request: NextRequest) {
     const days = Math.min(90, Math.max(1, parseInt(searchParams.get("days") || "30")))
 
     const data = await ReportService.getFinanceReport(days)
-    return NextResponse.json({ success: true, data })
+    return successResponse(data)
   } catch (error) {
     logger.error("[Finance Report Error]", error)
-    return NextResponse.json({ success: false, message: "服务器错误" }, { status: 500 })
+    return errorResponse("服务器错误", 500)
   }
 }

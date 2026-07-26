@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logOperation } from '@/lib/utils/operation-log'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,8 +15,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (authError || !admin) return authError!
 
     const refundRequest = await OrderLifecycleService.getRefundRequestById(id)
-    if (!refundRequest) return NextResponse.json({ success: false, message: '???????' }, { status: 404 })
-    if (refundRequest.status !== 'approved') return NextResponse.json({ success: false, message: '????????????' }, { status: 400 })
+    if (!refundRequest) return errorResponse('退款申请不存在', 404)
+    if (refundRequest.status !== 'approved') return errorResponse('退款状态不是已审批', 400)
 
     await OrderLifecycleService.requestRefund(refundRequest.orderId)
     const updated = await OrderLifecycleService.completeRefund(id)
@@ -34,9 +35,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       })
     }
 
-    return NextResponse.json({ success: true, data: updated, message: '?????' })
+    return successResponse(updated, '退款完成')
   } catch (error) {
     logger.error('Admin complete refund error:', error)
-    return NextResponse.json({ success: false, message: '??????' }, { status: 500 })
+    return errorResponse('退款完成失败', 500)
   }
 }

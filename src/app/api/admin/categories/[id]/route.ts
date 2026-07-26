@@ -1,22 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { CategoryService } from '@/lib/services/category.service'
 import { logger } from '@/lib/logger'
-
-interface CategoryItem {
-  id: string
-  name: string
-  parentId: string | null
-  sortOrder: number
-  createdAt: string
-  updatedAt: string
-}
-
-interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
-}
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 /** PUT：更新分类 */
 export async function PUT(
@@ -40,22 +26,19 @@ export async function PUT(
       sortOrder: body.sortOrder,
     })
 
-    return NextResponse.json<ApiResponse<CategoryItem>>({
-      success: true,
-      data: {
-        id: category.id,
-        name: category.name,
-        parentId: category.parentId,
-        sortOrder: category.sortOrder,
-        createdAt: category.createdAt.toISOString(),
-        updatedAt: category.updatedAt.toISOString(),
-      },
+    return successResponse({
+      id: category.id,
+      name: category.name,
+      parentId: category.parentId,
+      sortOrder: category.sortOrder,
+      createdAt: category.createdAt.toISOString(),
+      updatedAt: category.updatedAt.toISOString(),
     })
   } catch (error) {
     logger.error('更新分类失败:', error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: error instanceof Error ? error.message : '更新分类失败' },
-      { status: error instanceof Error && error.message === '分类不存在' ? 404 : 500 }
+    return errorResponse(
+      error instanceof Error ? error.message : '更新分类失败',
+      error instanceof Error && error.message === '分类不存在' ? 404 : 500
     )
   }
 }
@@ -72,12 +55,9 @@ export async function DELETE(
     const { id } = await params
     await CategoryService.delete(id)
 
-    return NextResponse.json<ApiResponse<never>>({ success: true })
+    return successResponse(null)
   } catch (error) {
     logger.error('删除分类失败:', error)
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: error instanceof Error ? error.message : '删除分类失败' },
-      { status: 500 }
-    )
+    return errorResponse(error instanceof Error ? error.message : '删除分类失败', 500)
   }
 }

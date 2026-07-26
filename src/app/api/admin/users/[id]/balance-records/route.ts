@@ -1,7 +1,8 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { UserService } from '@/lib/services/user.service'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function GET(
   request: NextRequest,
@@ -21,28 +22,25 @@ export async function GET(
 
     const user = await UserService.getUserById(id)
     if (!user || user.status === 'deleted') {
-      return NextResponse.json({ success: false, message: '用户不存在' }, { status: 404 })
+      return errorResponse('用户不存在', 404)
     }
 
     const { records, pagination } = await UserService.getUserBalanceRecords(id, page, limit, { type, startDate, endDate })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        user: {
-          id: user.id, phone: user.phone, nickname: user.nickname,
-          balance: user.balance, frozenBalance: user.frozenBalance,
-          consumeBalance: user.consumeBalance ?? 0,
-          earningsPending: user.earningsPending ?? 0,
-          earningsAvailable: user.earningsAvailable ?? 0,
-          earningsVoided: user.earningsVoided ?? 0,
-        },
-        records,
-        pagination,
+    return successResponse({
+      user: {
+        id: user.id, phone: user.phone, nickname: user.nickname,
+        balance: user.balance, frozenBalance: user.frozenBalance,
+        consumeBalance: user.consumeBalance ?? 0,
+        earningsPending: user.earningsPending ?? 0,
+        earningsAvailable: user.earningsAvailable ?? 0,
+        earningsVoided: user.earningsVoided ?? 0,
       },
+      records,
+      pagination,
     })
   } catch (error) {
     logger.error('Admin get balance records error:', error)
-    return NextResponse.json({ success: false, message: '获取余额流水失败' }, { status: 500 })
+    return errorResponse('获取余额流水失败', 500)
   }
 }

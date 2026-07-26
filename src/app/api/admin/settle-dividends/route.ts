@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { DividendService } from '@/lib/services/dividend.service'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
 // POST: 手动触发分红操作
 // body.action: 'snapshot'（默认，每日快照）或 'settle'（手动周结入账）
@@ -28,29 +29,16 @@ export async function POST(request: NextRequest) {
       if (result.paused === false) {
         // 正常成功分支
       } else {
-        return NextResponse.json(
-          {
-            success: false,
-            paused: true,
-            error: result.paused ? result.message : '分红结算维护中，当前未执行任何资金操作',
-          },
-          { status: 503 }
-        )
+        return errorResponse(result.paused ? result.message : '分红结算维护中，当前未执行任何资金操作', 503)
       }
     } else {
       result = await DividendService.snapshotDailyDividends()
     }
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-    })
+    return successResponse(result)
   } catch (error: unknown) {
     logger.error('分红操作失败:', error)
-    return NextResponse.json(
-      { success: false, error: '分红操作失败' },
-      { status: 500 }
-    )
+    return errorResponse('分红操作失败', 500)
   }
 }
 
@@ -64,15 +52,9 @@ export async function GET(request: NextRequest) {
 
     const summary = await DividendService.getTodayDividendSummary()
 
-    return NextResponse.json({
-      success: true,
-      data: summary,
-    })
+    return successResponse(summary)
   } catch (error: unknown) {
     logger.error('获取分红摘要失败:', error)
-    return NextResponse.json(
-      { success: false, error: '获取分红摘要失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取分红摘要失败', 500)
   }
 }

@@ -1,27 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderService } from '@/lib/services/order.service'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { logger } from '@/lib/logger'
+import { errorResponse, successResponse } from '@/lib/api-response'
 
-// GET /api/admin/orders/[id] ?? ?????????????
+// GET /api/admin/orders/[id] — 获取订单详情
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
     if (authError || !admin) return authError!
     const { id } = await params
     const order = await OrderService.getAdminOrderDetail(id)
-    if (!order) return NextResponse.json({ success: false, message: '?????' }, { status: 404 })
-    return NextResponse.json({ success: true, data: order, message: '????????' })
+    if (!order) return errorResponse('订单不存在', 404)
+    return successResponse(order, '获取订单成功')
   } catch (error) {
     logger.error('Admin get order error:', error)
-    return NextResponse.json({ success: false, message: '????????' }, { status: 500 })
+    return errorResponse('获取订单失败', 500)
   }
 }
 
-// PUT /api/admin/orders/[id] ?? ???????????
+// PUT /api/admin/orders/[id] — 更新订单状态
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
@@ -30,11 +31,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const body = await request.json()
     const { action, trackingNumber } = body
     if (!action || !['ship', 'cancel'].includes(action)) {
-      return NextResponse.json({ success: false, message: 'action ??? ship ? cancel' }, { status: 400 })
+      return errorResponse('action 必须是 ship 或 cancel', 400)
     }
     if (action === 'ship') {
       if (!trackingNumber || typeof trackingNumber !== 'string' || trackingNumber.trim().length < 3) {
-        return NextResponse.json({ success: false, message: '?????? 3 ???' }, { status: 400 })
+        return errorResponse('物流单号至少 3 字符', 400)
       }
       const updated = await OrderLifecycleService.shipOrder(id, trackingNumber.trim())
       await logOperation({
@@ -44,7 +45,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         userAgent: request.headers.get('user-agent') || undefined,
       }).catch(() => {})
       await OrderNotificationService.notifyOrderShipped(id).catch(() => {})
-      return NextResponse.json({ success: true, data: updated, message: '?????' })
+      return successResponse(updated, '发货成功')
     } else {
       const updated = await OrderLifecycleService.cancelOrder(id)
       await logOperation({
@@ -53,11 +54,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         userAgent: request.headers.get('user-agent') || undefined,
       }).catch(() => {})
       await OrderNotificationService.notifyOrderCancelled({ orderId: id }).catch(() => {})
-      return NextResponse.json({ success: true, data: updated, message: '?????' })
+      return successResponse(updated, '取消成功')
     }
   } catch (error) {
     logger.error('Admin update order error:', error)
-    const message = error instanceof Error ? error.message : '??????'
-    return NextResponse.json({ success: false, message }, { status: 500 })
+    const message = error instanceof Error ? error.message : '操作失败'
+    return errorResponse(message, 500)
   }
 }

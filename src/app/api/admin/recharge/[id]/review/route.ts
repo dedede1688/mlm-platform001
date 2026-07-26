@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { verifyPermission } from '@/lib/utils/admin-auth'
-import { RechargeService } from '@/lib/services/recharge.service'
-import { logOperation } from '@/lib/utils/operation-log'
-import { OrderNotificationService } from '@/lib/services/order-notification.service'
-import { UserService } from '@/lib/services/user.service'
-import { logger } from '@/lib/logger'
+﻿import { NextRequest } from "next/server"
+import { verifyPermission } from "@/lib/utils/admin-auth"
+import { RechargeService } from "@/lib/services/recharge.service"
+import { logOperation } from "@/lib/utils/operation-log"
+import { OrderNotificationService } from "@/lib/services/order-notification.service"
+import { UserService } from "@/lib/services/user.service"
+import { logger } from "@/lib/logger"
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 /**
  * PATCH /api/admin/recharge/[id]/review
@@ -25,32 +26,29 @@ export async function PATCH(
   try {
     // 鉴权：只允许 super_admin 和 finance_admin
     const { user: admin, error: authError } = await verifyPermission(request, [
-      'finance_admin',
-      'super_admin',
+      "finance_admin",
+      "super_admin",
     ])
     if (authError || !admin) return authError!
 
     const { id } = await params
     const { action, rejectReason, rejectTemplateId, remark } = await request.json()
 
-    if (!action || !['approve', 'reject'].includes(action)) {
-      return NextResponse.json(
-        { success: false, message: 'action 必须为 approve 或 reject' },
-        { status: 400 }
-      )
+    if (!action || !["approve", "reject"].includes(action)) {
+      return errorResponse("action 必须为 approve 或 reject", 400)
     }
 
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null
-    const userAgent = request.headers.get('user-agent') || null
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null
+    const userAgent = request.headers.get("user-agent") || null
 
-    if (action === 'approve') {
+    if (action === "approve") {
       const updated = await RechargeService.approveRecharge(id, admin.id, remark)
 
       // 操作日志在 route 层写，失败不影响主流程
       await logOperation({
         userId: admin.id,
-        action: 'APPROVE',
-        module: 'finance',
+        action: "APPROVE",
+        module: "finance",
         targetId: id,
         ip: ip || undefined,
         userAgent: userAgent || undefined,
@@ -60,15 +58,11 @@ export async function PATCH(
       if (updated) {
         try {
           const userAfterApprove = await UserService.getUserById(updated.userId)
-          if (!userAfterApprove || typeof userAfterApprove.balance !== 'number' || isNaN(userAfterApprove.balance)) {
-            logger.error('[v3.2-1-hotfix notifyRechargeApproved] 跳过通知：无法获取用户余额', {
+          if (!userAfterApprove || typeof userAfterApprove.balance !== "number" || isNaN(userAfterApprove.balance)) {
+            logger.error("[v3.2-1-hotfix notifyRechargeApproved] 跳过通知：无法获取用户余额", {
               userId: updated.userId,
               rechargeId: id,
               balance: userAfterApprove?.balance,
-            })
-            logger.error('充值审核通过通知跳过：无法获取用户余额', {
-              userId: updated.userId,
-              rechargeId: id,
             })
           } else {
             await OrderNotificationService.notifyRechargeApproved({
@@ -80,36 +74,25 @@ export async function PATCH(
             }).catch(() => {})
           }
         } catch (err) {
-          logger.error('[v3.2-1-hotfix notifyRechargeApproved] 查询用户余额失败，跳过通知', {
+          logger.error("[v3.2-1-hotfix notifyRechargeApproved] 查询用户余额失败，跳过通知", {
             error: String(err),
             userId: updated.userId,
             rechargeId: id,
           })
-          logger.error('充值审核通过通知跳过：查询用户余额失败', {
-            error: String(err),
-            userId: updated.userId,
-          })
         }
       }
 
-      return NextResponse.json({
-        success: true,
-        data: updated,
-        message: '充值审核通过，余额已入账',
-      })
+      return successResponse(updated, "充值审核通过，余额已入账")
     } else {
       // reject 必须有 rejectReason 或 rejectTemplateId
       if (!rejectReason && !rejectTemplateId) {
-        return NextResponse.json(
-          { success: false, message: '请填写拒绝原因或选择拒绝模板' },
-          { status: 400 }
-        )
+        return errorResponse("请填写拒绝原因或选择拒绝模板", 400)
       }
 
       const updated = await RechargeService.rejectRecharge(
         id,
         admin.id,
-        rejectReason || '',
+        rejectReason || "",
         rejectTemplateId,
         remark
       )
@@ -117,8 +100,8 @@ export async function PATCH(
       // 操作日志在 route 层写，失败不影响主流程
       await logOperation({
         userId: admin.id,
-        action: 'REJECT',
-        module: 'finance',
+        action: "REJECT",
+        module: "finance",
         targetId: id,
         ip: ip || undefined,
         userAgent: userAgent || undefined,
@@ -130,28 +113,21 @@ export async function PATCH(
           userId: updated.userId,
           rechargeId: id,
           amount: updated.amount,
-          rejectReason: updated.rejectReason || rejectReason || '',
+          rejectReason: updated.rejectReason || rejectReason || "",
           operatorId: admin.id,
         }).catch(() => {})
       }
 
-      return NextResponse.json({
-        success: true,
-        data: updated,
-        message: '充值已拒绝',
-      })
+      return successResponse(updated, "充值已拒绝")
     }
   } catch (error: unknown) {
-    logger.error('Admin review recharge error:', error)
-    const message = error instanceof Error ? error.message : '审核充值申请失败'
+    logger.error("Admin review recharge error:", error)
+    const message = error instanceof Error ? error.message : "审核充值申请失败"
     const status =
-      message === '充值申请不存在' ? 404 :
-      message === '充值申请不存在或已审核' ? 400 :
-      message === '请填写拒绝原因或选择拒绝模板' ? 400 :
+      message === "充值申请不存在" ? 404 :
+      message === "充值申请不存在或已审核" ? 400 :
+      message === "请填写拒绝原因或选择拒绝模板" ? 400 :
       500
-    return NextResponse.json(
-      { success: false, message },
-      { status }
-    )
+    return errorResponse(message, status)
   }
 }
