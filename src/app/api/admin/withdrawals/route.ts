@@ -5,6 +5,8 @@ import { WITHDRAWAL_STATUS } from "@/lib/constants"
 import { WithdrawalService } from "@/lib/services/withdrawal.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { parseBody } from "@/lib/validations/helper"
+import { withdrawalReviewSchema } from "@/lib/validations/admin/withdrawals"
 
 // GET /api/admin/withdrawals — 获取提现申请列表（管理员）
 export async function GET(request: NextRequest) {
@@ -32,41 +34,33 @@ export async function GET(request: NextRequest) {
 }
 
 // PUT /api/admin/withdrawals — 审核提现申请（管理员）
-// 请求体：{ id, action: "approve" | "reject", rejectReason?, rejectTemplateId?, remark? }
 export async function PUT(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ["finance_admin", "super_admin"])
     if (authError || !admin) return authError!
 
-    const { id, action, rejectReason, rejectTemplateId, remark } = await request.json()
+    const { data: body, error: parseError } = await parseBody(withdrawalReviewSchema, request)
+    if (parseError) return parseError
 
-    if (!id) {
-      return errorResponse("缺少提现记录 ID", 400)
-    }
+    const approved = body.action === "approve"
 
-    if (!action || !["approve", "reject"].includes(action)) {
-      return errorResponse("action 必须为 approve 或 reject", 400)
-    }
-
-    const approved = action === "approve"
-
-    const updated = await WithdrawalService.reviewWithdrawal(id, {
+    const updated = await WithdrawalService.reviewWithdrawal(body.id, {
       approved,
       reviewedBy: admin.id,
-      rejectReason,
-      rejectTemplateId,
-      remark,
+      rejectReason: body.rejectReason,
+      rejectTemplateId: body.rejectTemplateId,
+      remark: body.remark,
     })
 
     await logOperation({
       userId: admin.id,
       action: approved ? "APPROVE" : "REJECT",
       module: "finance",
-      targetId: id,
+      targetId: body.id,
       oldValue: { status: WITHDRAWAL_STATUS.PENDING },
       newValue: {
         status: approved ? WITHDRAWAL_STATUS.APPROVED : WITHDRAWAL_STATUS.REJECTED,
-        ...(approved ? {} : { rejectReason: rejectReason || null }),
+        ...(approved ? {} : { rejectReason: body.rejectReason || null }),
       },
       ip: request.headers.get("x-forwarded-for") || undefined,
       userAgent: request.headers.get("user-agent") || undefined,

@@ -4,6 +4,8 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
 import { UserService } from '@/lib/services/user.service'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { parseBody } from '@/lib/validations/helper'
+import { userLevelSchema } from '@/lib/validations/admin/users'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -29,25 +31,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { user: admin, error: authError } = await verifyPermission(request, ['support_admin', 'super_admin'])
     if (authError || !admin) return authError!
     const { id } = await params
-    const body = await request.json()
-    const { level } = body
+
+    const { data: body, error: parseError } = await parseBody(userLevelSchema, request)
+    if (parseError) return parseError
+
     const existing = await UserService.getUserById(id)
     if (!existing || existing.status === 'deleted') {
       return errorResponse('用户不存在', 404)
     }
-    if (level === undefined || level === null) {
-      return errorResponse('缺少 level 参数', 400)
-    }
-    const newLevel = Number(level)
-    if (isNaN(newLevel) || newLevel < 0 || newLevel > 7 || !Number.isInteger(newLevel)) {
-      return errorResponse('等级必须为 0-7 的整数', 400)
-    }
-    const updatedUser = await UserService.updateUserLevel(id, newLevel)
+
+    const updatedUser = await UserService.updateUserLevel(id, body.level)
     await logOperation({
       userId: admin.id, action: 'UPDATE', module: 'user', targetId: id,
-      oldValue: { level: existing.level }, newValue: { level: newLevel },
+      oldValue: { level: existing.level }, newValue: { level: body.level },
     })
-    return successResponse(updatedUser, `会员等级已调整为 ${newLevel}`)
+    return successResponse(updatedUser, `会员等级已调整为 ${body.level}`)
   } catch (error) {
     logger.error('Admin update user error:', error)
     return errorResponse('更新会员信息失败', 500)

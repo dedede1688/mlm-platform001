@@ -11,4 +11,13 @@ export const orderStatusActionSchema = z.discriminatedUnion("action", [
   }),
 ])
 
+export const orderStatusTransitionSchema = z.object({
+  status: z.enum(["paid", "shipped", "completed", "cancelled"], {
+    message: "status 必须为 paid/shipped/completed/cancelled",
+  }),
+  trackingNumber: z.string().optional(),
+  reason: z.string().optional(),
+})
+
 export type OrderStatusActionInput = z.infer<typeof orderStatusActionSchema>
+export type OrderStatusTransitionInput = z.infer<typeof orderStatusTransitionSchema>

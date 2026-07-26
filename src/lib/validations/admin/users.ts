@@ -27,3 +27,10 @@ export const userPointsAdjustSchema = z.object({
 export type UserStatusInput = z.infer<typeof userStatusSchema>
 export type UserPasswordInput = z.infer<typeof userPasswordSchema>
 export type UserPointsAdjustInput = z.infer<typeof userPointsAdjustSchema>
+
+
+export const userLevelSchema = z.object({
+  level: z.number().int().min(0, "等级最小为0").max(7, "等级最大为7"),
+})
+
+export type UserLevelInput = z.infer<typeof userLevelSchema>
