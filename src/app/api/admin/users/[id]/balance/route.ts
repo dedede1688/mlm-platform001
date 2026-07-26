@@ -1,41 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
+import { BalanceService } from '@/lib/services/balance.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
-import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 import { logger } from '@/lib/logger'
 
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
 type AdjustType = typeof VALID_TYPES[number]
 
-const TYPE_FIELD_MAP: Record<AdjustType, { main: 'balance' | 'frozenBalance' | 'earningsAvailable' | 'earningsVoided'; extra?: 'consumeBalance'; label: string }> = {
-  balance:          { main: 'balance',          label: '余额' },
-  frozenBalance:    { main: 'frozenBalance',    label: '冻结余额' },
-  recharge:         { main: 'balance', extra: 'consumeBalance',     label: '余额/消费余额' },
-  consume_void:     { main: 'balance', extra: 'consumeBalance',     label: '余额/消费余额' },
-  // 资金底座重构: earnings_add 只动可提现收益，不碰余额
-  earnings_add:     { main: 'earningsAvailable',  label: '可提现收益' },
-  // 资金底座重构: earnings_void 只动累计作废，不碰余额
-  earnings_void:    { main: 'earningsVoided',     label: '累计作废' },
-}
-
-const TYPE_EXTRA_SIGN: Partial<Record<AdjustType, 1 | -1>> = {
-  recharge: 1, consume_void: -1,
-}
-
-function getFieldLabel(field: string): string {
-  const labels: Record<string, string> = {
-    consumeBalance: '消费余额',
-    earningsPending: '待结算收益',
-    earningsAvailable: '可提现收益',
-    earningsVoided: '累计作废',
-    balance: '余额',
-    frozenBalance: '冻结余额',
-  }
-  return labels[field] ?? field
+const TYPE_LABEL_MAP: Record<AdjustType, string> = {
+  balance: '\u4f59\u989d',
+  frozenBalance: '\u51bb\u7ed3\u4f59\u989d',
+  recharge: '\u4f59\u989d/\u6d88\u8d39\u4f59\u989d',
+  consume_void: '\u4f59\u989d/\u6d88\u8d39\u4f59\u989d',
+  earnings_add: '\u53ef\u63d0\u73b0\u6536\u76ca',
+  earnings_void: '\u7d2f\u8ba1\u4f5c\u5e9f',
 }
 
 export async function POST(
@@ -43,13 +24,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    invalidateCache('admin-stats')  // v51.5: 调账后 stats 失效
+    invalidateCache('admin-stats')
 
-    // v52.1: rate-limit - IP 维度，10 次/分钟（防暴力调账）
     const clientIP = getClientIP(request)
     const ipLimitResult = await checkRateLimit(`balance-adjust:ip:${clientIP}`, 10, 60 * 1000)
     if (!ipLimitResult.allowed) {
-      return rateLimitResponse('调账请求过于频繁，请稍后再试', ipLimitResult.resetIn)
+      return rateLimitResponse('\u8c03\u8d26\u8bf7\u6c42\u8fc7\u4e8e\u9891\u7e41\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5', ipLimitResult.resetIn)
     }
 
     const { user: admin, error: authError } = await verifyPermission(
@@ -63,7 +43,7 @@ export async function POST(
 
     if (!type || !VALID_TYPES.includes(type as AdjustType)) {
       return NextResponse.json(
-        { success: false, message: `type 必须为 ${VALID_TYPES.join(' / ')}` },
+        { success: false, message: `type \u5fc5\u987b\u4e3a ${VALID_TYPES.join(' / ')}` },
         { status: 400 }
       )
     }
@@ -72,149 +52,42 @@ export async function POST(
 
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0) {
       return NextResponse.json(
-        { success: false, message: 'amount 必须为非零有限数字' },
+        { success: false, message: 'amount \u5fc5\u987b\u4e3a\u975e\u96f6\u6709\u9650\u6570\u5b57' },
         { status: 400 }
       )
     }
 
-    // earnings_void 特殊校验：只允许正数
     if (adjustType === 'earnings_void' && amount <= 0) {
       return NextResponse.json(
-        { success: false, message: '作废收益金额必须为正数' },
+        { success: false, message: '\u4f5c\u5e9f\u6536\u76ca\u91d1\u989d\u5fc5\u987b\u4e3a\u6b63\u6570' },
         { status: 400 }
       )
     }
 
     if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
       return NextResponse.json(
-        { success: false, message: '原因至少 5 个字' },
+        { success: false, message: '\u539f\u56e0\u81f3\u5c11 5 \u4e2a\u5b57' },
         { status: 400 }
       )
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const before = await tx.user.findUnique({ where: { id } })
-      if (!before || before.status === 'deleted') {
-        throw new Error('用户不存在')
-      }
-
-      // ===== earnings_void 特殊处理：减可用收益 + 增作废收益 =====
-      if (adjustType === 'earnings_void') {
-        // 并发保护：只有 earningsAvailable >= amount 才能更新
-        const voidResult = await tx.user.updateMany({
-          where: { id, earningsAvailable: { gte: amount } },
-          data: {
-            earningsAvailable: { decrement: amount },
-            earningsVoided: { increment: amount },
-          },
-        })
-        if (voidResult.count === 0) throw new Error('可用收益不足')
-
-        // v006: 读取更新后的真实值，不用 before 伪造快照
-        const updated = await tx.user.findUnique({ where: { id } })
-        if (!updated) throw new Error('用户更新后查询失败')
-
-        // v006: 反推本次操作前的真实值（并发安全）
-        const actualOld = {
-          earningsAvailable: updated.earningsAvailable + amount,
-          earningsVoided: updated.earningsVoided - amount,
-        }
-
-        const after4Field = {
-          consumeBalance: updated.consumeBalance,
-          earningsAvailable: updated.earningsAvailable,
-          earningsPending: updated.earningsPending,
-          earningsVoided: updated.earningsVoided,
-        }
-        const before4Field = {
-          consumeBalance: updated.consumeBalance,
-          earningsAvailable: actualOld.earningsAvailable,
-          earningsPending: updated.earningsPending,
-          earningsVoided: actualOld.earningsVoided,
-        }
-        // v007: 保存资金流水创建结果，带出 balanceRecordId 给通知关联
-        const balanceRecord = await tx.balanceRecord.create({
-          data: {
-            userId: id,
-            type: 'earnings_void',
-            amount,
-            balance: updated.balance,
-            frozenBalance: updated.frozenBalance,
-            sourceType: 'admin',
-            sourceId: admin.id,
-            description: `管理员调账：作废收益 ¥${amount.toFixed(2)}，原因：${reason}${format4FieldDelta(before4Field, after4Field)}`,
-          },
-        })
-
-        return {
-          updated,
-          oldValue: actualOld,
-          adjustType,
-          mapping: TYPE_FIELD_MAP[adjustType],
-          balanceRecordId: balanceRecord.id,
-        }
-      }
-
-      // ===== 通用调账逻辑 =====
-      const mapping = TYPE_FIELD_MAP[adjustType]
-      const extraSign = TYPE_EXTRA_SIGN[adjustType] ?? 1
-
-      const updateData: Record<string, { increment: number }> = {
-        [mapping.main]: { increment: amount },
-      }
-      if (mapping.extra && extraSign !== undefined) {
-        updateData[mapping.extra] = { increment: amount * extraSign }
-      }
-
-      const mainWhereCond = amount < 0 ? { gte: Math.abs(amount) } : undefined
-      const updateResult = await tx.user.updateMany({
-        where: { id, ...(mainWhereCond ? { [mapping.main]: mainWhereCond } : {}) },
-        data: updateData,
-      })
-      if (updateResult.count === 0) throw new Error(`${mapping.label}不足`)
-
-      const newBalance = mapping.main === 'balance' ? before.balance + amount : before.balance
-      const newFrozenBalance = mapping.main === 'frozenBalance' ? before.frozenBalance + amount : before.frozenBalance
-      const oldValue: Record<string, unknown> = {
-        [mapping.main]: (before as Record<string, unknown>)[mapping.main] ?? 0,
-      }
-      if (mapping.extra) {
-        oldValue[mapping.extra] = (before as Record<string, unknown>)[mapping.extra] ?? 0
-      }
-
-      const extraDesc = mapping.extra
-        ? `，${getFieldLabel(mapping.extra)}${amount * extraSign > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}`
-        : ''
-      const after4Field = {
-        consumeBalance: before.consumeBalance + (mapping.extra === 'consumeBalance' ? amount * extraSign : 0),
-        earningsAvailable: before.earningsAvailable + (mapping.main === 'earningsAvailable' ? amount : 0),
-        earningsPending: before.earningsPending,
-        earningsVoided: before.earningsVoided + (mapping.main === 'earningsVoided' ? amount : 0),
-      }
-      await tx.balanceRecord.create({
-        data: {
-          userId: id,
-          type: adjustType,
-          amount,
-          balance: newBalance,
-          frozenBalance: newFrozenBalance,
-          sourceType: 'admin',
-          sourceId: admin.id,
-          description: `管理员调账：${mapping.label}${amount > 0 ? '增加' : '扣减'} ¥${Math.abs(amount).toFixed(2)}${extraDesc}，原因：${reason}${format4FieldDelta(before, after4Field)}`,
-        },
-      })
-
-      const updated = await tx.user.findUnique({ where: { id } })
-      if (!updated) throw new Error('用户更新后查询失败')
-      return { updated, oldValue, adjustType, mapping }
+    const result = await BalanceService.adjustBalance({
+      userId: id,
+      adminId: admin.id,
+      type,
+      amount,
+      reason: reason.trim(),
     })
 
     if (!result.updated) {
       return NextResponse.json(
-        { success: false, message: '更新后查询用户失败' },
+        { success: false, message: '\u66f4\u65b0\u540e\u67e5\u8be2\u7528\u6237\u5931\u8d25' },
         { status: 500 }
       )
     }
+
+    const fieldLabel = TYPE_LABEL_MAP[adjustType] || result.mapping.label
+
     await logOperation({
       userId: admin.id,
       action: 'UPDATE',
@@ -223,13 +96,11 @@ export async function POST(
       oldValue: result.oldValue,
       newValue: adjustType === 'earnings_void'
         ? { earningsAvailable: result.updated.earningsAvailable, earningsVoided: result.updated.earningsVoided }
-        : { [result.mapping.main]: result.updated[result.mapping.main] },
+        : { [result.mapping.main]: result.updated[result.mapping.main as keyof typeof result.updated] },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    // 通知：earnings_void 用专用模板，其他类型走通用 balance_change
-    // v006: 路由层第二道保护——通知失败不影响资金成功返回
     if (adjustType === 'earnings_void') {
       await OrderNotificationService.notifyEarningsVoid({
         userId: id,
@@ -241,10 +112,8 @@ export async function POST(
         balanceRecordId: result.balanceRecordId!,
       }).catch((err) => {
         logger.error('[v006 notifyEarningsVoid route catch]', { error: String(err) })
-        logger.error('收益作废通知路由层捕获异常', { error: String(err) })
       })
     } else {
-      // v46.11: 触发余额变动通知（修复调账路由没调 sendInApp 的死代码问题）
       await OrderNotificationService.notifyBalanceChange({
         userId: id,
         adjustType: type as string,
@@ -255,13 +124,11 @@ export async function POST(
       })
     }
 
-    const fieldLabel = result.mapping.label
-    const actionLabel = amount > 0 ? '增加' : '扣减'
+    const actionLabel = amount > 0 ? '\u589e\u52a0' : '\u6263\u51cf'
     logger.info(
-      `[BalanceAdjust] 用户 ${id} 的${fieldLabel}已${actionLabel} ¥${Math.abs(amount).toFixed(2)}，原因：${reason}`
+      `[BalanceAdjust] \u7528\u6237 ${id} \u7684${fieldLabel}\u5df2${actionLabel} \u00a5${Math.abs(amount).toFixed(2)}\uff0c\u539f\u56e0\uff1a${reason}`
     )
 
-    // earnings_void 返回双字段（可用收益 + 累计作废）
     if (adjustType === 'earnings_void') {
       return NextResponse.json({
         success: true,
@@ -269,12 +136,12 @@ export async function POST(
           earningsAvailable: result.updated.earningsAvailable,
           earningsVoided: result.updated.earningsVoided,
         },
-        message: `收益作废成功：可用收益减少 ¥${amount.toFixed(2)}，累计作废 ¥${result.updated.earningsVoided.toFixed(2)}`,
+        message: `\u6536\u76ca\u4f5c\u5e9f\u6210\u529f\uff1a\u53ef\u7528\u6536\u76ca\u51cf\u5c11 \u00a5${amount.toFixed(2)}\uff0c\u7d2f\u8ba1\u4f5c\u5e9f \u00a5${result.updated.earningsVoided.toFixed(2)}`,
       })
     }
 
     const responseData: Record<string, number> = {
-      [result.mapping.main]: result.updated[result.mapping.main] as number,
+      [result.mapping.main]: result.updated[result.mapping.main as keyof typeof result.updated] as number,
     }
     if (result.mapping.extra) {
       responseData[result.mapping.extra] = (result.updated as Record<string, unknown>)[result.mapping.extra] as number
@@ -283,13 +150,12 @@ export async function POST(
     return NextResponse.json({
       success: true,
       data: responseData,
-      message: `资金调整成功：${fieldLabel}${actionLabel} ¥${Math.abs(amount).toFixed(2)}`,
+      message: `\u8d44\u91d1\u8c03\u6574\u6210\u529f\uff1a${fieldLabel}${actionLabel} \u00a5${Math.abs(amount).toFixed(2)}`,
     })
   } catch (error) {
     logger.error('Adjust balance error:', error)
-    const message = error instanceof Error ? error.message : '资金调整失败'
-    // v007: 可用收益不足属于业务校验失败，返回 400 而非 500
-    const isBusinessError = message === '可用收益不足'
+    const message = error instanceof Error ? error.message : '\u8d44\u91d1\u8c03\u6574\u5931\u8d25'
+    const isBusinessError = message === '\u53ef\u7528\u6536\u76ca\u4e0d\u8db3'
     return NextResponse.json(
       { success: false, message },
       { status: isBusinessError ? 400 : 500 }

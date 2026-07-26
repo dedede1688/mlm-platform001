@@ -1,7 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
+import { SettingsService } from '@/lib/services/settings.service'
+import { BannerService } from '@/lib/services/banner.service'
 import { logger } from '@/lib/logger'
+
+const DEFAULT_SITE = {
+  siteName: '敏维科技',
+  logoUrl: '/logo.png',
+  contactPhone: '18566793066',
+  serviceEmail: '381901944@qq.com',
+  serviceTime: '周一至周日 9:00-21:00',
+  companyName: '广州敏维科技有限公司',
+  companyAddress: '广州市花都区金谷南路',
+  icp: '粤ICP备XXXXXXX号',
+  copyright: '2026',
+  aboutUs: null,
+  termsHtml: null,
+  privacyHtml: null,
+  helpFaq: [],
+  seoTitle: null,
+  seoDescription: null,
+  seoKeywords: null,
+  paymentProvider: 'mock',
+  paymentMerchantId: null,
+  paymentSecret: null,
+  paymentNotifyUrl: null,
+}
 
 // GET：获取所有系统配置（管理员）
 export async function GET(request: NextRequest) {
@@ -9,15 +33,8 @@ export async function GET(request: NextRequest) {
     const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
     if (authError || !admin) return authError!
 
-    // 使用 findUnique 精确查询，避免返回错误记录
-    const config = await prisma.systemConfig.findUnique({
-      where: { key: 'site_settings' },
-    })
-
-    // 从独立 banners 表查询轮播图
-    const bannerRecords = await prisma.banners.findMany({
-      orderBy: { order: 'asc' },
-    })
+    const config = await SettingsService.getSiteSettings()
+    const bannerRecords = await BannerService.getAll()
     const banners = bannerRecords.map(record => ({
       id: record.id,
       imageUrl: record.image_url,
@@ -28,47 +45,24 @@ export async function GET(request: NextRequest) {
     }))
 
     if (!config) {
-      // 返回默认值
       return NextResponse.json({
         success: true,
-        data: {
-          siteName: '敏维科技',
-          logoUrl: '/logo.png',
-          contactPhone: '18566793066',
-          serviceEmail: '381901944@qq.com',
-          serviceTime: '周一至周日 9:00-21:00',
-          companyName: '广州敏维科技有限公司',
-          companyAddress: '广州市花都区金谷南路',
-          icp: '粤ICP备XXXXXXXX号',
-          copyright: '2026',
-          aboutUs: null,
-          termsHtml: null,
-          privacyHtml: null,
-          helpFaq: [],
-          banners,
-          seoTitle: null,
-          seoDescription: null,
-          seoKeywords: null,
-          paymentProvider: 'mock',
-          paymentMerchantId: null,
-          paymentSecret: null,
-          paymentNotifyUrl: null,
-        },
+        data: { ...DEFAULT_SITE, banners },
       })
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        siteName: config.siteName ?? '敏维科技',
-        logoUrl: config.logoUrl ?? '/logo.png',
-        contactPhone: config.contactPhone ?? '18566793066',
-        serviceEmail: config.serviceEmail ?? '381901944@qq.com',
-        serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
-        companyName: config.companyName ?? '广州敏维科技有限公司',
-        companyAddress: config.companyAddress ?? '广州市花都区金谷南路',
-        icp: config.icp ?? '粤ICP备XXXXXXXX号',
-        copyright: config.copyright ?? '2026',
+        siteName: config.siteName ?? DEFAULT_SITE.siteName,
+        logoUrl: config.logoUrl ?? DEFAULT_SITE.logoUrl,
+        contactPhone: config.contactPhone ?? DEFAULT_SITE.contactPhone,
+        serviceEmail: config.serviceEmail ?? DEFAULT_SITE.serviceEmail,
+        serviceTime: config.serviceTime ?? DEFAULT_SITE.serviceTime,
+        companyName: config.companyName ?? DEFAULT_SITE.companyName,
+        companyAddress: config.companyAddress ?? DEFAULT_SITE.companyAddress,
+        icp: config.icp ?? DEFAULT_SITE.icp,
+        copyright: config.copyright ?? DEFAULT_SITE.copyright,
         aboutUs: config.aboutUs ?? null,
         termsHtml: config.termsHtml ?? null,
         privacyHtml: config.privacyHtml ?? null,
@@ -99,11 +93,8 @@ export async function PUT(request: NextRequest) {
     if (authError || !admin) return authError!
 
     const body = await request.json()
-
-    // 调试日志：打印接收到的数据
     logger.info('[Settings PUT] Received body:', { rawBody: body })
 
-    // 辅助函数：trim 字符串值（防止用户输入带空格）
     const trimVal = (v: string | undefined | null) => (typeof v === 'string' ? v.trim() : v)
 
     const {
@@ -127,15 +118,9 @@ export async function PUT(request: NextRequest) {
       paymentMerchantId,
       paymentSecret,
       paymentNotifyUrl,
-      // banners 已迁移到独立表，不再写入 SystemConfig
     } = body
 
-    // 获取或创建配置记录（使用 findUnique 精确定位）
-    const existing = await prisma.systemConfig.findUnique({
-      where: { key: 'site_settings' },
-    })
-
-    const updateData = {
+    const updateData: Record<string, unknown> = {
       siteName: trimVal(siteName),
       logoUrl: trimVal(logoUrl),
       contactPhone: trimVal(contactPhone),
@@ -158,29 +143,9 @@ export async function PUT(request: NextRequest) {
       paymentNotifyUrl: trimVal(paymentNotifyUrl),
     }
 
-    let config
-    if (existing) {
-      config = await prisma.systemConfig.update({
-        where: { id: existing.id },
-        data: updateData,
-      })
-    } else {
-      // 使用 upsert 确保只创建一条记录
-      config = await prisma.systemConfig.upsert({
-        where: { key: 'site_settings' },
-        update: updateData,
-        create: {
-          key: 'site_settings',
-          value: 'system',
-          ...updateData,
-        },
-      })
-    }
+    const config = await SettingsService.updateSiteSettings(updateData)
 
-    // 从独立 banners 表查询最新轮播图
-    const bannerRecords = await prisma.banners.findMany({
-      orderBy: { order: 'asc' },
-    })
+    const bannerRecords = await BannerService.getAll()
     const banners = bannerRecords.map(record => ({
       id: record.id,
       imageUrl: record.image_url,

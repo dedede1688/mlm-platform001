@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
+import { CategoryService } from '@/lib/services/category.service'
 import { logger } from '@/lib/logger'
-
-// ---- 类型定义 ----
 
 interface CategoryItem {
   id: string
@@ -26,10 +24,7 @@ export async function GET(request: NextRequest) {
     const { error: authError } = await verifyPermission(request, ['super_admin', 'goods_admin'])
     if (authError) return authError
 
-    const categories = await prisma.category.findMany({
-      orderBy: [{ parentId: 'asc' }, { sortOrder: 'asc' }],
-    })
-
+    const categories = await CategoryService.listAll()
     const items: CategoryItem[] = categories.map(c => ({
       id: c.id,
       name: c.name,
@@ -71,23 +66,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 如果指定了 parentId，验证父分类是否存在
-    if (body.parentId) {
-      const parent = await prisma.category.findUnique({ where: { id: body.parentId } })
-      if (!parent) {
-        return NextResponse.json<ApiResponse<never>>(
-          { success: false, error: '父分类不存在' },
-          { status: 400 }
-        )
-      }
-    }
-
-    const category = await prisma.category.create({
-      data: {
-        name: body.name.trim(),
-        parentId: body.parentId || null,
-        sortOrder: body.sortOrder ?? 0,
-      },
+    const category = await CategoryService.create({
+      name: body.name.trim(),
+      parentId: body.parentId || undefined,
+      sortOrder: body.sortOrder,
     })
 
     return NextResponse.json<ApiResponse<CategoryItem>>(
@@ -104,7 +86,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('创建分类失败:', error)
     return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: '创建分类失败' },
+      { success: false, error: error instanceof Error ? error.message : '创建分类失败' },
       { status: 500 }
     )
   }
