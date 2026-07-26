@@ -26,10 +26,7 @@ export async function GET(request: NextRequest) {
       status: status || undefined,
     })
 
-    return successResponse(
-      { records: result.products, pagination: { page: result.page, pageSize: result.pageSize, total: result.total, totalPages: result.totalPages } },
-      "获取商品列表成功"
-    )
+    return successResponse(result.products, "获取商品列表成功", { page: result.page, pageSize: result.pageSize, total: result.total, totalPages: result.totalPages })
   } catch (error) {
     logger.error("Admin get products error:", error)
     return errorResponse("获取商品列表失败", 500)
@@ -147,3 +144,4 @@ export async function POST(request: NextRequest) {
     return errorResponse("创建商品失败", 500)
   }
 }
+

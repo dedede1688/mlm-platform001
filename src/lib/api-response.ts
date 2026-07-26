@@ -1,5 +1,5 @@
-// src/lib/api-response.ts
-import { NextResponse } from 'next/server'
+﻿// src/lib/api-response.ts
+import { NextResponse } from "next/server"
 
 export interface ApiResponse<T = unknown> {
   success: boolean
@@ -7,13 +7,20 @@ export interface ApiResponse<T = unknown> {
   message?: string
   error?: string
   code?: string
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
 }
 
-export function successResponse<T>(data: T, message?: string): NextResponse<ApiResponse<T>> {
+export function successResponse<T>(data: T, message?: string, pagination?: ApiResponse["pagination"]): NextResponse<ApiResponse<T>> {
   return NextResponse.json({
     success: true,
     data,
     ...(message && { message }),
+    ...(pagination && { pagination }),
   })
 }
 

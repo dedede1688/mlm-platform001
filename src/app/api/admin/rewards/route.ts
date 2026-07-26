@@ -60,8 +60,9 @@ export async function GET(request: NextRequest) {
 
     if (type === "dividend") {
       return successResponse(
-        { records: formattedDividends, pagination: { page, pageSize, total: dTotal, totalPages: Math.ceil(dTotal / pageSize) }, stats },
-        "获取奖励流水成功"
+        { records: formattedDividends, stats },
+        "获取奖励流水成功",
+        { page, pageSize, total: dTotal, totalPages: Math.ceil(dTotal / pageSize) }
       )
     }
 
@@ -72,8 +73,9 @@ export async function GET(request: NextRequest) {
         fromUserId: r.fromUserId, level: r.level, status: r.status, createdAt: r.createdAt,
       }))
       return successResponse(
-        { records: formattedRewards, pagination: { page, pageSize, total: rTotal, totalPages: Math.ceil(rTotal / pageSize) }, stats },
-        "获取奖励流水成功"
+        { records: formattedRewards, stats },
+        "获取奖励流水成功",
+        { page, pageSize, total: rTotal, totalPages: Math.ceil(rTotal / pageSize) }
       )
     }
 
@@ -89,8 +91,9 @@ export async function GET(request: NextRequest) {
     const totalCount = rTotal + dTotal
 
     return successResponse(
-      { records: allRewards, pagination: { page, pageSize, total: totalCount, totalPages: Math.ceil(totalCount / pageSize) }, stats },
-      "获取奖励流水成功"
+      { records: allRewards, stats },
+      "获取奖励流水成功",
+      { page, pageSize, total: totalCount, totalPages: Math.ceil(totalCount / pageSize) }
     )
   } catch (error) {
     logger.error("Admin get rewards error:", error)

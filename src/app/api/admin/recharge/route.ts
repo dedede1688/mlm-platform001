@@ -1,8 +1,8 @@
-﻿import { NextRequest } from 'next/server'
-import { errorResponse, successResponse } from '@/lib/api-response'
-import { verifyPermission } from '@/lib/utils/admin-auth'
-import { RechargeService } from '@/lib/services/recharge.service'
-import { logger } from '@/lib/logger'
+﻿import { NextRequest } from "next/server"
+import { errorResponse, successResponse } from "@/lib/api-response"
+import { verifyPermission } from "@/lib/utils/admin-auth"
+import { RechargeService } from "@/lib/services/recharge.service"
+import { logger } from "@/lib/logger"
 
 /**
  * GET /api/admin/recharge
@@ -13,17 +13,17 @@ import { logger } from '@/lib/logger'
 export async function GET(request: NextRequest) {
   try {
     const { error: authError } = await verifyPermission(request, [
-      'finance_admin',
-      'super_admin',
+      "finance_admin",
+      "super_admin",
     ])
     if (authError) return authError
 
     const { searchParams } = new URL(request.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '20')))
-    const status = searchParams.get('status')?.trim() || undefined
-    const paymentMethod = searchParams.get('paymentMethod')?.trim() || undefined
-    const search = searchParams.get('search')?.trim() || undefined
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"))
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "20")))
+    const status = searchParams.get("status")?.trim() || undefined
+    const paymentMethod = searchParams.get("paymentMethod")?.trim() || undefined
+    const search = searchParams.get("search")?.trim() || undefined
 
     const result = await RechargeService.listAdminRechargeRequests({
       page,
@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
       search,
     })
 
-    return successResponse({ records: result.data, pagination: result.pagination })
+    return successResponse(result.data, undefined, result.pagination)
   } catch (error) {
-    logger.error('Admin get recharge list error:', error)
-    return errorResponse('获取充值申请列表失败', 500)
+    logger.error("Admin get recharge list error:", error)
+    return errorResponse("获取充值申请列表失败", 500)
   }
 }

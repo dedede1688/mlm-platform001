@@ -2,7 +2,7 @@
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { LogService } from "@/lib/services/log.service"
 import { logger } from "@/lib/logger"
-import { errorResponse, successResponse } from '@/lib/api-response'
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 // GET /api/admin/logs — 获取操作日志列表（super_admin, auditor）
 export async function GET(request: NextRequest) {
@@ -28,16 +28,9 @@ export async function GET(request: NextRequest) {
     })
 
     return successResponse(
-      {
-        records: logs,
-        pagination: {
-          page,
-          pageSize: svcPagination.limit,
-          total: svcPagination.total,
-          totalPages: svcPagination.totalPages,
-        },
-      },
-      "获取操作日志成功"
+      logs,
+      "获取操作日志成功",
+      { page, pageSize: svcPagination.limit, total: svcPagination.total, totalPages: svcPagination.totalPages }
     )
   } catch (error) {
     logger.error("Admin get operation logs error:", error)

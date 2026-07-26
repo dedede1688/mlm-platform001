@@ -2,7 +2,7 @@
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { OrderLifecycleService } from "@/lib/services/order-lifecycle.service"
 import { logger } from "@/lib/logger"
-import { errorResponse, successResponse } from '@/lib/api-response'
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 // GET /api/admin/refunds — 获取退款申请列表
 export async function GET(request: NextRequest) {
@@ -19,16 +19,9 @@ export async function GET(request: NextRequest) {
     const { data, pagination: svcPagination } = await OrderLifecycleService.getAdminRefunds(page, pageSize, { status, search })
 
     return successResponse(
-      {
-        records: data,
-        pagination: {
-          page,
-          pageSize: svcPagination.limit,
-          total: svcPagination.total,
-          totalPages: svcPagination.totalPages,
-        },
-      },
-      "获取退款申请列表成功"
+      data,
+      "获取退款申请列表成功",
+      { page, pageSize: svcPagination.limit, total: svcPagination.total, totalPages: svcPagination.totalPages }
     )
   } catch (error) {
     logger.error("Admin get refunds error:", error)

@@ -4,7 +4,7 @@ import { logOperation } from "@/lib/utils/operation-log"
 import { WITHDRAWAL_STATUS } from "@/lib/constants"
 import { WithdrawalService } from "@/lib/services/withdrawal.service"
 import { logger } from "@/lib/logger"
-import { errorResponse, successResponse } from '@/lib/api-response'
+import { errorResponse, successResponse } from "@/lib/api-response"
 
 // GET /api/admin/withdrawals — 获取提现申请列表（管理员）
 export async function GET(request: NextRequest) {
@@ -21,16 +21,9 @@ export async function GET(request: NextRequest) {
     const { data, pagination: svcPagination } = await WithdrawalService.getAdminWithdrawals(page, pageSize, { status, search })
 
     return successResponse(
-      {
-        records: data,
-        pagination: {
-          page,
-          pageSize: svcPagination.limit,
-          total: svcPagination.total,
-          totalPages: svcPagination.totalPages,
-        },
-      },
-      "获取提现列表成功"
+      data,
+      "获取提现列表成功",
+      { page, pageSize: svcPagination.limit, total: svcPagination.total, totalPages: svcPagination.totalPages }
     )
   } catch (error) {
     logger.error("Admin get withdrawals error:", error)
