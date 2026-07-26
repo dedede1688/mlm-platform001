@@ -5,6 +5,9 @@ import {
   Bell, Plus, Edit2, Trash2, CheckCircle, AlertCircle,
   Loader2, X, Mail, MessageSquare, ToggleLeft, ToggleRight, Send
 } from 'lucide-react'
+import TemplateFormModal from './_components/TemplateFormModal'
+import DeleteTemplateModal from './_components/DeleteTemplateModal'
+import SendNotificationModal from './_components/SendNotificationModal'
 import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
@@ -478,251 +481,41 @@ export default function AdminNotificationsPage() {
 
       {/* 新增/编辑弹窗 */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editingId ? '编辑模板' : '添加模板'}
-              </h2>
-              <button
-                onClick={handleCloseForm}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-5">
-              {/* 类型 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  模板类型 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, type: e.target.value }))}
-                  disabled={!!editingId}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 hover:border-gray-400
-                    bg-white appearance-none disabled:bg-gray-50 disabled:text-gray-400"
-                >
-                  <option value="">请选择模板类型</option>
-                  {TEMPLATE_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-                {editingId && (
-                  <p className="mt-1 text-xs text-gray-400">模板类型创建后不可修改</p>
-                )}
-              </div>
-
-              {/* 渠道 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  通知渠道 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.channel}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, channel: e.target.value }))}
-                  disabled={!!editingId}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 hover:border-gray-400
-                    bg-white appearance-none disabled:bg-gray-50 disabled:text-gray-400"
-                >
-                  {CHANNELS.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 邮件主题 */}
-              {formData.channel === 'email' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    邮件主题 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.subject}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, subject: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                      transition-colors text-gray-900 placeholder-gray-400
-                      hover:border-gray-400"
-                    placeholder="如：您的订单已支付成功"
-                  />
-                  <p className="mt-1 text-xs text-gray-400">支持变量占位符，如 {'{{orderNo}}'}</p>
-                </div>
-              )}
-
-              {/* 可用变量提示 */}
-              {formData.type && availableVariables.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    可用变量（点击插入）
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {availableVariables.map((v) => (
-                      <button
-                        key={v.key}
-                        type="button"
-                        onClick={() => handleInsertVariable(v.key)}
-                        title={v.label}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700
-                          rounded-md text-xs font-mono hover:bg-blue-50 hover:text-blue-700
-                          transition-colors border border-gray-200"
-                      >
-                        <span>{v.key}</span>
-                        <span className="text-gray-400 font-sans text-[10px]">（{v.label}）</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 模板内容 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  模板内容 <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={formData.content}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
-                  rows={8}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 placeholder-gray-400
-                    hover:border-gray-400 resize-y font-mono text-sm"
-                  placeholder={formData.channel === 'email'
-                    ? '请输入邮件内容（支持 HTML），使用 {{变量名}} 作为占位符'
-                    : '请输入短信内容（纯文本），使用 {{变量名}} 作为占位符'
-                  }
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  {formData.channel === 'email'
-                    ? '邮件内容支持 HTML 格式和变量占位符'
-                    : '短信内容为纯文本，建议不超过 70 个字符'
-                  }
-                </p>
-              </div>
-
-              {/* 启用开关 */}
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <span className="text-sm font-medium text-gray-700">启用模板</span>
-                  <p className="text-xs text-gray-400">禁用后不会触发该模板的通知</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, enabled: !prev.enabled }))}
-                >
-                  {formData.enabled ? (
-                    <ToggleRight className="w-8 h-8 text-green-500" />
-                  ) : (
-                    <ToggleLeft className="w-8 h-8 text-gray-300" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* 底部按钮 */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={handleCloseForm}
-                className="px-5 py-2.5 text-gray-600 hover:text-gray-800 transition-colors text-sm font-medium"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-white font-medium text-sm transition-all ${
-                  saving
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
-                }`}
-              >
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {saving ? '保存中...' : '保存'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TemplateFormModal
+          editingId={editingId}
+          formData={formData}
+          saving={saving}
+          availableVariables={availableVariables}
+          onClose={handleCloseForm}
+          onSave={handleSave}
+          onInsertVariable={handleInsertVariable}
+          onFormDataChange={setFormData}
+        />
       )}
 
       {/* 删除确认弹窗 */}
       {deletingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">确认删除</h3>
-                <p className="text-sm text-gray-500">此操作不可撤销</p>
-              </div>
-            </div>
-            <p className="text-gray-600 mb-6">确定要删除此通知模板吗？</p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setDeletingId(null)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-              >
-                确认删除
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteTemplateModal
+          onCancel={() => setDeletingId(null)}
+          onConfirm={handleDelete}
+        />
       )}
 
       {/* 发送通知弹窗 */}
       {showSend && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">发送通知</h3>
-              <button onClick={() => setShowSend(false)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">通知类型</label>
-                <select value={sendType} onChange={e => setSendType(e.target.value as 'general' | 'announcement')} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900">
-                  <option value="general">通用通知（指定收件人）</option>
-                  <option value="announcement">系统公告（全员）</option>
-                </select>
-              </div>
-              {sendType === 'general' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">收件人用户ID（每行一个）</label>
-                  <textarea value={sendUserIds} onChange={e => setSendUserIds(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 resize-none font-mono text-sm" rows={3} placeholder="每行一个 UUID（例如：c5b3f7e2-1234-5678-9abc-def012345678），用换行或逗号分隔。可到 /admin/users 查看真实 userId。" />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">标题（选填）</label>
-                <input type="text" value={sendSubject} onChange={e => setSendSubject(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900" placeholder="通知标题" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">通知内容 <span className="text-red-500">*</span></label>
-                <textarea value={sendContent} onChange={e => setSendContent(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 resize-none" rows={4} placeholder="通知正文" />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 mt-6">
-              <button onClick={() => setShowSend(false)} className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">取消</button>
-              <button onClick={handleSend} disabled={sending} className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 transition-colors">
-                {sending && <Loader2 className="w-4 h-4 animate-spin" />} 发送
-              </button>
-            </div>
-          </div>
-        </div>
+        <SendNotificationModal
+          sendType={sendType}
+          sendUserIds={sendUserIds}
+          sendSubject={sendSubject}
+          sendContent={sendContent}
+          sending={sending}
+          onClose={() => setShowSend(false)}
+          onSendTypeChange={setSendType}
+          onSendUserIdsChange={setSendUserIds}
+          onSendSubjectChange={setSendSubject}
+          onSendContentChange={setSendContent}
+          onSend={handleSend}
+        />
       )}
     </>
   )

@@ -5,6 +5,9 @@ import {
   Loader2, AlertCircle, Plus, Edit2, Trash2, FolderTree,
   ChevronRight, ChevronDown, Folder, FolderOpen, Save
 } from 'lucide-react'
+import CategoryFormModal from './_components/CategoryFormModal'
+import CategoryDeleteModal from './_components/CategoryDeleteModal'
+import CategoryTreeList from './_components/CategoryTreeList'
 import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----
@@ -371,7 +374,7 @@ export default function CategoriesPage() {
           </div>
 
           {/* 树形内容 */}
-          <TreeList
+          <CategoryTreeList
             nodes={tree}
             expandedIds={expandedIds}
             toggleExpand={toggleExpand}
@@ -387,232 +390,28 @@ export default function CategoriesPage() {
 
       {/* 编辑/创建弹窗 */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
-          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              {editingId ? '编辑分类' : formData.parentId ? '添加子分类' : '添加根分类'}
-            </h2>
-
-            {formData.parentId && (
-              <div className="mb-4 p-2 bg-blue-50 rounded-lg text-sm text-blue-700">
-                父分类：{getCategoryPath(formData.parentId)}
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  分类名称 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 text-sm"
-                  placeholder="请输入分类名称"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">排序值</label>
-                <input
-                  type="number"
-                  value={formData.sortOrder}
-                  onChange={e => setFormData(prev => ({ ...prev, sortOrder: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    transition-colors text-gray-900 text-sm"
-                  placeholder="0"
-                />
-                <p className="mt-1 text-xs text-gray-400">数字越小排越前</p>
-              </div>
-
-              {/* 编辑模式下可修改父分类 */}
-              {editingId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">父分类</label>
-                  <select
-                    value={formData.parentId || '__root__'}
-                    onChange={e => {
-                      const val = e.target.value
-                      setFormData(prev => ({
-                        ...prev,
-                        parentId: val === '__root__' ? null : val,
-                      }))
-                    }}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg
-                      focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                      transition-colors text-gray-900 text-sm bg-white"
-                  >
-                    <option value="__root__">无（根分类）</option>
-                    {categories
-                      .filter(c => c.id !== editingId)
-                      .map(c => (
-                        <option key={c.id} value={c.id}>
-                          {getCategoryPath(c.id)}
-                        </option>
-                      ))
-                    }
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-3 mt-6">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg
-                  hover:bg-blue-700 transition-colors font-medium text-sm
-                  disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
+        <CategoryFormModal
+          editingId={editingId}
+          formData={formData}
+          saving={saving}
+          categories={categories}
+          getCategoryPath={getCategoryPath}
+          onClose={closeModal}
+          onSave={handleSave}
+          onFormDataChange={setFormData}
+        />
       )}
 
       {/* 删除确认弹窗 */}
       {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setDeleteId(null)} />
-          <div className="relative bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">确认删除</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              确定要删除分类「{categories.find(c => c.id === deleteId)?.name}」吗？
-              如果该分类下有子分类或商品，将无法删除。
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg
-                  hover:bg-red-700 transition-colors font-medium text-sm
-                  disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                删除
-              </button>
-            </div>
-          </div>
-        </div>
+        <CategoryDeleteModal
+          categoryName={categories.find(c => c.id === deleteId)?.name || ''}
+          deleting={deleting}
+          onCancel={() => setDeleteId(null)}
+          onConfirm={handleDelete}
+        />
       )}
     </div>
   )
 }
 
-// ---- 递归树形列表组件 ----
-
-interface TreeListProps {
-  nodes: TreeNode[]
-  expandedIds: Set<string>
-  toggleExpand: (id: string) => void
-  onEdit: (item: CategoryItem) => void
-  onAddChild: (parentId: string) => void
-  onDelete: (id: string) => void
-  depth: number
-}
-
-function TreeList({ nodes, expandedIds, toggleExpand, onEdit, onAddChild, onDelete, depth }: TreeListProps) {
-  if (nodes.length === 0) return null
-
-  return (
-    <div>
-      {nodes.map(node => {
-        const hasChildren = node.children.length > 0
-        const isExpanded = expandedIds.has(node.id)
-
-        return (
-          <div key={node.id}>
-            <div
-              className="grid grid-cols-[1fr_80px_160px] gap-4 px-6 py-3 border-b border-gray-100
-                hover:bg-gray-50 transition-colors items-center"
-              style={{ paddingLeft: `${24 + depth * 24}px` }}
-            >
-              {/* 名称 */}
-              <div className="flex items-center gap-2 min-w-0">
-                {hasChildren ? (
-                  <button
-                    onClick={() => toggleExpand(node.id)}
-                    className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </button>
-                ) : (
-                  <span className="w-5" />
-                )}
-                {hasChildren ? (
-                  isExpanded ? <FolderOpen className="w-4 h-4 text-blue-500" /> : <Folder className="w-4 h-4 text-gray-400" />
-                ) : (
-                  <Folder className="w-4 h-4 text-gray-300" />
-                )}
-                <span className="text-sm font-medium text-gray-900 truncate">{node.name}</span>
-                {hasChildren && (
-                  <span className="text-xs text-gray-400">({node.children.length})</span>
-                )}
-              </div>
-
-              {/* 排序 */}
-              <span className="text-sm text-gray-500 text-center">{node.sortOrder}</span>
-
-              {/* 操作 */}
-              <div className="flex items-center gap-1 justify-end">
-                <button
-                  onClick={() => onAddChild(node.id)}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                  title="添加子分类"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onEdit(node)}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                  title="编辑"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onDelete(node.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                  title="删除"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* 子节点 */}
-            {hasChildren && isExpanded && (
-              <TreeList
-                nodes={node.children}
-                expandedIds={expandedIds}
-                toggleExpand={toggleExpand}
-                onEdit={onEdit}
-                onAddChild={onAddChild}
-                onDelete={onDelete}
-                depth={depth + 1}
-              />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
