@@ -32,6 +32,15 @@ vi.mock('@/lib/config/business', () => ({
   invalidateBusinessConfigCache: vi.fn(),
 }))
 
+vi.mock('@/lib/utils/validate-payment-proof', () => ({
+  validatePaymentProofUrl: vi.fn((url: string) => {
+    const trimmed = (url || '').trim()
+    if (!trimmed) throw new Error('请上传付款凭证')
+    if (!/^https:\/\//i.test(trimmed)) throw new Error('付款凭证链接必须以 https:// 开头')
+    return trimmed
+  })
+}))
+
 import { prisma } from '@/lib/prisma'
 import { getBusinessConfig } from '@/lib/config/business'
 import { RechargeService } from '@/lib/services/recharge.service'
@@ -244,14 +253,14 @@ describe('RechargeService', () => {
       ).rejects.toThrow('请上传付款凭证')
     })
 
-    it('throws "付款凭证链接必须为 https:// 开头" when paymentProofUrl is not https', async () => {
+    it('throws "付款凭证链接必须以 https:// 开头" when paymentProofUrl is not https', async () => {
       setupRechargeOpen()
       await expect(
         RechargeService.createRechargeRequest('u1', {
           amount: 100,
           paymentProofUrl: 'http://example.com/proof.png',
         })
-      ).rejects.toThrow('付款凭证链接必须为 https:// 开头')
+      ).rejects.toThrow('付款凭证链接必须以 https:// 开头')
     })
 
     it('throws "用户不存在" when user not found', async () => {

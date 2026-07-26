@@ -121,12 +121,12 @@ describe('RefundApplicationHistory component', () => {
 
 describe('后台退款管理页面接线契约', () => {
   const adminPageSource = fs.readFileSync(
-    path.resolve(process.cwd(), 'src/app/admin/refunds/page.tsx'),
+    path.resolve(process.cwd(), 'src/app/admin/refunds/_components/RefundReviewModal.tsx'),
     'utf8'
   )
 
   it('fetchReviewHistory 携带 Bearer Token', () => {
-    expect(adminPageSource).toContain('Authorization: `Bearer ${authToken}`')
+    expect(adminPageSource).toContain('Authorization: `Bearer ${token}`')
   })
 
   it('显示加载历史申请文案', () => {
@@ -150,7 +150,7 @@ describe('后台退款管理页面接线契约', () => {
   })
 
   it('验证历史数据包含当前申请', () => {
-    expect(adminPageSource).toContain("records.some(record => record.id === item.id)")
+    expect(adminPageSource).toContain("records.some((record) => record.id === item.id)")
   })
 
   it('渲染 RefundApplicationHistory 组件', () => {

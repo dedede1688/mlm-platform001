@@ -137,20 +137,20 @@ describe('OrderLifecycleService', () => {
   describe('verifyPayment', () => {
     it('throws when order not found', async () => {
       mocks.order.findUnique.mockResolvedValueOnce(null)
-      await expect(OrderLifecycleService.verifyPayment('order-1', '123456'))
+      await expect(OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456'))
         .rejects.toThrow('订单不存在')
     })
 
     it('throws when order status is not pending', async () => {
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-1', status: 'paid', userId: 'user-1' } as any)
-      await expect(OrderLifecycleService.verifyPayment('order-1', '123456'))
+      await expect(OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456'))
         .rejects.toThrow('订单不存在或状态已变更')
     })
 
     it('throws when payment password not set', async () => {
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-1', status: 'pending', userId: 'user-1' } as any)
       mocks.user.findUnique.mockResolvedValueOnce({ paymentPasswordHash: null } as any)
-      await expect(OrderLifecycleService.verifyPayment('order-1', '123456'))
+      await expect(OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456'))
         .rejects.toThrow('尚未设置支付密码')
     })
 
@@ -159,7 +159,7 @@ describe('OrderLifecycleService', () => {
       mocks.user.findUnique.mockResolvedValueOnce({ paymentPasswordHash: 'hashed' } as any)
       vi.mocked(verifyPaymentPassword).mockResolvedValueOnce(false)
       vi.mocked(incrementFailedAttempt).mockResolvedValueOnce({ attempts: 1, locked: false })
-      await expect(OrderLifecycleService.verifyPayment('order-1', 'wrong'))
+      await expect(OrderLifecycleService.verifyPayment('order-1', 'user-1', 'wrong'))
         .rejects.toThrow('支付密码错误')
     })
 
@@ -173,7 +173,7 @@ describe('OrderLifecycleService', () => {
       vi.mocked(RewardService.processOrderRewards).mockResolvedValueOnce({} as any)
       vi.mocked(OrderNotificationService.notifyOrderPaid).mockResolvedValueOnce({} as any)
 
-      const result = await OrderLifecycleService.verifyPayment('order-1', '123456')
+      const result = await OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456')
       expect(result).toBeDefined()
       // payAmount=0 → 不查 freshUser,不写 balanceRecord
       expect(mocks.user.findUnique).toHaveBeenCalledTimes(1) // 仅查 password hash
@@ -193,7 +193,7 @@ describe('OrderLifecycleService', () => {
       vi.mocked(RewardService.processOrderRewards).mockResolvedValueOnce({} as any)
       vi.mocked(OrderNotificationService.notifyOrderPaid).mockResolvedValueOnce({} as any)
 
-      const result = await OrderLifecycleService.verifyPayment('order-1', '123456')
+      const result = await OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456')
       expect(result).toBeDefined()
       expect(mocks.balanceRecord.create).toHaveBeenCalled()
     })
@@ -208,7 +208,7 @@ describe('OrderLifecycleService', () => {
       mocks.order.updateMany.mockResolvedValueOnce({ count: 1 } as any)
       mocks.user.updateMany.mockResolvedValueOnce({ count: 0 } as any) // 余额不足
 
-      await expect(OrderLifecycleService.verifyPayment('order-1', '123456'))
+      await expect(OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456'))
         .rejects.toThrow('可用余额不足')
     })
 
@@ -219,7 +219,7 @@ describe('OrderLifecycleService', () => {
       vi.mocked(verifyPaymentPassword).mockResolvedValueOnce(true)
       mocks.order.updateMany.mockResolvedValueOnce({ count: 0 } as any) // 并发
 
-      await expect(OrderLifecycleService.verifyPayment('order-1', '123456'))
+      await expect(OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456'))
         .rejects.toThrow('订单不存在或状态已变更')
     })
   })
@@ -455,7 +455,7 @@ describe('OrderLifecycleService', () => {
       // 余额退回
       expect(mocks.balanceRecord.create).toHaveBeenCalled()
       // 奖励扣回
-      expect(RewardService.processRefund).toHaveBeenCalledWith('order-1')
+      expect(RewardService.processRefund).toHaveBeenCalledWith('order-1', expect.any(Object))
     })
 
     it('skips points refund when pointsUsed=0', async () => {

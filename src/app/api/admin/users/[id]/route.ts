@@ -16,8 +16,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!user || user.status === 'deleted') {
       return errorResponse('用户不存在', 404)
     }
+    const { passwordHash, paymentPasswordHash, ...safeUser } = user as any
     return successResponse(
-      { ...user, orderCount: orderStats._count, totalOrderAmount: orderStats._sum.payAmount || 0 },
+      { ...safeUser, hasPaymentPassword: !!paymentPasswordHash, orderCount: orderStats._count, totalOrderAmount: orderStats._sum.payAmount || 0 },
       '获取会员详情成功'
     )
   } catch (error) {

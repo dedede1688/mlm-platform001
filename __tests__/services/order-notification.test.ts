@@ -102,7 +102,7 @@ describe('OrderNotificationService', () => {
 
       expect(mockPrisma.order.findUnique).toHaveBeenCalledWith({
         where: { id: 'order-1' },
-        include: { user: true },
+        include: { user: { select: { nickname: true, phone: true } } },
       })
       expect(notifications.batches[0]).toMatchObject({
         type: 'business',

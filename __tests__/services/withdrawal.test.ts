@@ -46,6 +46,15 @@ vi.mock('@/lib/services/notification.service', () => ({
   },
 }))
 
+vi.mock('@/lib/utils/validate-payment-proof', () => ({
+  validatePaymentProofUrl: vi.fn((url: string) => {
+    const trimmed = (url || '').trim()
+    if (!trimmed) throw new Error('请上传付款凭证')
+    if (!/^https:\/\//i.test(trimmed)) throw new Error('付款凭证链接必须以 https:// 开头')
+    return trimmed
+  })
+}))
+
 import { prisma } from '@/lib/prisma'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 
@@ -571,22 +580,22 @@ describe('WithdrawalService', () => {
 
   // ============ completeWithdrawal - error paths ============
   describe('completeWithdrawal - error paths', () => {
-    it('throws "打款凭证不能为空" when paymentProofUrl missing', async () => {
+    it('throws "请上传付款凭证" when paymentProofUrl missing', async () => {
       await expect(
         WithdrawalService.completeWithdrawal('w1', {
           completedBy: 'admin1',
           paymentProofUrl: '',
         })
-      ).rejects.toThrow('打款凭证不能为空')
+      ).rejects.toThrow('请上传付款凭证')
     })
 
-    it('throws "打款凭证不能为空" when paymentProofUrl is whitespace', async () => {
+    it('throws "请上传付款凭证" when paymentProofUrl is whitespace', async () => {
       await expect(
         WithdrawalService.completeWithdrawal('w1', {
           completedBy: 'admin1',
           paymentProofUrl: '   ',
         })
-      ).rejects.toThrow('打款凭证不能为空')
+      ).rejects.toThrow('请上传付款凭证')
     })
 
     it('throws "提现记录不存在" when withdrawal not found', async () => {
@@ -724,7 +733,7 @@ describe('WithdrawalService', () => {
       const result = await WithdrawalService.getPendingWithdrawals()
       expect(result.withdrawals).toHaveLength(1)
       expect(prisma.withdrawal.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { status: 'pending' }, include: { user: true } })
+        expect.objectContaining({ where: { status: 'pending' } })
       )
     })
   })

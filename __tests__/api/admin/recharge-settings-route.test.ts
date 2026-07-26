@@ -357,12 +357,10 @@ describe('/api/admin/recharge-settings', () => {
       expect(logOperation).not.toHaveBeenCalled()
     })
 
-    it('系统异常（500）时调用 console.error', async () => {
+    it('系统异常（500）时调用 logger.error', async () => {
       verifyPermission.mockResolvedValueOnce({ user: buildAdmin('super_admin'), error: null })
       const sysError = new Error('database unreachable')
       RechargeSettingsService.updateSettings.mockRejectedValueOnce(sysError)
-
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       const { PUT } = await import('@/app/api/admin/recharge-settings/route')
       const req = new Request('http://localhost/api/admin/recharge-settings', {
@@ -382,13 +380,11 @@ describe('/api/admin/recharge-settings', () => {
       })
       await PUT(req as any)
 
-      expect(consoleSpy).toHaveBeenCalled()
-      const calls = consoleSpy.mock.calls.map((c) => c.join(' '))
-      // 至少有一次 console.error 调用提到错误
-      const hasRelevantCall = calls.some((c) => c.includes('Update recharge settings') || c.includes('database unreachable'))
+      expect(logger.error).toHaveBeenCalled()
+      const calls = (logger.error as any).mock.calls.map((c: any[]) => c.join(' '))
+      // 至少有一次 logger.error 调用提到错误
+      const hasRelevantCall = calls.some((c: string) => c.includes('Update recharge settings') || c.includes('database unreachable'))
       expect(hasRelevantCall).toBe(true)
-
-      consoleSpy.mockRestore()
     })
 
     it('系统异常（500）时调用 logger.error 并传入 Prisma code/meta', async () => {
@@ -417,7 +413,7 @@ describe('/api/admin/recharge-settings', () => {
       await PUT(req as any)
 
       expect(logger.error).toHaveBeenCalled()
-      const call = (logger.error as any).mock.calls[0]
+      const call = (logger.error as any).mock.calls[1]
       const message = call[0]
       const meta = call[1]
       expect(message).toBe('保存充值设置失败')

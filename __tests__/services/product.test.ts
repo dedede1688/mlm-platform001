@@ -4,6 +4,7 @@ vi.mock('@/lib/prisma', () => {
   const createMockChain = () => ({
     findUnique: vi.fn(),
     findMany: vi.fn(),
+    count: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
@@ -31,13 +32,12 @@ describe('ProductService', () => {
         { id: 'p2', name: 'Product B', sortOrder: 2 },
       ]
       prisma.product.findMany.mockResolvedValueOnce(mockProducts)
+      prisma.product.count.mockResolvedValueOnce(2)
 
-      const result = await ProductService.getAllProducts()
+      const result = await ProductService.getAllProducts({ page: 1, pageSize: 10 })
 
-      expect(result).toEqual(mockProducts)
-      expect(prisma.product.findMany).toHaveBeenCalledWith({
-        orderBy: { sortOrder: 'asc' },
-      })
+      expect(result.products).toEqual(mockProducts)
+      expect(result.total).toBe(2)
     })
   })
 
@@ -122,13 +122,14 @@ describe('ProductService', () => {
   describe('deleteProduct', () => {
     it('should delete product by id', async () => {
       const mockDeleted = { id: 'p1', name: 'Test' }
-      prisma.product.delete.mockResolvedValueOnce(mockDeleted)
+      prisma.product.update.mockResolvedValueOnce(mockDeleted)
 
       const result = await ProductService.deleteProduct('p1')
 
       expect(result).toEqual(mockDeleted)
-      expect(prisma.product.delete).toHaveBeenCalledWith({
+      expect(prisma.product.update).toHaveBeenCalledWith({
         where: { id: 'p1' },
+        data: { status: 'deleted' },
       })
     })
   })

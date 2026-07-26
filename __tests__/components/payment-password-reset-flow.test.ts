@@ -193,7 +193,7 @@ describe('后台会员详情"支付安全"区域', () => {
   })
 
   it('非超级管理员不显示执行按钮', () => {
-    const source = read('src/app/admin/users/page.tsx')
+    const source = read('src/app/admin/users/_components/UserDetailModal.tsx')
     // 检查条件渲染：userRole === 'super_admin' 才显示按钮
     expect(source).toContain("userRole === 'super_admin'")
   })
@@ -204,7 +204,7 @@ describe('后台会员详情"支付安全"区域', () => {
   })
 
   it('包含重置原因输入框', () => {
-    const source = read('src/app/admin/users/page.tsx')
+    const source = read('src/app/admin/users/_components/UserDetailModal.tsx')
     expect(source).toContain('重置原因')
   })
 
@@ -287,7 +287,7 @@ describe('v022: 支付密码重置手机号后四位前端校验', () => {
   // ---- 3. 按钮禁用条件包含后四位匹配 ----
   describe('3. 按钮禁用条件包含后四位匹配', () => {
     it('重置按钮 disabled 包含后四位匹配条件（suffixMatches 或 detailUser.phone.slice(-4)）', () => {
-      const source = read('src/app/admin/users/page.tsx')
+      const source = read('src/app/admin/users/_components/UserDetailModal.tsx')
       const btnMatch = source.match(/onClick=\{handleResetPaymentPassword\}[^>]*disabled=\{[^}]*\}/)
       expect(btnMatch).not.toBeNull()
       const btn = btnMatch![0]
@@ -303,7 +303,7 @@ describe('v022: 支付密码重置手机号后四位前端校验', () => {
     })
 
     it('红色提示仅在输入满 4 位且不匹配时出现', () => {
-      const source = read('src/app/admin/users/page.tsx')
+      const source = read('src/app/admin/users/_components/UserDetailModal.tsx')
       const tipIdx = source.indexOf('<p className="mt-1 text-xs text-red-500">手机号后 4 位不匹配，请核对后重试</p>')
       expect(tipIdx).toBeGreaterThan(0)
       const before = source.slice(Math.max(0, tipIdx - 300), tipIdx)
@@ -396,7 +396,7 @@ describe('v019: 后台支付密码重置状态隔离', () => {
     })
 
     it('遮罩 onClick 使用 closeDetailModal（不再直接 setDetailUser(null)）', () => {
-      const source = read('src/app/admin/users/page.tsx')
+      const source = read('src/app/admin/users/_components/UserDetailModal.tsx')
       // 找到遮罩 div 的 onClick
       const overlayMatch = source.match(/bg-black\/50.*?onClick=\{[^}]*\}/s)
       expect(overlayMatch).not.toBeNull()
@@ -405,20 +405,15 @@ describe('v019: 后台支付密码重置状态隔离', () => {
     })
 
     it('右上角关闭按钮 onClick 使用 closeDetailModal', () => {
-      const source = read('src/app/admin/users/page.tsx')
-      // 找到会员详情弹窗中的 X 关闭按钮（在 sticky top 区域）
-      // 从 detailUser && 开始搜索
-      const detailStart = source.indexOf('detailUser &&')
-      expect(detailStart).toBeGreaterThan(0)
-      const detailSection = source.slice(detailStart, detailStart + 2000)
-      // 找到包含 X className 的关闭按钮
-      const closeBtnMatch = detailSection.match(/onClick=\{[^}]*\}[^>]*>[\s\S]*?<X /)
+      const source = read('src/app/admin/users/_components/UserDetailModal.tsx')
+            // UserDetailModal.tsx: X close button in sticky header
+      const closeBtnMatch = source.match(/onClick=\{closeDetailModal\}[^>]*>[\s\S]*?<X /)
       expect(closeBtnMatch).not.toBeNull()
-      expect(closeBtnMatch![0]).toContain('closeDetailModal')
+      expect(closeBtnMatch[0]).toContain('closeDetailModal')
     })
 
     it('底部关闭按钮 onClick 使用 closeDetailModal', () => {
-      const source = read('src/app/admin/users/page.tsx')
+      const source = read('src/app/admin/users/_components/UserDetailModal.tsx')
       // 找到底部"关闭"按钮
       const bottomMatch = source.match(/关闭<\/button>/)
       expect(bottomMatch).not.toBeNull()

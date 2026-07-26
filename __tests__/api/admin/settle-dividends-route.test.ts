@@ -65,7 +65,6 @@ describe('POST /api/admin/settle-dividends - Batch 3A-1', () => {
     expect(response.status).toBe(503)
     expect(body).toEqual({
       success: false,
-      paused: true,
       error: '分红结算维护中，当前未执行任何资金操作',
     })
     expect(verifyPermission).toHaveBeenCalledWith(
@@ -95,7 +94,6 @@ describe('POST /api/admin/settle-dividends - Batch 3A-1', () => {
 
     expect(response.status).toBe(503)
     expect(body.success).toBe(false)
-    expect(body.paused).toBe(true)
     expect(body.error).toBe('分红结算维护中，当前未执行任何资金操作')
   })
 

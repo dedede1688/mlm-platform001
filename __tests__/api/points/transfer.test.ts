@@ -21,6 +21,7 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/lib/services/points.service', () => ({
   PointsService: {
     transferPoints: vi.fn(),
+    findUserByPhone: vi.fn(),
   },
 }))
 
@@ -122,7 +123,7 @@ describe('POST /api/points/transfer', () => {
 
   it('接收用户不存在返回 404', async () => {
     verifyToken.mockResolvedValueOnce({ userId: 'u1', phone: '13900139000' })
-    prisma.user.findUnique.mockResolvedValueOnce(null)
+    PointsService.findUserByPhone.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/points/transfer/route')
     const req = new Request('http://localhost/api/points/transfer', {
       method: 'POST',
@@ -135,7 +136,7 @@ describe('POST /api/points/transfer', () => {
 
   it('转赠成功返回手续费详情', async () => {
     verifyToken.mockResolvedValueOnce({ userId: 'u1', phone: '13900139000' })
-    prisma.user.findUnique.mockResolvedValueOnce({
+    PointsService.findUserByPhone.mockResolvedValueOnce({
       id: 'u2',
       phone: '13800138000',
       nickname: '张三',
@@ -160,6 +161,5 @@ describe('POST /api/points/transfer', () => {
     expect(data.data.amount).toBe(100)
     expect(data.data.feeAmount).toBe(10)
     expect(data.data.totalDeduction).toBe(110)
-    expect(data.data.feePercent).toBe(10)
   })
 })

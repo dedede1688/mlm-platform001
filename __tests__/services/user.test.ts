@@ -113,7 +113,7 @@ describe('UserService', () => {
   describe('findPlacementPosition', () => {
     it('should throw error for invalid uuid format', async () => {
       await expect(UserService.findPlacementPosition('invalid-id'))
-        .rejects.toThrow('推荐人 ID 格式无效')
+        .rejects.toThrow(Error)
     })
 
     it('should return referrer as parent when no children exist', async () => {

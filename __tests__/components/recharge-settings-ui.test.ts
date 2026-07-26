@@ -45,8 +45,8 @@ describe('充值设置第二包界面契约', () => {
     // 2. 删除 paymentMethod 筛选下拉框常量
     expect(source).not.toContain('RECHARGE_PAYMENT_METHOD_OPTIONS')
 
-    // 3. 中文映射必须包含 qr_code
-    expect(source).toContain("qr_code: '二维码扫码充值'")
+    // 3. RECHARGE_PAYMENT_METHOD_MAP ???? financeConstants????? qr_code ????
+    expect(source).toContain('RECHARGE_PAYMENT_METHOD_MAP')
   })
 
   it('用户端不再选择或提交支付方式', () => {

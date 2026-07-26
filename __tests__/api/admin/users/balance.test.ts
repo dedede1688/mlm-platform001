@@ -306,7 +306,7 @@ describe('POST /api/admin/users/[id]/balance - earnings_void', () => {
     // v007: 可用收益不足返回 400，不再返回 500
     expect(res.status).toBe(400)
     expect(data.success).toBe(false)
-    expect(data.message).toContain('可用收益不足')
+    expect(data.error).toBe('可用收益不足')
     // 不写流水
     expect(tx.balanceRecord.create).not.toHaveBeenCalled()
     // 不写日志
@@ -412,6 +412,7 @@ describe('POST /api/admin/users/[id]/balance - earnings_void', () => {
           .mockResolvedValueOnce(BEFORE_USER)
           .mockResolvedValueOnce({ ...BEFORE_USER, earningsAvailable: 200 }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        update: vi.fn().mockResolvedValue({}),
       },
       balanceRecord: {
         create: vi.fn().mockResolvedValue({ id: 'br-1' }),
@@ -498,7 +499,7 @@ describe('POST /api/admin/users/[id]/balance - earnings_void', () => {
 
     expect(res.status).toBe(500)
     expect(data.success).toBe(false)
-    expect(data.message).toBe('数据库连接断开')
+    expect(data.error).toBe('数据库连接断开')
     expect(OrderNotificationService.notifyEarningsVoid).not.toHaveBeenCalled()
     expect(logOperation).not.toHaveBeenCalled()
   })
