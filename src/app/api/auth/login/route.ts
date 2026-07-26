@@ -45,12 +45,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 生成 JWT
-    // 调试：记录密钥指纹，与 middleware 对照
-    const secret = process.env.JWT_SECRET || ''
-    const fp = secret ? `${secret.substring(0, 4)}...${secret.length}chars` : 'EMPTY!'
     const token = generateToken(user.id, user.phone, user.role)
 
-    logger.info(`[Login] ????, role: ${user.role}`)
+    // 登录成功日志：仅记录脱敏标识
+    const maskedPhone = phone.slice(0, 3) + '****' + phone.slice(-2)
+    logger.info(`[Login] user=${maskedPhone} role=${user.role}`, { event: 'login_success', role: user.role, userId: user.id })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -68,8 +68,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[Login] 登录失败:', error)
-    const errorMessage = error instanceof Error ? error.message : '未知错误'
-    return errorResponse(`登录失败: ${errorMessage}`, 500)
+    logger.error('[Login] 登录失败', { event: 'login_error', errType: error instanceof Error ? error.constructor.name : typeof error })
+    return errorResponse('登录失败，请稍后重试', 500)
   }
 }
