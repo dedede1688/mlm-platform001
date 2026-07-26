@@ -530,4 +530,179 @@ static async getUsersList(params: UserListParams) {
     return { validIds: existingIds, invalidIds }
   }
 
+
+  /**
+   * D-5.9: Admin referral tree - BFS full-tree query + ancestor chain + stats
+   * Migrated from src/app/api/admin/referral-tree/[userId]/route.ts
+   */
+  static async getAdminReferralTree(userId: string, maxLevel: number, mode: string, boundaryDownLevel: number) {
+    const MAX_NODES = 1000
+
+    const rootUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, phone: true, nickname: true, level: true, avatarUrl: true, totalPoints: true, directSalesAmount: true, parentId: true, referrerId: true, createdAt: true },
+    })
+    if (!rootUser) return null
+
+    let actualRootId = userId
+    const originalUserId = userId
+
+    if (mode === 'boundary' && rootUser.parentId) {
+      let ancId: string | null = rootUser.parentId
+      const visitedAnc = new Set<string>()
+      for (let i = 0; i < 10 && ancId; i++) {
+        if (visitedAnc.has(ancId)) break
+        visitedAnc.add(ancId)
+        const anc: { id: string; parentId: string | null } | null = await prisma.user.findUnique({ where: { id: ancId }, select: { id: true, parentId: true } })
+        if (!anc) break
+        ancId = anc.parentId
+        if (!ancId) actualRootId = anc.id
+      }
+    }
+
+    let effectiveRootUser = rootUser
+    if (actualRootId !== userId) {
+      const queried = await prisma.user.findUnique({
+        where: { id: actualRootId },
+        select: { id: true, phone: true, nickname: true, level: true, avatarUrl: true, totalPoints: true, directSalesAmount: true, parentId: true, referrerId: true, createdAt: true },
+      })
+      if (!queried) return null
+      effectiveRootUser = queried
+    }
+
+    const allUsers: Array<{ id: string; phone: string; nickname: string | null; level: number; avatarUrl: string | null; totalPoints: number; directSalesAmount: number; parentId: string | null; referrerId: string | null; createdAt: Date }> = [effectiveRootUser]
+    const visited = new Set<string>([effectiveRootUser.id])
+    let queue = [effectiveRootUser.id]
+    for (let level = 1; level < maxLevel && allUsers.length < MAX_NODES; level++) {
+      if (queue.length === 0) break
+      const children = await prisma.user.findMany({
+        where: { parentId: { in: queue } },
+        select: { id: true, phone: true, nickname: true, level: true, avatarUrl: true, totalPoints: true, directSalesAmount: true, parentId: true, referrerId: true, createdAt: true },
+      })
+      queue = []
+      for (const child of children) {
+        if (!visited.has(child.id) && allUsers.length < MAX_NODES) {
+          visited.add(child.id)
+          allUsers.push(child)
+          queue.push(child.id)
+        }
+      }
+    }
+    const truncated = allUsers.length >= MAX_NODES || visited.size >= MAX_NODES
+
+    if (mode === 'boundary') {
+      const directChildren = await prisma.user.findMany({
+        where: { parentId: originalUserId },
+        select: { id: true, phone: true, nickname: true, level: true, avatarUrl: true, totalPoints: true, directSalesAmount: true, parentId: true, referrerId: true, createdAt: true },
+        take: MAX_NODES,
+      })
+      for (const child of directChildren) {
+        if (!visited.has(child.id) && allUsers.length < MAX_NODES) {
+          visited.add(child.id)
+          allUsers.push(child)
+        }
+      }
+    }
+
+    const userIds = allUsers.map(u => u.id)
+    const orderCounts = await prisma.order.groupBy({ by: ['userId'], where: { userId: { in: userIds }, status: { in: ['paid', 'shipped', 'completed'] } }, _count: { _all: true } })
+    const orderCountMap = new Map(orderCounts.map(o => [o.userId, o._count._all]))
+
+    const referrerIdSet = [...new Set(allUsers.map(u => u.referrerId).filter(Boolean) as string[])]
+    const referrers = referrerIdSet.length > 0 ? await prisma.user.findMany({ where: { id: { in: referrerIdSet } }, select: { id: true, nickname: true, phone: true } }) : []
+    const referrerInfoMap = new Map(referrers.map(r => [r.id, r]))
+
+    const referrerCounts = await prisma.user.groupBy({ by: ['referrerId'], where: { referrerId: { in: userIds } }, _count: { id: true } })
+    const referrerCountMap = new Map(referrerCounts.map(r => [r.referrerId, r._count.id]))
+
+    const childrenMap = new Map<string, typeof allUsers>()
+    for (const u of allUsers) {
+      if (u.parentId) {
+        const list = childrenMap.get(u.parentId) || []
+        list.push(u)
+        childrenMap.set(u.parentId, list)
+      }
+    }
+
+    function countTeam(nodeId: string): number {
+      let count = 0
+      const stack = [nodeId]
+      const counted = new Set<string>([nodeId])
+      while (stack.length > 0) {
+        const current = stack.pop()!
+        const kids = childrenMap.get(current) || []
+        for (const k of kids) {
+          if (!counted.has(k.id)) { counted.add(k.id); count++; stack.push(k.id) }
+        }
+      }
+      return count
+    }
+
+    function buildNode(u: typeof allUsers[number]): Record<string, unknown> {
+      const kids = childrenMap.get(u.id) || []
+      const ref = referrerInfoMap.get(u.referrerId || '')
+      return {
+        id: u.id, phone: u.phone, nickname: u.nickname, level: u.level,
+        avatarUrl: u.avatarUrl, totalPoints: u.totalPoints, directSalesAmount: u.directSalesAmount,
+        orderCount: orderCountMap.get(u.id) ?? 0,
+        teamCount: countTeam(u.id),
+        createdAt: u.createdAt.toISOString(),
+        children: kids.map(c => buildNode(c)),
+        referrerId: u.referrerId,
+        referrerInfo: ref ? { id: ref.id, nickname: ref.nickname, phoneTail: ref.phone.slice(-4) } : null,
+        referralCount: referrerCountMap.get(u.id) ?? 0,
+      }
+    }
+
+    const root = buildNode(effectiveRootUser)
+
+    const ancestors: Array<{ id: string; nickname: string | null; phone: string }> = []
+    let ancId: string | null = rootUser.parentId
+    const visitedAnc2 = new Set<string>()
+    for (let i = 0; i < 10 && ancId; i++) {
+      if (visitedAnc2.has(ancId)) break
+      visitedAnc2.add(ancId)
+      const parent = await prisma.user.findUnique({ where: { id: ancId }, select: { id: true, phone: true, nickname: true, parentId: true } })
+      if (!parent) break
+      ancestors.unshift({ id: parent.id, nickname: parent.nickname, phone: parent.phone })
+      ancId = parent.parentId
+    }
+
+    function countNodes(n: Record<string, unknown>): number {
+      if (!n) return 0
+      return 1 + ((n.children as Record<string, unknown>[]) || []).reduce((s: number, c) => s + countNodes(c), 0)
+    }
+    function sumDirectSales(n: Record<string, unknown>): number {
+      if (!n) return 0
+      return (n.directSalesAmount as number) + ((n.children as Record<string, unknown>[]) || []).reduce((s: number, c) => s + sumDirectSales(c), 0)
+    }
+    function sumOrderCounts(n: Record<string, unknown>): number {
+      if (!n) return 0
+      return (n.orderCount as number) + ((n.children as Record<string, unknown>[]) || []).reduce((s: number, c) => s + sumOrderCounts(c), 0)
+    }
+    function getMaxDepth(n: Record<string, unknown>, depth = 1): number {
+      if (!n || !(n.children as Record<string, unknown>[]).length) return depth
+      return Math.max(...((n.children as Record<string, unknown>[]) || []).map(c => getMaxDepth(c, depth + 1)))
+    }
+
+    return {
+      success: true,
+      data: root,
+      truncated: truncated || undefined,
+      nodeCount: truncated ? allUsers.length : undefined,
+      summary: {
+        totalTeam: countNodes(root) - 1,
+        totalSales: sumDirectSales(root),
+        totalOrders: sumOrderCounts(root),
+        maxLevelReached: getMaxDepth(root),
+      },
+      ancestors: ancestors.length > 0 ? ancestors : undefined,
+      rootParentId: ancestors.length > 0 ? rootUser.parentId : undefined,
+      focusUserId: originalUserId,
+      boundaryParentId: rootUser.parentId,
+      boundaryDownLevel,
+    }
+  }
+
+
 }
