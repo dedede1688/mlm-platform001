@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
 import { PointsService } from './points.service'
@@ -28,13 +29,14 @@ import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
  */
 export class OrderLifecycleService {
   // 验证支付密码并支付订单（v50.1-K：统一支付密码校验入口）
-  static async verifyPayment(orderId: string, password: string) {
+  static async verifyPayment(orderId: string, userId: string, password: string) {
     // 查订单
     const order = await prisma.order.findUnique({
       where: { id: orderId },
 
     })
     if (!order) throw new Error('订单不存在')
+    if (order.userId !== userId) throw new Error('无权操作此订单')
     if (order.status !== ORDER_STATUS.PENDING) throw new Error('订单不存在或状态已变更')
 
     // 查用户支付密码hash
@@ -144,6 +146,7 @@ export class OrderLifecycleService {
       include: { user: { select: { email: true, phone: true, nickname: true } } },
     })
     if (!order) throw new Error('订单不存在')
+    // shipOrder: no userId check needed (admin operation)
 
     // 预留：发送订单发货通知
     const userEmail = order.user.email
@@ -169,6 +172,29 @@ export class OrderLifecycleService {
   }
 
   // 确认收货
+
+  // 用户确认收货（含归属校验）
+  static async confirmOrder(orderId: string, userId: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } })
+    if (!order) throw new Error('订单不存在')
+    if (order.userId !== userId) throw new Error('无权操作此订单')
+    if (order.userId !== userId) throw new Error('无权操作')
+    if (order.status !== ORDER_STATUS.SHIPPED) throw new Error('订单状态不允许确认收货')
+
+    const updated = await prisma.order.updateMany({
+      where: { id: orderId, status: ORDER_STATUS.SHIPPED },
+      data: {
+        status: ORDER_STATUS.COMPLETED,
+        completedAt: new Date(),
+      },
+    })
+    if (updated.count === 0) throw new Error('订单不存在或状态已变更')
+
+    // 触发通知
+    await OrderNotificationService.notifyOrderCompleted(orderId)
+
+    return prisma.order.findUnique({ where: { id: orderId } })
+  }
   static async completeOrder(orderId: string) {
     const updated = await prisma.order.updateMany({
       where: { id: orderId, status: ORDER_STATUS.SHIPPED },
@@ -184,6 +210,7 @@ export class OrderLifecycleService {
       include: { user: { select: { email: true, phone: true, nickname: true } } },
     })
     if (!order) throw new Error('订单不存在')
+    // requestRefund: no userId check needed (admin operation)
     await OrderNotificationService.notifyOrderCompleted(orderId)
     return order
   }
@@ -209,6 +236,67 @@ export class OrderLifecycleService {
   }
 
   // 申请退款
+
+  // 用户创建退款申请
+  static async createRefundRequest(orderId: string, userId: string, data: { reason: string; description: string; images: string[] }) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, userId: true, status: true, payAmount: true, orderNo: true },
+    })
+    if (!order) throw new Error('订单不存在')
+    if (order.userId !== userId) throw new Error('无权操作此订单')
+    if (order.userId !== userId) throw new Error('无权操作')
+    if (order.status !== 'paid' && order.status !== 'shipped') throw new Error('当前订单状态不可申请退款')
+
+    // 检查重复
+    const existing = await prisma.refundRequest.findFirst({
+      where: { orderId, status: { in: ['pending', 'approved'] } },
+    })
+    if (existing) throw new Error('该订单已有进行中的退款申请')
+
+    const refundRequest = await prisma.refundRequest.create({
+      data: {
+        orderId,
+        userId,
+        amount: order.payAmount,
+        reason: data.reason,
+        description: data.description,
+        images: data.images.length > 0 ? data.images : Prisma.JsonNull,
+        status: 'pending',
+      },
+    })
+
+    // 触发通知
+    await OrderNotificationService.notifyRefundSubmitted({
+      userId,
+      refundId: refundRequest.id,
+      orderId,
+      orderNo: order.orderNo || orderId,
+      amount: order.payAmount,
+    })
+
+    return refundRequest
+  }
+
+  // 查询订单退款申请列表
+  static async getOrderRefunds(orderId: string, userId: string, userRole?: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { userId: true },
+    })
+    if (!order) throw new Error('订单不存在')
+    if (order.userId !== userId) throw new Error('无权操作此订单')
+
+    const adminRoles = ['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor']
+    if (order.userId !== userId && !adminRoles.includes(userRole || '')) {
+      throw new Error('无权查看')
+    }
+
+    return prisma.refundRequest.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
   static async requestRefund(orderId: string, _reason?: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -219,6 +307,7 @@ export class OrderLifecycleService {
     })
 
     if (!order) throw new Error('订单不存在')
+    // cancelOrder: userId check done by caller
     if (order.status !== ORDER_STATUS.PAID && order.status !== ORDER_STATUS.SHIPPED) {
       throw new Error('订单状态不允许退款')
     }
@@ -325,6 +414,7 @@ export class OrderLifecycleService {
     })
 
     if (!order) throw new Error('订单不存在')
+    // cancelOrder: userId check done by caller
     if (order.status !== ORDER_STATUS.PENDING) {
       throw new Error('订单状态不允许取消')
     }

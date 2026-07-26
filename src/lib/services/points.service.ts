@@ -452,4 +452,28 @@ export class PointsService {
       })
     }
   }
+
+  // 获取用户积分记录列表
+  static async getUserPointsRecords(userId: string, limit: number = 50) {
+    return prisma.pointsRecord.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    })
+  }
+
+  // 获取用户积分解锁计划
+  static async getUserUnlockSchedules(userId: string) {
+    return prisma.pointsUnlockSchedule.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  // 根据手机号查找用户
+  static async findUserByPhone(phone: string) {
+    return prisma.user.findUnique({
+      where: { phone },
+    })
+  }
 }

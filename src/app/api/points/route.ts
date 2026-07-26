@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+﻿import { NextRequest, NextResponse } from 'next/server'
+import { PointsService } from '@/lib/services/points.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { logger } from '@/lib/logger'
 
-// 获取用户的积分记录
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
@@ -14,11 +13,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const pointsRecords = await prisma.pointsRecord.findMany({
-      where: { userId: auth.userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    })
+    const pointsRecords = await PointsService.getUserPointsRecords(auth.userId)
 
     return NextResponse.json({
       success: true,

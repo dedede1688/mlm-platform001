@@ -116,7 +116,7 @@ export async function POST(
     }
 
     // 业务逻辑全部走Service
-    const updatedOrder = await OrderLifecycleService.verifyPayment(orderId, password)
+    const updatedOrder = await OrderLifecycleService.verifyPayment(orderId, user.userId, password)
 
     return NextResponse.json({
       success: true,

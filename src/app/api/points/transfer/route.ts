@@ -1,10 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { PointsService } from '@/lib/services/points.service'
 import { verifyToken } from '@/lib/utils/auth'
-import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
-// 积分转赠
 export async function POST(request: NextRequest) {
   try {
     const user = await verifyToken(request)
@@ -24,10 +22,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 查找接收用户
-    const toUser = await prisma.user.findUnique({
-      where: { phone: toUserPhone },
-    })
+    const toUser = await PointsService.findUserByPhone(toUserPhone)
 
     if (!toUser) {
       return NextResponse.json(
@@ -36,21 +31,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 获取手续费比例（默认10%）
-    let feePercent = 10
-    try {
-      const feeConfig = await prisma.systemConfig.findUnique({
-        where: { key: 'points.transfer_fee_percent' },
-      })
-      if (feeConfig) {
-        feePercent = parseInt(feeConfig.value, 10) || 10
-      }
-    } catch (error) {
-      logger.error('获取手续费配置失败，使用默认值:', error)
-    }
-
-    // 执行转赠
-    const result = await PointsService.transferPoints(user.userId, toUser.id, points, `积分转赠（手续费 ${feePercent}%）`)
+    const result = await PointsService.transferPoints(user.userId, toUser.id, points, `积分转账`)
 
     return NextResponse.json({
       success: true,
@@ -68,13 +49,12 @@ export async function POST(request: NextRequest) {
         amount: result.amount,
         feeAmount: result.feeAmount,
         totalDeduction: result.totalDeduction,
-        feePercent,
       },
     })
   } catch (error: unknown) {
-    logger.error('积分转赠失败:', error)
+    logger.error('积分转账失败:', error)
     return NextResponse.json(
-      { error: '积分转赠失败' },
+      { error: '积分转账失败' },
       { status: 500 }
     )
   }

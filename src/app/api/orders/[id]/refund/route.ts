@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
-import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
-import { OrderNotificationService } from '@/lib/services/order-notification.service'
-import { validateRefundApplication } from '@/lib/refunds/refund-validation'
 import { logger } from '@/lib/logger'
+import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
+import { validateRefundApplication } from '@/lib/refunds/refund-validation'
 
-// POST /api/orders/[id]/refund — 用户申请退款
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -21,52 +18,6 @@ export async function POST(
       )
     }
 
-    // 查询订单
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        userId: true,
-        status: true,
-        payAmount: true,
-      },
-    })
-
-    if (!order) {
-      return NextResponse.json(
-        { success: false, error: '订单不存在' },
-        { status: 404 }
-      )
-    }
-
-    // 权限校验：只能操作自己的订单
-    if (order.userId !== user.userId) {
-      return NextResponse.json(
-        { success: false, error: '无权操作' },
-        { status: 403 }
-      )
-    }
-
-    // 状态校验：仅已支付或已发货可申请退款
-    if (order.status !== 'paid' && order.status !== 'shipped') {
-      return NextResponse.json(
-        { success: false, error: '当前订单状态不可申请退款' },
-        { status: 400 }
-      )
-    }
-
-    // 检查是否已有进行中的退款申请（pending 或 approved，防重复）
-    const existingActiveRefund = await prisma.refundRequest.findFirst({
-      where: { orderId, status: { in: ['pending', 'approved'] } },
-    })
-    if (existingActiveRefund) {
-      return NextResponse.json(
-        { success: false, error: '该订单已有进行中的退款申请' },
-        { status: 400 }
-      )
-    }
-
-    // 解析请求体并执行结构化校验
     const body = await request.json()
     const validation = validateRefundApplication({
       reason: body?.reason,
@@ -82,31 +33,10 @@ export async function POST(
     }
 
     const normalized = validation.data
-
-    // 创建退款申请
-    const refundRequest = await prisma.refundRequest.create({
-      data: {
-        orderId,
-        userId: user.userId,
-        amount: order.payAmount,
-        reason: normalized.reason,
-        description: normalized.description,
-        images: normalized.images.length > 0 ? normalized.images : Prisma.JsonNull,
-        status: 'pending',
-      },
-    })
-
-    // v50 M: 触发退款申请通知（补全退款流程第 1 个节点通知）
-    const orderForNotify = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { orderNo: true },
-    })
-    await OrderNotificationService.notifyRefundSubmitted({
-      userId: user.userId,
-      refundId: refundRequest.id,
-      orderId,
-      orderNo: orderForNotify?.orderNo || orderId,
-      amount: order.payAmount,
+    const refundRequest = await OrderLifecycleService.createRefundRequest(orderId, user.userId, {
+      reason: normalized.reason,
+      description: normalized.description ?? '',
+      images: normalized.images ?? [],
     })
 
     return NextResponse.json({
@@ -116,14 +46,14 @@ export async function POST(
     })
   } catch (error) {
     logger.error('Create refund request error:', error)
+    const msg = error instanceof Error ? error.message : '申请退款失败'
     return NextResponse.json(
-      { success: false, error: '申请退款失败' },
-      { status: 500 }
+      { success: false, error: msg },
+      { status: 400 }
     )
   }
 }
 
-// GET /api/orders/[id]/refund — 查询订单的退款申请
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -138,29 +68,7 @@ export async function GET(
       )
     }
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { userId: true },
-    })
-
-    if (!order) {
-      return NextResponse.json(
-        { success: false, error: '订单不存在' },
-        { status: 404 }
-      )
-    }
-
-    if (order.userId !== user.userId && !['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor'].includes(user.role || '')) {
-      return NextResponse.json(
-        { success: false, error: '无权查看' },
-        { status: 403 }
-      )
-    }
-
-    const refundRequests = await prisma.refundRequest.findMany({
-      where: { orderId },
-      orderBy: { createdAt: 'desc' },
-    })
+    const refundRequests = await OrderLifecycleService.getOrderRefunds(orderId, user.userId, user.role)
 
     return NextResponse.json({
       success: true,
@@ -168,9 +76,10 @@ export async function GET(
     })
   } catch (error) {
     logger.error('Get refund requests error:', error)
+    const msg = error instanceof Error ? error.message : '获取退款申请失败'
     return NextResponse.json(
-      { success: false, error: '获取退款申请失败' },
-      { status: 500 }
+      { success: false, error: msg },
+      { status: 403 }
     )
   }
 }
