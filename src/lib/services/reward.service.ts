@@ -320,67 +320,78 @@ export class RewardService {
 
     const dividendWhere: Record<string, unknown> = { ...userSearchFilter, ...dateFilter }
 
-    const queries: Promise<unknown>[] = []
+    // ── Rewards data ──
+    let rewardsPromise: Promise<any[]>
+    let rewardCountPromise: Promise<number>
 
     if (!type || type !== 'dividend') {
-      queries.push(
-        prisma.reward.findMany({
-          where: rewardWhere,
-          orderBy: { createdAt: 'desc' },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-          include: {
-            user: { select: { id: true, phone: true, nickname: true, level: true } },
-            order: { select: { id: true, orderNo: true } },
-          },
-        }),
-        prisma.reward.count({ where: rewardWhere }),
-      )
+      rewardsPromise = prisma.reward.findMany({
+        where: rewardWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          user: { select: { id: true, phone: true, nickname: true, level: true } },
+          order: { select: { id: true, orderNo: true } },
+        },
+      })
+      rewardCountPromise = prisma.reward.count({ where: rewardWhere })
     } else {
-      queries.push(Promise.resolve([]), Promise.resolve(0))
+      rewardsPromise = Promise.resolve([])
+      rewardCountPromise = Promise.resolve(0)
     }
+
+    // ── Dividends data ──
+    let dividendsPromise: Promise<any[]>
+    let dividendCountPromise: Promise<number>
 
     if (!type || type === 'dividend') {
-      queries.push(
-        prisma.dividend.findMany({
-          where: dividendWhere,
-          orderBy: { createdAt: 'desc' },
-          skip: type === 'dividend' ? (page - 1) * pageSize : 0,
-          take: type === 'dividend' ? pageSize : 1000,
-          include: {
-            user: { select: { id: true, phone: true, nickname: true, level: true } },
-            order: { select: { id: true, orderNo: true } },
-          },
-        }),
-        prisma.dividend.count({ where: dividendWhere }),
-      )
+      dividendsPromise = prisma.dividend.findMany({
+        where: dividendWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: type === 'dividend' ? (page - 1) * pageSize : 0,
+        take: type === 'dividend' ? pageSize : 1000,
+        include: {
+          user: { select: { id: true, phone: true, nickname: true, level: true } },
+          order: { select: { id: true, orderNo: true } },
+        },
+      })
+      dividendCountPromise = prisma.dividend.count({ where: dividendWhere })
     } else {
-      queries.push(Promise.resolve([]), Promise.resolve(0))
+      dividendsPromise = Promise.resolve([])
+      dividendCountPromise = Promise.resolve(0)
     }
 
+    // ── Stats ──
     const statsCondition = { ...userSearchFilter, ...dateFilter }
-    queries.push(
-      prisma.reward.groupBy({
-        by: ['type'],
-        where: { ...statsCondition, status: 'paid' },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      prisma.dividend.aggregate({
-        where: statsCondition,
-        _sum: { amount: true },
-        _count: true,
-      }),
-    )
+    const rewardStatsPromise = prisma.reward.groupBy({
+      by: ['type'],
+      where: { ...statsCondition, status: 'paid' },
+      _sum: { amount: true },
+      _count: true,
+    })
+    const dividendStatsPromise = prisma.dividend.aggregate({
+      where: statsCondition,
+      _sum: { amount: true },
+      _count: true,
+    })
 
-    const results = await Promise.all(queries)
+    const [rewards, rewardTotal, dividends, dividendTotal, rewardStats, dividendStats] = await Promise.all([
+      rewardsPromise,
+      rewardCountPromise,
+      dividendsPromise,
+      dividendCountPromise,
+      rewardStatsPromise,
+      dividendStatsPromise,
+    ])
+
     return {
-      rewards: results[0],
-      rewardTotal: results[1],
-      dividends: results[2],
-      dividendTotal: results[3],
-      rewardStats: results[4],
-      dividendStats: results[5],
+      rewards,
+      rewardTotal,
+      dividends,
+      dividendTotal,
+      rewardStats,
+      dividendStats,
     }
   }
 
@@ -474,5 +485,92 @@ export class RewardService {
     })
   }
 
+
+
+  // ---- D-16: 业务逻辑从 routes 迁入 ----
+
+  /** 构建奖励统计（从 admin/rewards/route.ts 迁入） */
+  static buildStats(
+    rewardStats: Array<{ type: string; _sum: { amount: number | null }; _count: number }>,
+    dividendStats: { _sum: { amount: number | null }; _count: number },
+  ) {
+    const stats: Record<string, { total: number; count: number }> = {
+      referral: { total: 0, count: 0 },
+      brand_bonus: { total: 0, count: 0 },
+      dividend: { total: 0, count: 0 },
+    }
+
+    for (const stat of rewardStats) {
+      if (stat.type in stats) {
+        stats[stat.type] = {
+          total: stat._sum.amount || 0,
+          count: stat._count,
+        }
+      }
+    }
+
+    stats.dividend = {
+      total: dividendStats._sum.amount || 0,
+      count: dividendStats._count,
+    }
+
+    const grandTotal = Object.values(stats).reduce((sum, s) => sum + s.total, 0)
+    const grandCount = Object.values(stats).reduce((sum, s) => sum + s.count, 0)
+
+    return { ...stats, grandTotal, grandCount }
+  }
+
+  /** 格式化奖励列表（合并 reward + dividend，统一排序，支持按 type 过滤） */
+  static formatRewardList(raw: {
+    rewards: Array<{
+      id: string; userId: string; type: string; amount: number;
+      orderId: string; fromUserId: string | null; level: number | null;
+      status: string; createdAt: Date;
+      user: { id: string; phone: string; nickname: string | null; level: number };
+      order: { id: string; orderNo: string } | null;
+    }>
+    dividends: Array<{
+      id: string; userId: string; amount: number; userLevel: number;
+      totalPool: number; dividendDate: Date; orderId: string; createdAt: Date;
+      user: { id: string; phone: string; nickname: string | null; level: number };
+      order: { id: string; orderNo: string } | null;
+    }>
+    rewardStats: Array<{ type: string; _sum: { amount: number | null }; _count: number }>
+    dividendStats: { _sum: { amount: number | null }; _count: number }
+    type?: string
+  }) {
+    const { rewards, dividends, rewardStats, dividendStats, type } = raw
+
+    const formattedDividends = dividends.map(d => ({
+      id: d.id, userId: d.userId, user: d.user,
+      type: "dividend" as const, amount: d.amount,
+      orderId: d.orderId, orderNo: d.order?.orderNo || null,
+      fromUserId: null, level: null,
+      status: "paid" as const, createdAt: d.createdAt,
+    }))
+
+    const stats = RewardService.buildStats(rewardStats, dividendStats)
+
+    if (type === "dividend") {
+      return { records: formattedDividends, stats }
+    }
+
+    const formattedRewards = rewards.map(r => ({
+      id: r.id, userId: r.userId, user: r.user, type: r.type,
+      amount: r.amount, orderId: r.orderId, orderNo: r.order?.orderNo || null,
+      fromUserId: r.fromUserId, level: r.level, status: r.status, createdAt: r.createdAt,
+    }))
+
+    if (type) {
+      return { records: formattedRewards, stats }
+    }
+
+    const allRewards = [
+      ...formattedRewards,
+      ...formattedDividends,
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+    return { records: allRewards, stats }
+  }
 
 }
