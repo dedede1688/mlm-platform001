@@ -119,4 +119,84 @@ export class NotificationService {
       where: { userId, isRead: false },
     })
   }
+
+  static async getAllTemplates() {
+    return prisma.notificationTemplate.findMany({ orderBy: [{ type: 'asc' }, { channel: 'asc' }] })
+  }
+
+  static async getTemplateById(id: string) {
+    return prisma.notificationTemplate.findUnique({ where: { id } })
+  }
+
+  static async findTemplateByTypeChannel(type: string, channel: string) {
+    return prisma.notificationTemplate.findUnique({ where: { type_channel: { type, channel } } })
+  }
+
+  static async createTemplate(data: { type: string; channel: string; subject?: string | null; content: string; enabled?: boolean }) {
+    return prisma.notificationTemplate.create({ data })
+  }
+
+  static async updateTemplate(id: string, data: { type?: string; channel?: string; subject?: string | null; content?: string; enabled?: boolean }) {
+    return prisma.notificationTemplate.update({ where: { id }, data })
+  }
+
+  static async deleteTemplate(id: string) {
+    return prisma.notificationTemplate.delete({ where: { id } })
+  }
+
+  static async sendNotifications(params: {
+    type: string; senderId: string; content: string; subject?: string;
+    userIds?: string[]; isAnnouncement?: boolean;
+  }) {
+    const { type, senderId, content, subject, userIds, isAnnouncement } = params
+    let targetUserIds: string[] = []
+    if (isAnnouncement) {
+      const allUsers = await prisma.user.findMany({ select: { id: true } })
+      targetUserIds = allUsers.map(u => u.id)
+    } else if (userIds && userIds.length > 0) {
+      targetUserIds = userIds
+    }
+    if (targetUserIds.length === 0) throw new Error('??????')
+    const template = await this.findTemplateByTypeChannel(type, 'in_app')
+    const finalSubject = subject ?? template?.subject ?? (type === 'general' ? '????' : '????')
+    const batch = await prisma.notificationBatch.create({
+      data: { type, title: finalSubject, content, templateType: type, recipientCount: targetUserIds.length, senderId },
+    })
+    const data = targetUserIds.map(userId => ({
+      userId, type, title: finalSubject, content, sourceType: type, sourceId: null as string | null, batchId: batch.id, senderId,
+    }))
+    const result = await prisma.notification.createMany({ data })
+    return { count: result.count, type, targetCount: targetUserIds.length, batchId: batch.id }
+  }
+
+  static async getBatches(params: { page: number; limit: number; type?: string; status?: string }) {
+    const { page, limit, type, status } = params
+    const skip = (page - 1) * limit
+    const where: Record<string, unknown> = {}
+    if (type) where.type = type
+    if (status) where.status = status
+    const [batches, total] = await Promise.all([
+      prisma.notificationBatch.findMany({
+        where, orderBy: { createdAt: 'desc' }, skip, take: limit,
+        include: { sender: { select: { id: true, nickname: true, phone: true } } },
+      }),
+      prisma.notificationBatch.count({ where }),
+    ])
+    const enriched = await Promise.all(batches.map(async (batch) => {
+      const readCount = await prisma.notification.count({ where: { batchId: batch.id, isRead: true } })
+      return { ...batch, readCount }
+    }))
+    return { batches: enriched, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+  }
+
+  static async getBatch(id: string) {
+    return prisma.notificationBatch.findUnique({
+      where: { id },
+      include: {
+        sender: { select: { id: true, nickname: true, phone: true } },
+        notifications: { include: { user: { select: { id: true, nickname: true, phone: true } } }, orderBy: { createdAt: 'desc' } },
+      },
+    })
+  }
+
 }

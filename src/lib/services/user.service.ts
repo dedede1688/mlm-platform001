@@ -62,7 +62,7 @@ export class UserService {
   }> {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(referrerId)) {
-      throw new Error(`推荐人 ID 格式无效：${referrerId}`)
+      throw new Error(`推荐�?ID 格式无效�?{referrerId}`)
     }
 
     const allUsers = await prisma.user.findMany({
@@ -169,7 +169,7 @@ export class UserService {
     }
 
     if (newLevel > user.level) {
-      // v55.1: 常量在事务外预计算，事务内只做 DB 操作
+      // v55.1: 常量在事务外预计算，事务内只�?DB 操作
       const pointsPerBox = await getBusinessConfig<number>('upgrade.points_per_box', 500)
       const pointsAmount = user.upgradeProductCount * pointsPerBox
       const dailyUnlockRate = pointsAmount > 0
@@ -186,8 +186,8 @@ export class UserService {
         throw new Error('升级积分发放必须绑定真实订单ID')
       }
 
-      // v55.1: 用事务包住 level 更新 + 积分发放 + 释放计划创建
-      // 任何一步失败整体回滚，避免积分凭空多出（v54 D 遗留 bug）
+      // v55.1: 用事务包�?level 更新 + 积分发放 + 释放计划创建
+      // 任何一步失败整体回滚，避免积分凭空多出（v54 D 遗留 bug�?
       await prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: userId },
@@ -200,7 +200,7 @@ export class UserService {
               type: 'reward',
               amount: pointsAmount,
               sourceId: normalizedSourceOrderId!,
-              description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产品 × ${pointsPerBox}）`,
+              description: `升级为经销商发放积分（${user.upgradeProductCount}件升级产�?× ${pointsPerBox}）`,
             }, tx)
 
             await PointsService.createPointsUnlockSchedule({
@@ -517,6 +517,17 @@ static async getUsersList(params: UserListParams) {
       data: { status },
       select: { id: true, status: true },
     })
+  }
+
+  static async validateUserIds(ids: string[]): Promise<{ validIds: Set<string>; invalidIds: string[] }> {
+    if (ids.length === 0) return { validIds: new Set(), invalidIds: [] }
+    const existingUsers = await prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    })
+    const existingIds = new Set(existingUsers.map(u => u.id))
+    const invalidIds = ids.filter(id => !existingIds.has(id))
+    return { validIds: existingIds, invalidIds }
   }
 
 }

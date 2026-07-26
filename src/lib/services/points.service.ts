@@ -476,4 +476,39 @@ export class PointsService {
       where: { phone },
     })
   }
+
+  static async adminAdjustPoints(params: { userId: string; type: 'totalPoints' | 'unlockedPoints' | 'lockedPoints'; amount: number; reason: string; adminId: string }) {
+    const { userId, type, amount, reason, adminId } = params
+    const fieldLabel = type === 'totalPoints' ? '???' : type === 'unlockedPoints' ? '????' : '????'
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } })
+      if (!user || user.status === 'deleted') throw new Error('?????')
+      let total = user.totalPoints
+      let unlocked = user.unlockedPoints
+      let locked = user.lockedPoints
+      switch (type) {
+        case 'totalPoints': total += amount; unlocked += amount; break
+        case 'unlockedPoints': unlocked += amount; total += amount; break
+        case 'lockedPoints': locked += amount; total += amount; break
+      }
+      if (total < 0) throw new Error(`??????????????? ${total}`)
+      if (unlocked < 0) throw new Error(`???????????????? ${unlocked}`)
+      if (locked < 0) throw new Error(`???????????????? ${locked}`)
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { totalPoints: total, unlockedPoints: unlocked, lockedPoints: locked },
+      })
+      await tx.pointsRecord.create({
+        data: {
+          userId, type: 'admin_adjust', amount,
+          totalPoints: updated.totalPoints, unlockedPoints: updated.unlockedPoints, lockedPoints: updated.lockedPoints,
+          sourceId: adminId,
+          description: `??????${fieldLabel}${amount > 0 ? '??' : '??'} ${Math.abs(amount)} ??????${reason}`,
+        },
+      })
+      return { updated, oldValue: { totalPoints: user.totalPoints, unlockedPoints: user.unlockedPoints, lockedPoints: user.lockedPoints }, fieldLabel }
+    })
+    return result
+  }
+
 }
