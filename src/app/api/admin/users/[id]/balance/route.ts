@@ -47,7 +47,7 @@ export async function POST(
 
     // v52.1: rate-limit - IP 维度，10 次/分钟（防暴力调账）
     const clientIP = getClientIP(request)
-    const ipLimitResult = checkRateLimit(`balance-adjust:ip:${clientIP}`, 10, 60 * 1000)
+    const ipLimitResult = await checkRateLimit(`balance-adjust:ip:${clientIP}`, 10, 60 * 1000)
     if (!ipLimitResult.allowed) {
       return rateLimitResponse('调账请求过于频繁，请稍后再试', ipLimitResult.resetIn)
     }

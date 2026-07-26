@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     // v56.1: rate-limit — 5 次/分钟/IP（防暴力试密码）
     const clientIP = getClientIP(request)
-    const ipLimitResult = checkRateLimit(`change-password:ip:${clientIP}`, 5, 60 * 1000)
+    const ipLimitResult = await checkRateLimit(`change-password:ip:${clientIP}`, 5, 60 * 1000)
     if (!ipLimitResult.allowed) {
       return rateLimitResponse('操作过于频繁，请稍后再试', ipLimitResult.resetIn)
     }

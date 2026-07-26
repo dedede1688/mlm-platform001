@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     // v56.1: rate-limit — 3 次/分钟/IP（防短信轰炸）
     const clientIP = getClientIP(request)
-    const ipLimitResult = checkRateLimit(`forgot-send:ip:${clientIP}`, 3, 60 * 1000)
+    const ipLimitResult = await checkRateLimit(`forgot-send:ip:${clientIP}`, 3, 60 * 1000)
     if (!ipLimitResult.allowed) {
       return rateLimitResponse('请求过于频繁，请稍后再试', ipLimitResult.resetIn)
     }
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 手机号维度限流（防针对单号轰炸）
-    const phoneLimitResult = checkRateLimit(`forgot-send:phone:${phone}`, 3, 60 * 1000)
+    const phoneLimitResult = await checkRateLimit(`forgot-send:phone:${phone}`, 3, 60 * 1000)
     if (!phoneLimitResult.allowed) {
       return rateLimitResponse('该手机号请求过于频繁，请稍后再试', phoneLimitResult.resetIn)
     }

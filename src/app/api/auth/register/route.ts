@@ -34,7 +34,7 @@ const registerSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const clientIP = getClientIP(request)
-    const ipLimitResult = checkRateLimit(`register:ip:${clientIP}`, 3, 60 * 1000)
+    const ipLimitResult = await checkRateLimit(`register:ip:${clientIP}`, 3, 60 * 1000)
     if (!ipLimitResult.allowed) {
       return rateLimitResponse('注册请求过于频繁，请稍后再试', ipLimitResult.resetIn)
     }

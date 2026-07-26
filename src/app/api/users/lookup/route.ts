@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     }
 
     const clientIP = getClientIP(request)
-    const limitResult = checkRateLimit(`lookup:ip:${clientIP}`, 10, 60 * 1000)
+    const limitResult = await checkRateLimit(`lookup:ip:${clientIP}`, 10, 60 * 1000)
     if (!limitResult.allowed) {
       return rateLimitResponse('查询过于频繁，请稍后再试', limitResult.resetIn)
     }

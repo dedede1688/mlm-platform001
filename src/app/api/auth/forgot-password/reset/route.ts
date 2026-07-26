@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     // v56.1: rate-limit — 5 次/分钟/IP（防暴力重置）
     const clientIP = getClientIP(request)
-    const ipLimitResult = checkRateLimit(`forgot-reset:ip:${clientIP}`, 5, 60 * 1000)
+    const ipLimitResult = await checkRateLimit(`forgot-reset:ip:${clientIP}`, 5, 60 * 1000)
     if (!ipLimitResult.allowed) {
       return rateLimitResponse('操作过于频繁，请稍后再试', ipLimitResult.resetIn)
     }

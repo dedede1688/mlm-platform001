@@ -1,12 +1,13 @@
 import type { NextRequest } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
 /**
- * v52.1: API rate-limit helper
+ * C-7: 分布式 rate-limit helper（Supabase 数据库表）
  *
  * 设计目标：
- * - 内存级滑窗计数器（key + 窗口期）
+ * - 基于数据库的滑动窗口计数器（key + 窗口期）
+ * - 跨 Vercel 多实例共享（解决原 globalThis 内存级单实例限制）
  * - 防暴力破解：登录/注册/支付/调账 高风险路由限流
- * - Vercel Serverless 单实例有效（跨实例不共享，但有 60s 内单 IP 单实例的防护）
  *
  * 使用场景：
  * - 登录：5 次/分钟/IP + 5 次/分钟/账号（双维度防爆破）
@@ -14,15 +15,10 @@ import type { NextRequest } from 'next/server'
  * - 支付：10 次/分钟/IP（防暴力支付）
  * - 调账：10 次/分钟/IP（防暴力调账）
  *
- * 限制：
- * - 不适合分布式限流（多实例不共享计数）
- * - 不替代专业 WAF（Cloudflare/Netlify 等的 rate-limit）
+ * 数据清理：
+ * - 每次 checkRateLimit 调用时自动清理过期记录（resetAt <= now）
+ * - 过期记录概率性 GC（每 100 次调用触发一次全表清理）
  */
-
-interface Bucket {
-  count: number
-  resetAt: number  // ms timestamp
-}
 
 export interface RateLimitResult {
   allowed: boolean
@@ -30,23 +26,19 @@ export interface RateLimitResult {
   resetIn: number  // ms until reset
 }
 
-// 使用 globalThis 持久化（避免 Vercel 冷启动重置）
-declare global {
-  // eslint-disable-next-line no-var
-  var __rateLimitBuckets: Map<string, Bucket> | undefined
-}
-
-const buckets: Map<string, Bucket> = globalThis.__rateLimitBuckets ?? new Map()
-if (!globalThis.__rateLimitBuckets) globalThis.__rateLimitBuckets = buckets
-
-// 清理过期 bucket（每 1000 次调用触发一次 GC）
 let callCount = 0
-function maybeCleanup() {
+
+/** 概率性清理过期记录（每 100 次调用触发一次） */
+async function maybeCleanup() {
   callCount++
-  if (callCount % 1000 !== 0) return
-  const now = Date.now()
-  for (const [k, b] of buckets) {
-    if (b.resetAt <= now) buckets.delete(k)
+  if (callCount % 100 !== 0) return
+  const now = BigInt(Date.now())
+  try {
+    await prisma.rateLimit.deleteMany({
+      where: { resetAt: { lte: now } },
+    })
+  } catch {
+    // 清理失败不阻塞业务
   }
 }
 
@@ -56,29 +48,57 @@ function maybeCleanup() {
  * @param limit 窗口期内允许的最大次数
  * @param windowMs 窗口期（毫秒）
  */
-export function checkRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
-  maybeCleanup()
+export async function checkRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number
+): Promise<RateLimitResult> {
+  await maybeCleanup()
+
   const now = Date.now()
-  const bucket = buckets.get(key)
+  const nowBigInt = BigInt(now)
+  const resetAt = now + windowMs
 
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs })
-    return { allowed: true, remaining: limit - 1, resetIn: windowMs }
+  try {
+    const result = await prisma.rateLimit.upsert({
+      where: { key },
+      update: {
+        count: { increment: 1 },
+        resetAt: nowBigInt,
+      },
+      create: {
+        key,
+        count: 1,
+        resetAt: BigInt(resetAt),
+      },
+    })
+
+    // 检查当前记录是否还在窗口期内
+    const recordResetAt = Number(result.resetAt)
+    if (recordResetAt <= now) {
+      // 窗口已过期，重置计数
+      await prisma.rateLimit.update({
+        where: { key },
+        data: { count: 1, resetAt: BigInt(resetAt) },
+      })
+      return { allowed: true, remaining: limit - 1, resetIn: windowMs }
+    }
+
+    if (result.count > limit) {
+      return { allowed: false, remaining: 0, resetIn: recordResetAt - now }
+    }
+
+    return { allowed: true, remaining: limit - result.count, resetIn: recordResetAt - now }
+  } catch {
+    // 数据库异常时放行（fail-open），避免限流服务故障阻断正常业务
+    return { allowed: true, remaining: limit, resetIn: windowMs }
   }
-
-  if (bucket.count >= limit) {
-    return { allowed: false, remaining: 0, resetIn: bucket.resetAt - now }
-  }
-
-  bucket.count++
-  return { allowed: true, remaining: limit - bucket.count, resetIn: bucket.resetAt - now }
 }
 
 /**
  * 获取客户端真实 IP（处理 Vercel/Cloudflare 反向代理）
  */
 export function getClientIP(request: NextRequest): string {
-  // 优先级：x-forwarded-for (Vercel/Cloudflare) > x-real-ip > request.ip
   const forwarded = request.headers.get('x-forwarded-for')
   if (forwarded) {
     const first = forwarded.split(',')[0]?.trim()
@@ -86,8 +106,7 @@ export function getClientIP(request: NextRequest): string {
   }
   const realIp = request.headers.get('x-real-ip')
   if (realIp) return realIp
-  // @ts-expect-error NextRequest.ip 在某些版本可用
-  return request.ip || 'unknown'
+  return (request as any).ip || 'unknown'
 }
 
 /**

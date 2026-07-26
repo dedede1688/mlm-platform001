@@ -25,12 +25,12 @@ export async function POST(request: NextRequest) {
 
     // v52.1: rate-limit - 双维度（IP + 账号），5 次/分钟
     const clientIP = getClientIP(request)
-    const ipLimitResult = checkRateLimit(`login:ip:${clientIP}`, 5, 60 * 1000)
+    const ipLimitResult = await checkRateLimit(`login:ip:${clientIP}`, 5, 60 * 1000)
     if (!ipLimitResult.allowed) {
       return rateLimitResponse('登录尝试次数过多，请稍后再试', ipLimitResult.resetIn)
     }
     if (phone) {
-      const userLimitResult = checkRateLimit(`login:user:${phone}`, 5, 60 * 1000)
+      const userLimitResult = await checkRateLimit(`login:user:${phone}`, 5, 60 * 1000)
       if (!userLimitResult.allowed) {
         return rateLimitResponse('该账号登录尝试次数过多，请稍后再试', userLimitResult.resetIn)
       }
