@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const config = await SettingsService.getSiteSettings()
     const feeConfig = await SettingsService.getConfig('points.transfer_fee_percent')
-    const pointsTransferFeePercent = feeConfig ? parseInt(feeConfig.value, 10) || 10 : 10
+    const pointsTransferFeePercent = feeConfig ? parseInt(String(feeConfig.value), 10) || 10 : 10
     const bannerRecords = await BannerService.getAll()
     const banners = bannerRecords.map(record => ({
       id: record.id,
