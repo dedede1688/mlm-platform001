@@ -128,12 +128,13 @@ export class OrderLifecycleService {
   }
 
   // 发货
-  static async shipOrder(orderId: string, _trackingNo?: string) {
+  static async shipOrder(orderId: string, trackingNo?: string) {
     const updated = await prisma.order.updateMany({
       where: { id: orderId, status: ORDER_STATUS.PAID },
       data: {
         status: ORDER_STATUS.SHIPPED,
         shippedAt: new Date(),
+        ...(trackingNo ? { trackingNumber: trackingNo } : {}),
       },
     })
     if (updated.count === 0) throw new Error('订单不存在或状态已变更')
