@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
-import { prisma } from '@/lib/prisma'
+import { CartService } from '@/lib/services/cart.service'
 import { logger } from '@/lib/logger'
 
 // DELETE /api/cart/[id] - 删除购物车中指定项
@@ -16,22 +16,7 @@ export async function DELETE(
 
     const { id } = await params
 
-    // 查找购物车项，确保属于当前用户
-    const cartItem = await prisma.cart.findUnique({
-      where: { id },
-    })
-
-    if (!cartItem) {
-      return NextResponse.json({ error: '购物车项不存在' }, { status: 404 })
-    }
-
-    if (cartItem.userId !== user.userId) {
-      return NextResponse.json({ error: '无权操作' }, { status: 403 })
-    }
-
-    await prisma.cart.delete({
-      where: { id },
-    })
+    await CartService.deleteItem(user.userId, id)
 
     return NextResponse.json({
       success: true,
@@ -39,6 +24,8 @@ export async function DELETE(
     })
   } catch (error) {
     logger.error('删除购物车项失败:', error)
-    return NextResponse.json({ error: '删除购物车项失败' }, { status: 500 })
+    const message = error instanceof Error ? error.message : '删除购物车项失败'
+    const statusCode = (error as Record<string, unknown>)?.statusCode as number || 500
+    return NextResponse.json({ error: message }, { status: statusCode })
   }
 }

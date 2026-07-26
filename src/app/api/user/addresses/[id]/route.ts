@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { AddressService } from '@/lib/services/address.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
@@ -47,7 +47,6 @@ function validatePartialAddressInput(body: Record<string, unknown>): { ok: true;
 }
 
 // PUT /api/user/addresses/[id] — 更新地址
-// isDefault=true 时用事务保证默认地址唯一
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -59,42 +58,19 @@ export async function PUT(
     }
 
     const { id } = await params
-
-    // 验证地址所有权
-    const existing = await prisma.address.findUnique({ where: { id } })
-    if (!existing || existing.userId !== user.userId) {
-      return errorResponse('地址不存在', 404)
-    }
-
     const body = await request.json()
     const validation = validatePartialAddressInput(body)
     if (!validation.ok) {
       return errorResponse(validation.error, 400)
     }
-    const data = validation.data
 
-    // 事务
-    const address = await prisma.$transaction(async (tx) => {
-      // 如果要设为默认，先把这个用户的其他地址都设为非默认
-      if (data.isDefault === true) {
-        await tx.address.updateMany({
-          where: { userId: user.userId, isDefault: true, NOT: { id } },
-          data: { isDefault: false },
-        })
-      }
-
-      return await tx.address.update({
-        where: { id },
-        data,
-      })
-    })
+    const address = await AddressService.updateAddress(user.userId, id, validation.data as Record<string, unknown>)
 
     await logOperation({
       userId: user.userId,
       action: 'UPDATE',
       module: 'user',
       targetId: address.id,
-      oldValue: { recipientName: existing.recipientName, phone: existing.phone, isDefault: existing.isDefault },
       newValue: { recipientName: address.recipientName, phone: address.phone, isDefault: address.isDefault },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
@@ -103,7 +79,9 @@ export async function PUT(
     return successResponse(address, '地址更新成功')
   } catch (error) {
     logger.error('更新地址失败:', error)
-    return errorResponse('更新地址失败', 500)
+    const message = error instanceof Error ? error.message : '更新地址失败'
+    const statusCode = (error as Record<string, unknown>)?.statusCode as number || 500
+    return errorResponse(message, statusCode)
   }
 }
 
@@ -121,35 +99,13 @@ export async function DELETE(
 
     const { id } = await params
 
-    const existing = await prisma.address.findUnique({ where: { id } })
-    if (!existing || existing.userId !== user.userId) {
-      return errorResponse('地址不存在', 404)
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.address.delete({ where: { id } })
-
-      // 如果删除的是默认地址，提升最早创建的非默认地址
-      if (existing.isDefault) {
-        const next = await tx.address.findFirst({
-          where: { userId: user.userId },
-          orderBy: { createdAt: 'asc' },
-        })
-        if (next) {
-          await tx.address.update({
-            where: { id: next.id },
-            data: { isDefault: true },
-          })
-        }
-      }
-    })
+    await AddressService.deleteAddress(user.userId, id)
 
     await logOperation({
       userId: user.userId,
       action: 'DELETE',
       module: 'user',
       targetId: id,
-      oldValue: { recipientName: existing.recipientName, isDefault: existing.isDefault },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })
@@ -157,6 +113,8 @@ export async function DELETE(
     return successResponse(null, '地址删除成功')
   } catch (error) {
     logger.error('删除地址失败:', error)
-    return errorResponse('删除地址失败', 500)
+    const message = error instanceof Error ? error.message : '删除地址失败'
+    const statusCode = (error as Record<string, unknown>)?.statusCode as number || 500
+    return errorResponse(message, statusCode)
   }
 }

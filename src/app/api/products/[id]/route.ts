@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { ProductService } from '@/lib/services/product.service'
 import { logger } from '@/lib/logger'
 
 export async function GET(
@@ -8,9 +8,7 @@ export async function GET(
 ) {
   const { id } = await params
   try {
-    const product = await prisma.product.findUnique({
-      where: { id },
-    })
+    const product = await ProductService.getProductById(id)
 
     if (!product) {
       return NextResponse.json(

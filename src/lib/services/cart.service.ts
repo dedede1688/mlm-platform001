@@ -89,4 +89,19 @@ export class CartService {
       product: cartItem.product,
     }
   }
+
+  /**
+   * D-6.4: 删除购物车项（验证所有权）
+   */
+  static async deleteItem(userId: string, id: string) {
+    const cartItem = await prisma.cart.findUnique({ where: { id } })
+    if (!cartItem) {
+      throw Object.assign(new Error('购物车项不存在'), { statusCode: 404 })
+    }
+    if (cartItem.userId !== userId) {
+      throw Object.assign(new Error('无权操作'), { statusCode: 403 })
+    }
+    await prisma.cart.delete({ where: { id } })
+  }
+
 }
