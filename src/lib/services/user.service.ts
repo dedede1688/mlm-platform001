@@ -1,10 +1,29 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { PointsService } from './points.service'
 import { LevelSnapshotService } from './level-snapshot.service'
 import { getBusinessConfig } from '@/lib/config/business'
 import type { Prisma } from '@prisma/client'
+export interface UserListParams {
+  page: number
+  pageSize: number
+  level?: string
+  search?: string
+  status?: string
+  startDate?: string
+  endDate?: string
+  sortBy?: string
+  sortOrder?: string
+}
+
+export interface TreeNode {
+  id: string
+  phone: string
+  nickname: string | null
+  level: number
+  children: TreeNode[]
+}
 
 export class UserService {
   static async createUser(data: {
@@ -339,7 +358,7 @@ export class UserService {
     return prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true, phone: true, nickname: true, status: true,
+        id: true, phone: true, nickname: true, status: true, level: true, role: true,
         balance: true, frozenBalance: true, consumeBalance: true,
         earningsPending: true, earningsAvailable: true, earningsVoided: true,
       },
@@ -367,6 +386,137 @@ export class UserService {
     ])
 
     return { records, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+  }
+
+
+static async getUsersList(params: UserListParams) {
+    const { page, pageSize, level, search, status, startDate, endDate, sortBy, sortOrder } = params
+    const skip = (page - 1) * pageSize
+    const where: Record<string, unknown> = {}
+
+    if (level) { where.level = parseInt(level) }
+    if (status) { where.status = status }
+
+    if (search) {
+      where.OR = [
+        { phone: { contains: search } },
+        { nickname: { contains: search } },
+        { email: { contains: search } },
+      ]
+    }
+
+    if (startDate || endDate) {
+      where.createdAt = {} as Record<string, unknown>
+      if (startDate) (where.createdAt as Record<string, unknown>).gte = new Date(startDate)
+      if (endDate) (where.createdAt as Record<string, unknown>).lte = new Date(endDate)
+    }
+
+    const orderBy: Record<string, string> = {}
+    if (sortBy) orderBy[sortBy] = sortOrder || 'desc'
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where, orderBy, skip, take: pageSize,
+        select: { id: true, phone: true, nickname: true, email: true, level: true, status: true, role: true, balance: true, createdAt: true },
+      }),
+      prisma.user.count({ where }),
+    ])
+
+    return { users, page, pageSize, total }
+  }
+
+  static async getUserDetail(id: string) {
+    const [user, orderStats] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id },
+        include: { _count: { select: { orders: true } } },
+      }),
+      prisma.order.aggregate({
+        where: { userId: id, status: 'paid' },
+        _sum: { payAmount: true },
+        _count: true,
+      }),
+    ])
+    return { user, orderStats }
+  }
+
+  static async updateUserLevel(id: string, newLevel: number) {
+    return prisma.user.update({
+      where: { id },
+      data: { level: newLevel },
+      select: { id: true, phone: true, nickname: true, level: true, status: true, role: true },
+    })
+  }
+
+  static async updatePassword(id: string, passwordHash: string) {
+    await prisma.user.update({ where: { id }, data: { passwordHash } })
+  }
+
+  static async hasPaymentPassword(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { paymentPasswordHash: true } })
+    return !!user?.paymentPasswordHash
+  }
+
+  static async resetPaymentPassword(userId: string) {
+    const result = await prisma.user.updateMany({
+      where: { id: userId, paymentPasswordHash: { not: null } },
+      data: { paymentPasswordHash: null },
+    })
+    return { count: result.count }
+  }
+
+  static async checkPhoneUnique(phone: string, excludeId?: string) {
+    const where: Record<string, unknown> = { phone }
+    if (excludeId) where.id = { not: excludeId }
+    const existing = await prisma.user.findFirst({ where, select: { id: true } })
+    return !existing
+  }
+
+  static async checkEmailUnique(email: string, excludeId?: string) {
+    const where: Record<string, unknown> = { email }
+    if (excludeId) where.id = { not: excludeId }
+    const existing = await prisma.user.findFirst({ where, select: { id: true } })
+    return !existing
+  }
+
+  static async getUserRole(id: string) {
+    const user = await prisma.user.findUnique({ where: { id }, select: { role: true } })
+    return user?.role || 'user'
+  }
+
+  static async updateProfile(id: string, data: Record<string, unknown>) {
+    return prisma.user.update({
+      where: { id },
+      data,
+      select: { id: true, phone: true, nickname: true, email: true, avatarUrl: true, role: true, updatedAt: true },
+    })
+  }
+
+  static async buildReferralTree(rootUserId: string, depth: number, maxDepth: number): Promise<TreeNode | null> {
+    if (depth >= maxDepth) return null
+    const user = await prisma.user.findUnique({
+      where: { id: rootUserId },
+      select: { id: true, phone: true, nickname: true, level: true },
+    })
+    if (!user) return null
+    const children = await prisma.user.findMany({
+      where: { parentId: rootUserId },
+      select: { id: true },
+    })
+    const childNodes: TreeNode[] = []
+    for (const child of children) {
+      const childNode = await this.buildReferralTree(child.id, depth + 1, maxDepth)
+      if (childNode) childNodes.push(childNode)
+    }
+    return { id: user.id, phone: user.phone, nickname: user.nickname, level: user.level, children: childNodes }
+  }
+
+  static async updateUserStatus(id: string, status: string) {
+    return prisma.user.update({
+      where: { id },
+      data: { status },
+      select: { id: true, status: true },
+    })
   }
 
 }
