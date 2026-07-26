@@ -68,17 +68,3 @@ export function invalidateCache(prefix?: string): void {
     }
   }
 }
-
-/**
- * 查看缓存状态（调试用）
- */
-export function getCacheStats() {
-  const now = Date.now()
-  let alive = 0
-  let expired = 0
-  for (const entry of cache.values()) {
-    if (entry.expires > now) alive++
-    else expired++
-  }
-  return { total: cache.size, alive, expired }
-}

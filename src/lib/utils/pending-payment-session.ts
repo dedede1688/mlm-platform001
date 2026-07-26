@@ -20,13 +20,14 @@ export function getProductPendingPaymentKey(userId: string, productId: string): 
   return `pending_payment:${userId}:${productId}`
 }
 
-function isValidSession(value: any): value is ProductPendingPaymentSession {
+function isValidSession(value: unknown): value is ProductPendingPaymentSession {
   if (!value || typeof value !== 'object') return false
-  if (value.version !== 1) return false
-  if (typeof value.userId !== 'string' || !value.userId) return false
-  if (typeof value.productId !== 'string' || !value.productId) return false
-  if (typeof value.orderId !== 'string' || !value.orderId) return false
-  if (typeof value.shortage !== 'number' || !Number.isFinite(value.shortage) || value.shortage < 0) return false
+  const v = value as Record<string, unknown>
+  if (v.version !== 1) return false
+  if (typeof v.userId !== 'string' || !v.userId) return false
+  if (typeof v.productId !== 'string' || !v.productId) return false
+  if (typeof v.orderId !== 'string' || !v.orderId) return false
+  if (typeof v.shortage !== 'number' || !Number.isFinite(v.shortage as number) || (v.shortage as number) < 0) return false
   return true
 }
 
@@ -41,7 +42,7 @@ export function loadProductPendingPayment(userId: string, productId: string): Pe
 
   if (raw === null) return { status: 'empty' }
 
-  let parsed: any
+  let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
@@ -71,8 +72,9 @@ export function saveProductPendingPayment(value: ProductPendingPaymentSession): 
   try {
     sessionStorage.setItem(key, JSON.stringify(value))
     return { ok: true }
-  } catch (e: any) {
-    return { ok: false, error: e.message || 'sessionStorage 写入失败' }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, error: msg || 'sessionStorage 写入失败' }
   }
 }
 
