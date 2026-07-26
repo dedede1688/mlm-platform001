@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { WithdrawalAuditLogService } from '@/lib/services/withdrawal-audit-log.service'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, data: logs })
   } catch (error) {
-    console.error('Get audit logs error:', error)
+    logger.error('Get audit logs error:', error)
     return NextResponse.json({ success: false, message: '获取审核日志失败' }, { status: 500 })
   }
 }

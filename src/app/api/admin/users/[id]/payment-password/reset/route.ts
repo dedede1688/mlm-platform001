@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // POST /api/admin/users/[id]/payment-password/reset — 超级管理员重置支付密码
 export async function POST(
@@ -106,7 +107,7 @@ export async function POST(
       })
     } catch (notifyErr) {
       // 通知失败不阻塞
-      console.error('[payment-password/reset] 通知失败:', notifyErr)
+      logger.error('[payment-password/reset] 通知失败:', notifyErr)
     }
 
     // 12. 返回成功
@@ -115,7 +116,7 @@ export async function POST(
       '支付密码已重置，请通知用户重新设置'
     )
   } catch (error: any) {
-    console.error('[payment-password/reset] 未知错误:', error)
+    logger.error('[payment-password/reset] 未知错误:', error)
     return errorResponse('服务器内部错误', 500)
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/reports/members — 会员报表（v51.1）
 // 返回: { levelDistribution, referrerRate, activity }
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[Members Report Error]', error)
+    logger.error('[Members Report Error]', error)
     return NextResponse.json(
       { success: false, message: '服务器错误' },
       { status: 500 }

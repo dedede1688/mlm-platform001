@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
+import { logger } from '@/lib/logger'
 
 // v62 P2-B: 用户端可视化大盘聚合 API
 // 4 个数据:
@@ -218,7 +219,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (err) {
-    console.error('[v62 dashboard summary]', err)
+    logger.error('[v62 dashboard summary]', err)
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
   }
 }

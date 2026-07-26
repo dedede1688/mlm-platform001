@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // DELETE /api/cart/[id] - 删除购物车中指定项
 export async function DELETE(
@@ -37,7 +38,7 @@ export async function DELETE(
       message: '已从购物车移除',
     })
   } catch (error) {
-    console.error('删除购物车项失败:', error)
+    logger.error('删除购物车项失败:', error)
     return NextResponse.json({ error: '删除购物车项失败' }, { status: 500 })
   }
 }

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/withdrawals — 获取提现申请列表（管理员）
 export async function GET(request: NextRequest) {
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin get withdrawals error:', error)
+    logger.error('Admin get withdrawals error:', error)
     return NextResponse.json(
       { success: false, message: '获取提现列表失败' },
       { status: 500 }
@@ -152,7 +153,7 @@ export async function PUT(request: NextRequest) {
       message: approved ? '提现已审核通过，等待线下打款' : '提现已拒绝，冻结收益已退回可提现收益',
     })
   } catch (error: any) {
-    console.error('Admin review withdrawal error:', error)
+    logger.error('Admin review withdrawal error:', error)
     const status = error.message === '提现记录不存在' ? 404
       : error.message === '提现记录已处理' ? 400
       : 500

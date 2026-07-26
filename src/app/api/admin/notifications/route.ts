@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/notifications — 获取所有通知模板
 export async function GET(request: NextRequest) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error('获取通知模板失败:', error)
+    logger.error('获取通知模板失败:', error)
     return NextResponse.json(
       { success: false, error: '获取通知模板失败' },
       { status: 500 }
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
       },
     }, { status: 201 })
   } catch (error) {
-    console.error('创建通知模板失败:', error)
+    logger.error('创建通知模板失败:', error)
     return NextResponse.json(
       { success: false, error: '创建通知模板失败' },
       { status: 500 }

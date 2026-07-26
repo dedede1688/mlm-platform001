@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { RewardService } from '@/lib/services/reward.service'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
+import { logger } from '@/lib/logger'
 
 // 获取用户的奖励记录
 export async function GET(request: NextRequest) {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       data: rewards,
     })
   } catch (error) {
-    console.error('Get rewards error:', error)
+    logger.error('Get rewards error:', error)
     return NextResponse.json(
       { error: '获取奖励记录失败' },
       { status: 500 }
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
       data: stats,
     })
   } catch (error) {
-    console.error('Get reward stats error:', error)
+    logger.error('Get reward stats error:', error)
     return NextResponse.json(
       { error: '获取奖励统计失败' },
       { status: 500 }

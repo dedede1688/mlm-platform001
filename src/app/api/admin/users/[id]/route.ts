@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/users/[id] — 获取单个会员详情（管理员）
 export async function GET(
@@ -102,7 +103,7 @@ export async function GET(
       message: '获取会员详情成功',
     })
   } catch (error) {
-    console.error('Admin get user error:', error)
+    logger.error('Admin get user error:', error)
     return NextResponse.json(
       { success: false, message: '获取会员详情失败' },
       { status: 500 }
@@ -191,7 +192,7 @@ export async function PUT(
       message: `会员等级已调整为 ${newLevel}`,
     })
   } catch (error) {
-    console.error('Admin update user error:', error)
+    logger.error('Admin update user error:', error)
     return NextResponse.json(
       { success: false, message: '更新会员信息失败' },
       { status: 500 }

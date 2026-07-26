@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const settings = await RechargeSettingsService.getSettings()
     return NextResponse.json({ success: true, data: settings })
   } catch (cause) {
-    console.error('Get recharge settings error:', cause)
+    logger.error('Get recharge settings error:', cause)
     return NextResponse.json({ success: false, error: '获取充值设置失败' }, { status: 500 })
   }
 }
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest) {
 
     // 数据库 / 事务 / 未知异常 → 500 + 通用文案（不暴露内部信息）
     // 必须记录错误（控制台 + 结构化 logger）
-    console.error('Update recharge settings error:', cause)
+    logger.error('Update recharge settings error:', cause)
     logger.error('保存充值设置失败', {
       error: cause instanceof Error ? cause.message : String(cause),
       code:

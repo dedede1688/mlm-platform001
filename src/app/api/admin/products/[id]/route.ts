@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/products/[id] — 获取单个商品详情
 export async function GET(
@@ -35,7 +36,7 @@ export async function GET(
       message: '获取商品详情成功',
     })
   } catch (error) {
-    console.error('Admin get product error:', error)
+    logger.error('Admin get product error:', error)
     return NextResponse.json(
       { success: false, message: '获取商品详情失败' },
       { status: 500 }
@@ -250,7 +251,7 @@ export async function PUT(
       message: '商品更新成功',
     })
   } catch (error) {
-    console.error('Admin update product error:', error)
+    logger.error('Admin update product error:', error)
     return NextResponse.json(
       { success: false, message: '更新商品失败' },
       { status: 500 }
@@ -309,7 +310,7 @@ export async function DELETE(
       message: '商品已删除',
     })
   } catch (error) {
-    console.error('Admin delete product error:', error)
+    logger.error('Admin delete product error:', error)
     return NextResponse.json(
       { success: false, message: '删除商品失败' },
       { status: 500 }

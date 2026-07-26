@@ -240,7 +240,7 @@ export async function POST(
         operatorId: admin.id,
         balanceRecordId: result.balanceRecordId!,
       }).catch((err) => {
-        console.error('[v006 notifyEarningsVoid route catch]', { error: String(err) })
+        logger.error('[v006 notifyEarningsVoid route catch]', { error: String(err) })
         logger.error('收益作废通知路由层捕获异常', { error: String(err) })
       })
     } else {
@@ -286,7 +286,7 @@ export async function POST(
       message: `资金调整成功：${fieldLabel}${actionLabel} ¥${Math.abs(amount).toFixed(2)}`,
     })
   } catch (error) {
-    console.error('Adjust balance error:', error)
+    logger.error('Adjust balance error:', error)
     const message = error instanceof Error ? error.message : '资金调整失败'
     // v007: 可用收益不足属于业务校验失败，返回 400 而非 500
     const isBusinessError = message === '可用收益不足'

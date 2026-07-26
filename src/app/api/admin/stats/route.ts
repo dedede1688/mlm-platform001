@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { cached } from '@/lib/utils/stats-cache'
+import { logger } from '@/lib/logger'
 
 // ---- 时间边界工具 ----
 
@@ -174,7 +175,7 @@ export async function GET(request: NextRequest) {
     const data = await cached('admin-stats', () => computeStats())
     return NextResponse.json({ success: true, data })
   } catch (error) {
-    console.error('获取统计数据失败:', error)
+    logger.error('获取统计数据失败:', error)
     return NextResponse.json(
       { success: false, error: '获取统计数据失败' },
       { status: 500 }

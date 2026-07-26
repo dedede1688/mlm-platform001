@@ -3,6 +3,7 @@ import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 
 export async function GET(request: NextRequest) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
       data: result,
     })
   } catch (error) {
-    console.error('Get withdrawals error:', error)
+    logger.error('Get withdrawals error:', error)
     return NextResponse.json(
       { error: '获取提现记录失败' },
       { status: 500 }
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
       data: withdrawal,
     })
   } catch (error: any) {
-    console.error('Create withdrawal error:', error)
+    logger.error('Create withdrawal error:', error)
     const message = error?.message || '创建提现申请失败'
     return NextResponse.json(
       { error: message },

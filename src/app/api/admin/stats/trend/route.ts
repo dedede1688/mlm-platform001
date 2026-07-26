@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPermission } from '@/lib/utils/admin-auth'
+import { logger } from '@/lib/logger'
 
 // ---- 类型 ----
 
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
-    console.error('获取趋势数据失败:', error)
+    logger.error('获取趋势数据失败:', error)
     return NextResponse.json(
       { success: false, error: '获取趋势数据失败' },
       { status: 500 }

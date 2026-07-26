@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { NotificationService } from '@/lib/services/notification.service'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
     const count = await NotificationService.getUnreadCount(authUser.userId)
     return NextResponse.json({ success: true, data: { count } })
   } catch (error) {
-    console.error('[v46.8 unread-count] error:', error)
+    logger.error('[v46.8 unread-count] error:', error)
     return NextResponse.json({ success: false, message: '获取未读数失败' }, { status: 500 })
   }
 }

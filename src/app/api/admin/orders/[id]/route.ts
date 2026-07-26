@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/orders/[id] — 获取单个订单详情（管理员）
 export async function GET(
@@ -64,7 +65,7 @@ export async function GET(
       message: '获取订单详情成功',
     })
   } catch (error) {
-    console.error('Admin get order error:', error)
+    logger.error('Admin get order error:', error)
     return NextResponse.json(
       { success: false, message: '获取订单详情失败' },
       { status: 500 }
@@ -169,7 +170,7 @@ export async function PUT(
       { status: 400 }
     )
   } catch (error) {
-    console.error('Admin update order error:', error)
+    logger.error('Admin update order error:', error)
     return NextResponse.json(
       { success: false, message: '更新订单失败' },
       { status: 500 }

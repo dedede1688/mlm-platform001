@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('获取系统配置失败:', error)
+    logger.error('获取系统配置失败:', error)
     return NextResponse.json(
       { error: '获取系统配置失败' },
       { status: 500 }
@@ -217,7 +217,7 @@ export async function PUT(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    console.error('更新系统配置失败:', error)
+    logger.error('更新系统配置失败:', error)
     return NextResponse.json(
       { error: '更新系统配置失败' },
       { status: 500 }

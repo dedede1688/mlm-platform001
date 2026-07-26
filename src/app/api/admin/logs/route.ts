@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/logs — 获取操作日志列表（super_admin, auditor）
 export async function GET(request: NextRequest) {
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin get operation logs error:', error)
+    logger.error('Admin get operation logs error:', error)
     return NextResponse.json(
       { success: false, message: '获取操作日志失败' },
       { status: 500 }

@@ -5,6 +5,7 @@ import { UserService } from '@/lib/services/user.service'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
+import { logger } from '@/lib/logger'
 
 // 注册输入校验 schema
 const registerSchema = z.object({
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    console.error('Register error:', error)
+    logger.error('Register error:', error)
     const errMsg = error instanceof Error ? error.message : '未知错误'
     return NextResponse.json(
       { success: false, message: `注册失败：${errMsg}` },

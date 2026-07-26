@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PointsService } from '@/lib/services/points.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // 积分转赠
 export async function POST(request: NextRequest) {
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
         feePercent = parseInt(feeConfig.value, 10) || 10
       }
     } catch (error) {
-      console.error('获取手续费配置失败，使用默认值:', error)
+      logger.error('获取手续费配置失败，使用默认值:', error)
     }
 
     // 执行转赠
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    console.error('积分转赠失败:', error)
+    logger.error('积分转赠失败:', error)
     return NextResponse.json(
       { error: '积分转赠失败' },
       { status: 500 }

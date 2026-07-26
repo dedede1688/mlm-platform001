@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/users — 获取会员列表（管理员）
 export async function GET(request: NextRequest) {
@@ -131,7 +132,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin get users error:', error)
+    logger.error('Admin get users error:', error)
     return NextResponse.json(
       { success: false, message: '获取会员列表失败' },
       { status: 500 }

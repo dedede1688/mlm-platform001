@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
+import { logger } from '@/lib/logger'
 
 const MAX_DEPTH = 10
 
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: formattedMembers })
   } catch (error) {
-    console.error('获取团队成员失败:', error)
+    logger.error('获取团队成员失败:', error)
     return NextResponse.json(
       { success: false, error: '获取团队成员失败' },
       { status: 500 }

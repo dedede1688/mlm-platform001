@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/reports/sales — 销售报表（v51.1）
 // 参数: ?days=30
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { topProducts, topMembers } })
   } catch (error) {
-    console.error('[Sales Report Error]', error)
+    logger.error('[Sales Report Error]', error)
     return NextResponse.json(
       { success: false, message: '服务器错误' },
       { status: 500 }

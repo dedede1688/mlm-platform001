@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPermission } from '@/lib/utils/admin-auth'
+import { logger } from '@/lib/logger'
 // ---- v38: 内存缓存 (30s TTL) ----
 
 const apiCache = new Map<string, { data: any; timestamp: number }>()
@@ -330,7 +331,7 @@ export async function GET(
     apiCache.set(cacheKey, { data: response, timestamp: Date.now() })
     return NextResponse.json(response)
   } catch (error) {
-    console.error('获取推荐树失败:', error)
+    logger.error('获取推荐树失败:', error)
     return NextResponse.json(
       { success: false, error: '获取推荐树失败' },
       { status: 500 }

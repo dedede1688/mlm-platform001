@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // 强制动态渲染，禁止任何缓存，确保管理后台修改的设置能立即在前台生效
 export const dynamic = 'force-dynamic'
@@ -87,7 +88,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('获取公开配置失败:', error)
+    logger.error('获取公开配置失败:', error)
     return NextResponse.json(
       { error: '获取配置失败' },
       { status: 500 }

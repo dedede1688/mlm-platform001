@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // PATCH /api/admin/refunds/[id]/review — 审核退款申请（通过/拒绝）
 export async function PATCH(
@@ -96,7 +97,7 @@ export async function PATCH(
       message: action === 'approve' ? '退款申请已通过' : '退款申请已拒绝',
     })
   } catch (error) {
-    console.error('Admin review refund error:', error)
+    logger.error('Admin review refund error:', error)
     return NextResponse.json(
       { success: false, message: '审核操作失败' },
       { status: 500 }

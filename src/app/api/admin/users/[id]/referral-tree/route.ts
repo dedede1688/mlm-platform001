@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 interface TreeNode {
   id: string
@@ -75,7 +76,7 @@ export async function GET(
       message: '获取推荐关系树成功',
     })
   } catch (error) {
-    console.error('Admin get referral tree error:', error)
+    logger.error('Admin get referral tree error:', error)
     return NextResponse.json(
       { success: false, message: '获取推荐关系树失败' },
       { status: 500 }

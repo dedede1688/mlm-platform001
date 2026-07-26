@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '@/lib/utils/auth'
+import { logger } from '@/lib/logger'
 
 const JWT_SECRET = process.env.JWT_SECRET!
 
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
       data: user,
     })
   } catch (error) {
-    console.error('Get current user error:', error)
+    logger.error('Get current user error:', error)
     return NextResponse.json(
       { success: false, error: '获取用户信息失败' },
       { status: 500 }

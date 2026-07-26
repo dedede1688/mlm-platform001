@@ -4,6 +4,7 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
+import { logger } from '@/lib/logger'
 
 // PATCH /api/admin/withdrawals/[id]/complete — 完成提现打款
 // 只允许 super_admin / finance_admin
@@ -56,7 +57,7 @@ export async function PATCH(
       message: '提现打款已完成，冻结收益已扣除',
     })
   } catch (error: any) {
-    console.error('Admin complete withdrawal error:', error)
+    logger.error('Admin complete withdrawal error:', error)
     const status = error.message === '提现记录不存在' ? 404
       : error.message === '只有已审核通过的提现才能完成打款' ? 400
       : error.message === '打款凭证不能为空' ? 400

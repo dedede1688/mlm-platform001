@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // PUT /api/admin/users/[id]/status — 管理员变更会员状态（冻结/解封）
 export async function PUT(
@@ -85,7 +86,7 @@ export async function PUT(
       message: `状态已${actionLabel}`,
     })
   } catch (error) {
-    console.error('Change status error:', error)
+    logger.error('Change status error:', error)
     return NextResponse.json(
       { success: false, message: '状态变更失败' },
       { status: 500 }

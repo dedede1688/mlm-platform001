@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 // 限制：每个用户最多 20 个地址
 const MAX_ADDRESSES_PER_USER = 20
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     return successResponse(addresses)
   } catch (error) {
-    console.error('获取地址列表失败:', error)
+    logger.error('获取地址列表失败:', error)
     return errorResponse('获取地址列表失败', 500)
   }
 }
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse(address, '地址添加成功')
   } catch (error) {
-    console.error('新建地址失败:', error)
+    logger.error('新建地址失败:', error)
     return errorResponse('新建地址失败', 500)
   }
 }

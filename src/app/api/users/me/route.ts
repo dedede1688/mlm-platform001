@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { getBusinessConfig } from '@/lib/config/business'
+import { logger } from '@/lib/logger'
 
 // 获取当前用户信息
 export async function GET(request: NextRequest) {
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Get user error:', error)
+    logger.error('Get user error:', error)
     return NextResponse.json(
       { error: '获取用户信息失败' },
       { status: 500 }
@@ -129,7 +130,7 @@ export async function PUT(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Update user error:', error)
+    logger.error('Update user error:', error)
     return NextResponse.json(
       { error: '更新用户信息失败' },
       { status: 500 }

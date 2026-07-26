@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('发送通知失败:', error)
+    logger.error('发送通知失败:', error)
     return NextResponse.json({ success: false, error: '发送通知失败' }, { status: 500 })
   }
 }

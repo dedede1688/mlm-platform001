@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
+import { logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
@@ -39,7 +40,7 @@ export async function POST(
       message: '确认收货成功',
     })
   } catch (error: any) {
-    console.error('Confirm order error:', error)
+    logger.error('Confirm order error:', error)
     return NextResponse.json(
       { error: '确认收货失败' },
       { status: 500 }

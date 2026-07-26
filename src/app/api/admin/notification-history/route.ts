@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('获取发件箱列表失败:', error)
+    logger.error('获取发件箱列表失败:', error)
     return NextResponse.json({ success: false, error: '获取发件箱列表失败' }, { status: 500 })
   }
 }

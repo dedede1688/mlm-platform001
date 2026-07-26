@@ -5,6 +5,7 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { BALANCE_SELECT } from '@/lib/constants'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
+import { logger } from '@/lib/logger'
 
 // POST /api/admin/manual-reward — 手动发放奖励（管理员）
 // 请求体：{ userId, amount, type?, reason }
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
       message: `已向 ${user.phone} 发放 ¥${amount.toFixed(2)} 奖励`,
     })
   } catch (error) {
-    console.error('Admin manual reward error:', error)
+    logger.error('Admin manual reward error:', error)
     return NextResponse.json(
       { success: false, message: '手动发放奖励失败' },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
+import { logger } from '@/lib/logger'
 
 // 获取用户的积分解锁计划
 export async function GET(request: NextRequest) {
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
       data: schedules,
     })
   } catch (error) {
-    console.error('获取积分解锁计划失败:', error)
+    logger.error('获取积分解锁计划失败:', error)
     return NextResponse.json(
       { error: '获取积分解锁计划失败' },
       { status: 500 }

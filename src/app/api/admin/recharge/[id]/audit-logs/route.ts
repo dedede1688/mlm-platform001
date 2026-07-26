@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/admin/recharge/[id]/audit-logs
@@ -60,7 +61,7 @@ export async function GET(
       data,
     })
   } catch (error) {
-    console.error('Admin get recharge audit logs error:', error)
+    logger.error('Admin get recharge audit logs error:', error)
     return NextResponse.json(
       { success: false, message: '获取充值审核日志失败' },
       { status: 500 }

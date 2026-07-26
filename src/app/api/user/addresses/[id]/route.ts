@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 // 字段校验（部分字段可选更新）
 function validatePartialAddressInput(body: any): { ok: true; data: Partial<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
@@ -101,7 +102,7 @@ export async function PUT(
 
     return successResponse(address, '地址更新成功')
   } catch (error) {
-    console.error('更新地址失败:', error)
+    logger.error('更新地址失败:', error)
     return errorResponse('更新地址失败', 500)
   }
 }
@@ -155,7 +156,7 @@ export async function DELETE(
 
     return successResponse(null, '地址删除成功')
   } catch (error) {
-    console.error('删除地址失败:', error)
+    logger.error('删除地址失败:', error)
     return errorResponse('删除地址失败', 500)
   }
 }

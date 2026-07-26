@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
       message: `批量审核完成：成功 ${results.success} 条，失败 ${results.failed} 条`,
     })
   } catch (error) {
-    console.error('Batch review error:', error)
+    logger.error('Batch review error:', error)
     return NextResponse.json({ success: false, message: '批量审核失败' }, { status: 500 })
   }
 }

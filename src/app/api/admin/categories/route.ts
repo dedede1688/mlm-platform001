@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // ---- 类型定义 ----
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       data: items,
     })
   } catch (error) {
-    console.error('获取分类列表失败:', error)
+    logger.error('获取分类列表失败:', error)
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: '获取分类列表失败' },
       { status: 500 }
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    console.error('创建分类失败:', error)
+    logger.error('创建分类失败:', error)
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: '创建分类失败' },
       { status: 500 }

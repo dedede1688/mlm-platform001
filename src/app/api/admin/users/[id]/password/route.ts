@@ -102,7 +102,7 @@ export async function PUT(
       message: '密码重置成功',
     })
   } catch (error) {
-    console.error('Reset password error:', error)
+    logger.error('Reset password error:', error)
     return NextResponse.json(
       { success: false, message: '密码重置失败' },
       { status: 500 }

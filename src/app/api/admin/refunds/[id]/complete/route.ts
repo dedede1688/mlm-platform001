@@ -5,6 +5,7 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // PATCH /api/admin/refunds/[id]/complete — 确认退款完成
 export async function PATCH(
@@ -80,7 +81,7 @@ export async function PATCH(
       message: '退款已完成',
     })
   } catch (error) {
-    console.error('Admin complete refund error:', error)
+    logger.error('Admin complete refund error:', error)
     return NextResponse.json(
       { success: false, message: '确认退款失败' },
       { status: 500 }

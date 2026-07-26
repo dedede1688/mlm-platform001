@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/orders — 获取订单列表（管理员）
 export async function GET(request: NextRequest) {
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin get orders error:', error)
+    logger.error('Admin get orders error:', error)
     return NextResponse.json(
       { success: false, message: '获取订单列表失败' },
       { status: 500 }

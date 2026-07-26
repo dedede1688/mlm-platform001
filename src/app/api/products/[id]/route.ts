@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -23,7 +24,7 @@ export async function GET(
       data: product,
     })
   } catch (error) {
-    console.error('Get product error:', error)
+    logger.error('Get product error:', error)
     return NextResponse.json(
       { error: '获取商品详情失败' },
       { status: 500 }

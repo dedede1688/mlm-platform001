@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/refunds — 获取退款申请列表
 export async function GET(request: NextRequest) {
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin get refunds error:', error)
+    logger.error('Admin get refunds error:', error)
     return NextResponse.json(
       { success: false, message: '获取退款申请列表失败' },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { RechargeService } from '@/lib/services/recharge.service'
+import { logger } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: recharge })
   } catch (error) {
-    console.error('Get recharge request detail error:', error)
+    logger.error('Get recharge request detail error:', error)
     return NextResponse.json({ error: '获取充值申请详情失败' }, { status: 500 })
   }
 }

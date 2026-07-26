@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -40,7 +41,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('获取批次详情失败:', error)
+    logger.error('获取批次详情失败:', error)
     return NextResponse.json({ success: false, error: '获取批次详情失败' }, { status: 500 })
   }
 }

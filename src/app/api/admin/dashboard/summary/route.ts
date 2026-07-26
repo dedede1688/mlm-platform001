@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { logger } from '@/lib/logger'
 
 // v67:数据中台 summary API
 // 返回:昨日日报(销售/订单/用户/退款/提现 对比上周同日)
@@ -171,7 +172,7 @@ export async function GET(request: NextRequest) {
       timestamp: now.toISOString(),
     })
   } catch (err: any) {
-    console.error('[Dashboard Summary] 错误:', err)
+    logger.error('[Dashboard Summary] 错误:', err)
     return errorResponse(err.message || '获取数据失败', 500)
   }
 }

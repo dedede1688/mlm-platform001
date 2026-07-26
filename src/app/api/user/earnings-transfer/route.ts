@@ -4,6 +4,7 @@ import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
 import { EarningsTransferService } from '@/lib/services/earnings-transfer.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 /**
  * POST /api/user/earnings-transfer
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       earningsAvailable: result.earningsAvailable,
     })
   } catch (error: any) {
-    console.error('Earnings transfer error:', error)
+    logger.error('Earnings transfer error:', error)
     const message = error?.message || '收益转余额失败'
     const status =
       message === '未登录' ? 401 :

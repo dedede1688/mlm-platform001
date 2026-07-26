@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // ---- 类型定义 ----
 
@@ -84,7 +85,7 @@ export async function PUT(
       },
     })
   } catch (error) {
-    console.error('更新分类失败:', error)
+    logger.error('更新分类失败:', error)
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: '更新分类失败' },
       { status: 500 }
@@ -134,7 +135,7 @@ export async function DELETE(
 
     return NextResponse.json<ApiResponse<never>>({ success: true })
   } catch (error) {
-    console.error('删除分类失败:', error)
+    logger.error('删除分类失败:', error)
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: '删除分类失败' },
       { status: 500 }

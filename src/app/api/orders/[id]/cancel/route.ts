@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { OrderService } from '@/lib/services/order.service'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
+import { logger } from '@/lib/logger'
 
 // POST /api/orders/[id]/cancel — 取消订单（待支付状态）
 export async function POST(
@@ -38,7 +39,7 @@ export async function POST(
 
     return successResponse(cancelledOrder, '订单已取消')
   } catch (error: any) {
-    console.error('取消订单失败:', error)
+    logger.error('取消订单失败:', error)
     return errorResponse(error.message || '取消订单失败', 500)
   }
 }

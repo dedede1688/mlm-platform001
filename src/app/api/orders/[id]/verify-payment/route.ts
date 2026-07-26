@@ -9,6 +9,7 @@ import { invalidateCache } from '@/lib/utils/stats-cache'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { ORDER_STATUS, BALANCE_SELECT } from '@/lib/constants'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
+import { logger } from '@/lib/logger'
 
 // POST /api/orders/[id]/verify-payment — 验证支付密码 + 标记已支付
 export async function POST(
@@ -164,7 +165,7 @@ export async function POST(
       await OrderNotificationService.notifyOrderPaid(orderId)
     } catch (rewardError: any) {
       // 奖励/通知失败不影响支付结果（支付事务已完成），仅记录日志
-      console.error('[v56] 奖励/通知处理失败（订单已支付）:', rewardError.message)
+      logger.error('[v56] 奖励/通知处理失败（订单已支付）:', rewardError.message)
     }
 
     return successResponse(
@@ -177,7 +178,7 @@ export async function POST(
       '支付成功'
     )
   } catch (error: any) {
-    console.error('验证支付失败:', error)
+    logger.error('验证支付失败:', error)
 
     // 余额不足：返回结构化错误（前端可据此弹收益转余额浮窗）
     if (error.message === '可用余额不足' && paymentContextRef.current) {

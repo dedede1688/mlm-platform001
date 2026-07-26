@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { WithdrawalRejectTemplateService } from '@/lib/services/withdrawal-reject-template.service'
+import { logger } from '@/lib/logger'
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,7 +21,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, data: template, message: '模板更新成功' })
   } catch (error: any) {
-    console.error('Update reject template error:', error)
+    logger.error('Update reject template error:', error)
     return NextResponse.json({ success: false, message: error.message || '更新模板失败' }, { status: 500 })
   }
 }
@@ -35,7 +36,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ success: true, message: '模板删除成功' })
   } catch (error: any) {
-    console.error('Delete reject template error:', error)
+    logger.error('Delete reject template error:', error)
     return NextResponse.json({ success: false, message: error.message || '删除模板失败' }, { status: 500 })
   }
 }

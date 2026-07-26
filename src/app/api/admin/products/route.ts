@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/products — 获取商品列表（分页、搜索、筛选）
 export async function GET(request: NextRequest) {
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Admin get products error:', error)
+    logger.error('Admin get products error:', error)
     return NextResponse.json(
       { success: false, message: '获取商品列表失败' },
       { status: 500 }
@@ -208,7 +209,7 @@ export async function POST(request: NextRequest) {
       message: '商品创建成功',
     }, { status: 201 })
   } catch (error) {
-    console.error('Admin create product error:', error)
+    logger.error('Admin create product error:', error)
     return NextResponse.json(
       { success: false, message: '创建商品失败' },
       { status: 500 }

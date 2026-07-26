@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
+import { logger } from '@/lib/logger'
 
 async function isInMyTeam(meId: string, target: { id: string; referrerId: string | null }): Promise<boolean> {
   if (target.id === meId) return true
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Lookup user error:', error)
+    logger.error('Lookup user error:', error)
     return NextResponse.json(
       { success: false, error: '查询失败' },
       { status: 500 }

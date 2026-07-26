@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { NotificationService } from '@/lib/services/notification.service'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ success: true, data: notification, message: '已标记为已读' })
   } catch (error: any) {
-    console.error('Mark notification read error:', error)
+    logger.error('Mark notification read error:', error)
     const status = error.message === '通知不存在' ? 404
       : error.message === '无权操作' ? 403
       : 500

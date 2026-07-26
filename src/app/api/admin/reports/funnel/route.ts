@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/reports/funnel — 转化漏斗（v51.3）
 // 5 级漏斗：总注册 → 下过单 → 复购 → 3 单+ → 5 单+
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[Funnel Report Error]', error)
+    logger.error('[Funnel Report Error]', error)
     return NextResponse.json(
       { success: false, message: '服务器错误' },
       { status: 500 }

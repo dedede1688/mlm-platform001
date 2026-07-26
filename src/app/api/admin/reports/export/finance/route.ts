@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { toCsv, csvResponse } from '@/lib/utils/csv-export'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/reports/export/finance?days=30 — 财务数据 CSV 导出（v51.2）
 export async function GET(request: NextRequest) {
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
     const dateStr = now.toISOString().slice(0, 10)
     return csvResponse(`# 财务报表（${startDate.toISOString().slice(0, 10)} 至 ${dateStr}，近${days}天）\n${csv}`, `财务报表_${days}天_${dateStr}`)
   } catch (error) {
-    console.error('[Finance CSV Export Error]', error)
+    logger.error('[Finance CSV Export Error]', error)
     return new Response('服务器错误', { status: 500 })
   }
 }

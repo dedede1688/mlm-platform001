@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { RechargeService } from '@/lib/services/recharge.service'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: settings })
   } catch (error) {
-    console.error('Get recharge settings error:', error)
+    logger.error('Get recharge settings error:', error)
     return NextResponse.json({ error: '获取充值设置失败' }, { status: 500 })
   }
 }

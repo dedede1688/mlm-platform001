@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { WithdrawalRejectTemplateService } from '@/lib/services/withdrawal-reject-template.service'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     const templates = await WithdrawalRejectTemplateService.list()
     return NextResponse.json({ success: true, data: templates })
   } catch (error) {
-    console.error('Get reject templates error:', error)
+    logger.error('Get reject templates error:', error)
     return NextResponse.json({ success: false, message: '获取模板列表失败' }, { status: 500 })
   }
 }
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: template, message: '模板创建成功' })
   } catch (error) {
-    console.error('Create reject template error:', error)
+    logger.error('Create reject template error:', error)
     return NextResponse.json({ success: false, message: '创建模板失败' }, { status: 500 })
   }
 }

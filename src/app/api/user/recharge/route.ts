@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { RechargeService } from '@/lib/services/recharge.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Get recharge requests error:', error)
+    logger.error('Get recharge requests error:', error)
     return NextResponse.json({ error: '获取充值申请记录失败' }, { status: 500 })
   }
 }
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: safeRecharge })
   } catch (error: any) {
-    console.error('Create recharge request error:', error)
+    logger.error('Create recharge request error:', error)
     const message = error?.message || '创建充值申请失败'
     return NextResponse.json({ error: message }, { status: 400 })
   }

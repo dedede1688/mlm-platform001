@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPermission } from '@/lib/utils/admin-auth'
+import { logger } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -85,7 +86,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Admin get balance records error:', error)
+    logger.error('Admin get balance records error:', error)
     return NextResponse.json(
       { success: false, message: '获取余额流水失败' },
       { status: 500 }

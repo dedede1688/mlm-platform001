@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/cart - 获取当前用户的购物车列表
 export async function GET(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error('获取购物车失败:', error)
+    logger.error('获取购物车失败:', error)
     return NextResponse.json({ error: '获取购物车失败' }, { status: 500 })
   }
 }
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
       },
     }, { status: 201 })
   } catch (error) {
-    console.error('添加购物车失败:', error)
+    logger.error('添加购物车失败:', error)
     return NextResponse.json({ error: '添加购物车失败' }, { status: 500 })
   }
 }

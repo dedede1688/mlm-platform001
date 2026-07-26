@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 // v53.2: 批量上下架 API
 // 用途：admin 商品管理页多选后批量改 status
@@ -89,7 +90,7 @@ export async function PATCH(request: NextRequest) {
       message: `已${status === 'active' ? '上架' : '下架'} ${result.count} 个商品${ids.length - existing.length > 0 ? `（${ids.length - existing.length} 个已跳过）` : ''}`,
     })
   } catch (error) {
-    console.error('Admin bulk update products error:', error)
+    logger.error('Admin bulk update products error:', error)
     return NextResponse.json(
       { success: false, message: '批量操作失败' },
       { status: 500 }

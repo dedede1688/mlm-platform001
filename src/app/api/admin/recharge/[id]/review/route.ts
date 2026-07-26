@@ -64,7 +64,7 @@ export async function PATCH(
             select: { balance: true },
           })
           if (!userAfterApprove || typeof userAfterApprove.balance !== 'number' || isNaN(userAfterApprove.balance)) {
-            console.error('[v3.2-1-hotfix notifyRechargeApproved] 跳过通知：无法获取用户余额', {
+            logger.error('[v3.2-1-hotfix notifyRechargeApproved] 跳过通知：无法获取用户余额', {
               userId: updated.userId,
               rechargeId: id,
               balance: userAfterApprove?.balance,
@@ -83,7 +83,7 @@ export async function PATCH(
             }).catch(() => {})
           }
         } catch (err) {
-          console.error('[v3.2-1-hotfix notifyRechargeApproved] 查询用户余额失败，跳过通知', {
+          logger.error('[v3.2-1-hotfix notifyRechargeApproved] 查询用户余额失败，跳过通知', {
             error: String(err),
             userId: updated.userId,
             rechargeId: id,
@@ -145,7 +145,7 @@ export async function PATCH(
       })
     }
   } catch (error: any) {
-    console.error('Admin review recharge error:', error)
+    logger.error('Admin review recharge error:', error)
     const message = error?.message || '审核充值申请失败'
     const status =
       message === '充值申请不存在' ? 404 :

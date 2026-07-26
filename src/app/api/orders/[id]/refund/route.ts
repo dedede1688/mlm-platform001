@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { validateRefundApplication } from '@/lib/refunds/refund-validation'
+import { logger } from '@/lib/logger'
 
 // POST /api/orders/[id]/refund — 用户申请退款
 export async function POST(
@@ -114,7 +115,7 @@ export async function POST(
       message: '退款申请已提交',
     })
   } catch (error) {
-    console.error('Create refund request error:', error)
+    logger.error('Create refund request error:', error)
     return NextResponse.json(
       { success: false, error: '申请退款失败' },
       { status: 500 }
@@ -166,7 +167,7 @@ export async function GET(
       data: refundRequests,
     })
   } catch (error) {
-    console.error('Get refund requests error:', error)
+    logger.error('Get refund requests error:', error)
     return NextResponse.json(
       { success: false, error: '获取退款申请失败' },
       { status: 500 }

@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // 合法的状态流转规则
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -115,7 +116,7 @@ export async function PATCH(
       data: updated,
     })
   } catch (error) {
-    console.error('Admin update order status error:', error)
+    logger.error('Admin update order status error:', error)
     return NextResponse.json(
       { success: false, error: '修改订单状态失败' },
       { status: 500 }

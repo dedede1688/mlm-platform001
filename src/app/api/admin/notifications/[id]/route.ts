@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/notifications/[id] — 获取单个通知模板
 export async function GET(
@@ -35,7 +36,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('获取通知模板失败:', error)
+    logger.error('获取通知模板失败:', error)
     return NextResponse.json(
       { success: false, error: '获取通知模板失败' },
       { status: 500 }
@@ -113,7 +114,7 @@ export async function PUT(
       },
     })
   } catch (error) {
-    console.error('更新通知模板失败:', error)
+    logger.error('更新通知模板失败:', error)
     return NextResponse.json(
       { success: false, error: '更新通知模板失败' },
       { status: 500 }
@@ -147,7 +148,7 @@ export async function DELETE(
       message: '模板已删除',
     })
   } catch (error) {
-    console.error('删除通知模板失败:', error)
+    logger.error('删除通知模板失败:', error)
     return NextResponse.json(
       { success: false, error: '删除通知模板失败' },
       { status: 500 }

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { toCsv, csvResponse } from '@/lib/utils/csv-export'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/reports/export/members — 会员数据 CSV 导出（v51.2）
 // 输出等级分布 + 推荐转化 + 活跃度 3 段
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
     const dateStr = now.toISOString().slice(0, 10)
     return csvResponse(csv, `会员报表_${dateStr}`)
   } catch (error) {
-    console.error('[Members CSV Export Error]', error)
+    logger.error('[Members CSV Export Error]', error)
     return new Response('服务器错误', { status: 500 })
   }
 }

@@ -163,7 +163,7 @@ export async function POST(
       message: `积分调整成功：${result.fieldLabel}${actionLabel} ${Math.abs(amount)}`,
     })
   } catch (error) {
-    console.error('Adjust points error:', error)
+    logger.error('Adjust points error:', error)
     return NextResponse.json(
       { success: false, message: error instanceof Error ? error.message : '积分调整失败' },
       { status: 500 }

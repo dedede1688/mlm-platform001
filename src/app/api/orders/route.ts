@@ -3,6 +3,7 @@ import { OrderService } from '@/lib/services/order.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse } from '@/lib/api-response'
 import { invalidateCache } from '@/lib/utils/stats-cache'
+import { logger } from '@/lib/logger'
 
 // 获取订单列表
 export async function GET(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       data: result,
     })
   } catch (error) {
-    console.error('Get orders error:', error)
+    logger.error('Get orders error:', error)
     return errorResponse('获取订单列表失败', 500)
   }
 }
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       data: order,
     })
   } catch (error: any) {
-    console.error('Create order error:', error)
+    logger.error('Create order error:', error)
     return errorResponse('创建订单失败', 500)
   }
 }

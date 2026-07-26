@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 // GET /api/admin/reports/finance — 财务报表（v51.1）
 // 参数: ?days=30
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('[Finance Report Error]', error)
+    logger.error('[Finance Report Error]', error)
     return NextResponse.json(
       { success: false, message: '服务器错误' },
       { status: 500 }

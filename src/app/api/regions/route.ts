@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getAllRegions } from '@/lib/data/china-regions'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { logger } from '@/lib/logger'
 
 // GET /api/regions — 返回完整省市区三级数据
 // 数据源：src/lib/data/pca-code.json (~120KB)
@@ -10,7 +11,7 @@ export async function GET(_request: NextRequest) {
     const data = await getAllRegions()
     return successResponse(data)
   } catch (error) {
-    console.error('获取省市区数据失败:', error)
+    logger.error('获取省市区数据失败:', error)
     return errorResponse('获取省市区数据失败', 500)
   }
 }

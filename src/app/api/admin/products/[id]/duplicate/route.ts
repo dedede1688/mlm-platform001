@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { logOperation } from '@/lib/utils/operation-log'
+import { logger } from '@/lib/logger'
 
 // POST /api/admin/products/[id]/duplicate — 复制商品
 export async function POST(
@@ -71,11 +72,11 @@ export async function POST(
             }
           }
         } catch (e) {
-          console.error('[Duplicate] 解析图片 URL 失败:', e)
+          logger.error('[Duplicate] 解析图片 URL 失败:', e)
           // 图片复制失败不阻止复制操作，只是没有图片
         }
       } catch (e) {
-        console.error('[Duplicate] Supabase 客户端初始化失败:', e)
+        logger.error('[Duplicate] Supabase 客户端初始化失败:', e)
       }
     }
 
@@ -119,7 +120,7 @@ export async function POST(
       },
     })
   } catch (error) {
-    console.error('复制商品失败:', error)
+    logger.error('复制商品失败:', error)
     return NextResponse.json(
       { success: false, message: '复制商品失败' },
       { status: 500 }

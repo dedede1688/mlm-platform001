@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { RechargeService } from '@/lib/services/recharge.service'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/admin/recharge
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       pagination: result.pagination,
     })
   } catch (error) {
-    console.error('Admin get recharge list error:', error)
+    logger.error('Admin get recharge list error:', error)
     return NextResponse.json(
       { success: false, message: '获取充值申请列表失败' },
       { status: 500 }

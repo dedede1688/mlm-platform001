@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { NotificationService } from '@/lib/services/notification.service'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
-    console.error('Get notifications error:', error)
+    logger.error('Get notifications error:', error)
     return NextResponse.json({ success: false, message: '获取通知失败' }, { status: 500 })
   }
 }

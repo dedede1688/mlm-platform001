@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { logger } from '@/lib/logger'
 
 // 角色等级（用于判断升降级）
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -202,7 +203,7 @@ export async function PUT(
       message: '资料修改成功',
     })
   } catch (error) {
-    console.error('Update profile error:', error)
+    logger.error('Update profile error:', error)
     return NextResponse.json(
       { success: false, message: error instanceof Error ? error.message : '资料修改失败' },
       { status: 500 }
