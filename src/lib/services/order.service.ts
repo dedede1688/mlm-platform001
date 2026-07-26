@@ -37,18 +37,18 @@ export class OrderService {
       throw new Error('每个订单只能购买一件商品')
     }
 
-    // 获取用户信息
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    })
+    // 获取用户信息和商品信息（并行）
+    const productIds = items.map(item => item.productId)
+    const [user, products] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+      }),
+      prisma.product.findMany({
+        where: { id: { in: productIds } },
+      }),
+    ])
 
     if (!user) throw new Error('用户不存在')
-
-    // 获取商品信息
-    const productIds = items.map(item => item.productId)
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-    })
 
     // 计算订单金额
     let totalAmount = 0

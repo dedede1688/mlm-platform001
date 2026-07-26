@@ -279,19 +279,38 @@ export class UserService {
     const validStatuses = ['paid', 'shipped', 'completed']
 
     for (const userId of uniqueUserIds) {
-      const ownSales = await client.order.aggregate({
-        where: {
-          userId,
-          status: { in: validStatuses },
-          rewardStatus: 'completed',
-        },
-        _sum: { payAmount: true },
-      })
+      const [ownSales, directChildren, upgradeProducts, directDistributorCount] = await Promise.all([
+        client.order.aggregate({
+          where: {
+            userId,
+            status: { in: validStatuses },
+            rewardStatus: 'completed',
+          },
+          _sum: { payAmount: true },
+        }),
+        client.user.findMany({
+          where: { referrerId: userId },
+          select: { id: true },
+        }),
+        client.orderItem.aggregate({
+          where: {
+            order: {
+              userId,
+              status: { in: validStatuses },
+              rewardStatus: 'completed',
+            },
+            product: { isUpgradeProduct: true },
+          },
+          _sum: { quantity: true },
+        }),
+        client.user.count({
+          where: {
+            referrerId: userId,
+            level: { gte: MEMBER_LEVELS.DISTRIBUTOR },
+          },
+        }),
+      ])
 
-      const directChildren = await client.user.findMany({
-        where: { referrerId: userId },
-        select: { id: true },
-      })
       const directChildIds = directChildren.map((child) => child.id)
 
       const directChildrenSales = directChildIds.length > 0
@@ -304,25 +323,6 @@ export class UserService {
           _sum: { payAmount: true },
         })
         : { _sum: { payAmount: 0 } }
-
-      const upgradeProducts = await client.orderItem.aggregate({
-        where: {
-          order: {
-            userId,
-            status: { in: validStatuses },
-            rewardStatus: 'completed',
-          },
-          product: { isUpgradeProduct: true },
-        },
-        _sum: { quantity: true },
-      })
-
-      const directDistributorCount = await client.user.count({
-        where: {
-          referrerId: userId,
-          level: { gte: MEMBER_LEVELS.DISTRIBUTOR },
-        },
-      })
 
       await client.user.update({
         where: { id: userId },

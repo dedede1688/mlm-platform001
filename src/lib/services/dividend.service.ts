@@ -447,21 +447,23 @@ export class DividendService {
 
     if (!user) throw new Error('用户不存在')
 
-    const totalDividends = await prisma.dividend.aggregate({
-      where: { userId },
-      _sum: { amount: true },
-    })
-
-    const lastDividend = await prisma.dividend.findFirst({
-      where: { userId },
-      orderBy: { dividendDate: 'desc' },
-    })
+    const [totalDividends, lastDividend, totalCount] = await Promise.all([
+      prisma.dividend.aggregate({
+        where: { userId },
+        _sum: { amount: true },
+      }),
+      prisma.dividend.findFirst({
+        where: { userId },
+        orderBy: { dividendDate: 'desc' },
+      }),
+      prisma.dividend.count({ where: { userId } }),
+    ])
 
     return {
       totalAmount: totalDividends._sum.amount || 0,
       lastDividendDate: lastDividend?.dividendDate || null,
       lastAmount: lastDividend?.amount || 0,
-      totalCount: await prisma.dividend.count({ where: { userId } }),
+      totalCount,
     }
   }
 

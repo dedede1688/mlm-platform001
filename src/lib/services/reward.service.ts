@@ -106,13 +106,14 @@ export class RewardService {
   }
 
   static async getUserRewardStats(userId: string) {
-    const rewards = await prisma.reward.findMany({
-      where: { userId },
-    })
-
-    const dividends = await prisma.dividend.findMany({
-      where: { userId },
-    })
+    const [rewards, dividends] = await Promise.all([
+      prisma.reward.findMany({
+        where: { userId },
+      }),
+      prisma.dividend.findMany({
+        where: { userId },
+      }),
+    ])
 
     const paidRewards = rewards.filter(r => r.status === 'paid')
 
