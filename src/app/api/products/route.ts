@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { ProductService } from '@/lib/services/product.service'
 
@@ -15,15 +16,9 @@ export async function GET(request: NextRequest) {
       isUpgrade,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: result.products,
-    })
+    return successResponse(result.products)
   } catch (error) {
     logger.error('Get products error:', error)
-    return NextResponse.json(
-      { error: '获取商品列表失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取商品列表失败', 500)
   }
 }

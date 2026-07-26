@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { validateRefundApplication } from '@/lib/refunds/refund-validation'
@@ -12,10 +13,7 @@ export async function POST(
   try {
     const user = await verifyToken(request)
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const body = await request.json()
@@ -26,10 +24,7 @@ export async function POST(
     })
 
     if (!validation.success) {
-      return NextResponse.json(
-        { success: false, error: validation.error },
-        { status: 400 }
-      )
+      return errorResponse(validation.error, 400)
     }
 
     const normalized = validation.data
@@ -39,18 +34,11 @@ export async function POST(
       images: normalized.images ?? [],
     })
 
-    return NextResponse.json({
-      success: true,
-      data: refundRequest,
-      message: '退款申请已提交',
-    })
+    return successResponse(refundRequest, '退款申请已提交')
   } catch (error) {
     logger.error('Create refund request error:', error)
     const msg = error instanceof Error ? error.message : '申请退款失败'
-    return NextResponse.json(
-      { success: false, error: msg },
-      { status: 400 }
-    )
+    return errorResponse(msg, 400)
   }
 }
 
@@ -62,24 +50,15 @@ export async function GET(
   try {
     const user = await verifyToken(request)
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const refundRequests = await OrderLifecycleService.getOrderRefunds(orderId, user.userId, user.role)
 
-    return NextResponse.json({
-      success: true,
-      data: refundRequests,
-    })
+    return successResponse(refundRequests)
   } catch (error) {
     logger.error('Get refund requests error:', error)
     const msg = error instanceof Error ? error.message : '获取退款申请失败'
-    return NextResponse.json(
-      { success: false, error: msg },
-      { status: 403 }
-    )
+    return errorResponse(msg, 403)
   }
 }

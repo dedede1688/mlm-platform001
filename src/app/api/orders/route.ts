@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { OrderService } from '@/lib/services/order.service'
 import { verifyToken } from '@/lib/utils/auth'
-import { errorResponse } from '@/lib/api-response'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { logger } from '@/lib/logger'
 
@@ -20,10 +20,7 @@ export async function GET(request: NextRequest) {
 
     const result = await OrderService.getUserOrders(user.userId, status, page, limit)
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-    })
+    return successResponse(result)
   } catch (error) {
     logger.error('Get orders error:', error)
     return errorResponse('获取订单列表失败', 500)
@@ -68,10 +65,7 @@ export async function POST(request: NextRequest) {
       shippingAddress,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: order,
-    })
+    return successResponse(order)
   } catch (error: unknown) {
     logger.error('Create order error:', error)
     return errorResponse('创建订单失败', 500)

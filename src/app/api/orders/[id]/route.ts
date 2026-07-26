@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { OrderService } from '@/lib/services/order.service'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { verifyToken } from '@/lib/utils/auth'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 
 // 获取订单详情
@@ -13,27 +14,18 @@ export async function GET(
   try {
     const user = await verifyToken(request)
     if (!user) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const order = await OrderService.getOrderDetail(id)
 
     if (!order) {
-      return NextResponse.json(
-        { error: '订单不存在' },
-        { status: 404 }
-      )
+      return errorResponse('订单不存在', 404)
     }
 
     // 检查权限
     if (order.userId !== user.userId && !['super_admin', 'goods_admin', 'finance_admin', 'support_admin', 'auditor'].includes(user.role || '')) {
-      return NextResponse.json(
-        { error: '无权查看' },
-        { status: 403 }
-      )
+      return errorResponse('无权查看', 403)
     }
 
     const publicOrder = {
@@ -77,16 +69,10 @@ export async function GET(
       })),
     }
 
-    return NextResponse.json({
-      success: true,
-      data: publicOrder,
-    })
+    return successResponse(publicOrder)
   } catch (error) {
     logger.error('Get order error:', error)
-    return NextResponse.json(
-      { error: '获取订单详情失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取订单详情失败', 500)
   }
 }
 
@@ -99,38 +85,25 @@ export async function POST(
   try {
     const user = await verifyToken(request)
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const body = await request.json()
     const { password } = body as { password: string }
 
     if (!password) {
-      return NextResponse.json(
-        { success: false, error: '请输入支付密码' },
-        { status: 400 }
-      )
+      return errorResponse('请输入支付密码', 400)
     }
 
     // 业务逻辑全部走Service
     const updatedOrder = await OrderLifecycleService.verifyPayment(orderId, user.userId, password)
 
-    return NextResponse.json({
-      success: true,
-      data: updatedOrder,
-      message: '支付成功',
-    })
+    return successResponse(updatedOrder, '支付成功')
   } catch (error: unknown) {
     logger.error('Pay order error:', error)
     const msg = error instanceof Error ? error.message : '支付失败'
     const status = msg === '支付密码错误' ? 401 : 500
-    return NextResponse.json(
-      { success: false, error: msg },
-      { status }
-    )
+    return errorResponse(msg, status)
   }
 }
 
@@ -143,40 +116,25 @@ export async function PUT(
   try {
     const user = await verifyToken(request)
     if (!user) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const order = await OrderService.getOrderDetail(id)
 
     if (!order) {
-      return NextResponse.json(
-        { error: '订单不存在' },
-        { status: 404 }
-      )
+      return errorResponse('订单不存在', 404)
     }
 
     if (order.userId !== user.userId) {
-      return NextResponse.json(
-        { error: '无权操作' },
-        { status: 403 }
-      )
+      return errorResponse('无权操作', 403)
     }
 
     const updatedOrder = await OrderLifecycleService.completeOrder(id)
 
-    return NextResponse.json({
-      success: true,
-      data: updatedOrder,
-    })
+    return successResponse(updatedOrder)
   } catch (error: unknown) {
     logger.error('Complete order error:', error)
-    return NextResponse.json(
-      { error: '确认收货失败' },
-      { status: 500 }
-    )
+    return errorResponse('确认收货失败', 500)
   }
 }
 
@@ -189,39 +147,24 @@ export async function DELETE(
   try {
     const user = await verifyToken(request)
     if (!user) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const order = await OrderService.getOrderDetail(id)
 
     if (!order) {
-      return NextResponse.json(
-        { error: '订单不存在' },
-        { status: 404 }
-      )
+      return errorResponse('订单不存在', 404)
     }
 
     if (order.userId !== user.userId) {
-      return NextResponse.json(
-        { error: '无权操作' },
-        { status: 403 }
-      )
+      return errorResponse('无权操作', 403)
     }
 
     await OrderLifecycleService.cancelOrder(id)
 
-    return NextResponse.json({
-      success: true,
-      message: '订单已取消',
-    })
+    return successResponse(null, '订单已取消')
   } catch (error: unknown) {
     logger.error('Cancel order error:', error)
-    return NextResponse.json(
-      { error: '取消订单失败' },
-      { status: 500 }
-    )
+    return errorResponse('取消订单失败', 500)
   }
 }

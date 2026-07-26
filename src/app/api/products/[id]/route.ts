@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { ProductService } from '@/lib/services/product.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 
 export async function GET(
@@ -11,21 +12,12 @@ export async function GET(
     const product = await ProductService.getProductById(id)
 
     if (!product) {
-      return NextResponse.json(
-        { error: '商品不存在' },
-        { status: 404 }
-      )
+      return errorResponse('商品不存在', 404)
     }
 
-    return NextResponse.json({
-      success: true,
-      data: product,
-    })
+    return successResponse(product)
   } catch (error) {
     logger.error('Get product error:', error)
-    return NextResponse.json(
-      { error: '获取商品详情失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取商品详情失败', 500)
   }
 }
