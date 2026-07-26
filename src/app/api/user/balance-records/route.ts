@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { logger } from '@/lib/logger'
 
@@ -20,40 +20,15 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') || undefined
     const endDate = searchParams.get('endDate') || undefined
 
-    const skip = (page - 1) * limit
-
-    const where: Record<string, unknown> = { userId: auth.userId }
-    if (type) {
-      const types = type.split(',')
-      where.type = types.length === 1 ? types[0] : { in: types }
-    }
-    if (startDate || endDate) {
-      where.createdAt = {}
-      if (startDate) (where.createdAt as Record<string, unknown>).gte = new Date(startDate)
-      if (endDate) (where.createdAt as Record<string, unknown>).lte = new Date(endDate)
-    }
-
-    const [records, total] = await Promise.all([
-      prisma.balanceRecord.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.balanceRecord.count({ where }),
-    ])
+    const result = await UserService.getUserBalanceRecords(auth.userId, page, limit, {
+      type,
+      startDate,
+      endDate,
+    })
 
     return NextResponse.json({
       success: true,
-      data: {
-        records,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      },
+      data: result,
     })
   } catch (error) {
     logger.error('Get balance records error:', error)

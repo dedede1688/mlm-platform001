@@ -1,12 +1,9 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { AddressService } from '@/lib/services/address.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
-
-// 限制：每个用户最多 20 个地址
-const MAX_ADDRESSES_PER_USER = 20
 
 // 字段校验
 function validateAddressInput(body: Record<string, unknown>): { ok: true; data: Required<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
@@ -46,10 +43,7 @@ export async function GET(request: NextRequest) {
       return errorResponse('未登录', 401)
     }
 
-    const addresses = await prisma.address.findMany({
-      where: { userId: user.userId },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-    })
+    const addresses = await AddressService.getAddresses(user.userId)
 
     return successResponse(addresses)
   } catch (error) {
@@ -74,40 +68,7 @@ export async function POST(request: NextRequest) {
     }
     const data = validation.data
 
-    // 检查数量限制
-    const count = await prisma.address.count({ where: { userId: user.userId } })
-    if (count >= MAX_ADDRESSES_PER_USER) {
-      return errorResponse(`每个用户最多 ${MAX_ADDRESSES_PER_USER} 个地址`, 400)
-    }
-
-    // 事务：如果 isDefault，先把这个用户的其他地址都设为非默认
-    const address = await prisma.$transaction(async (tx) => {
-      if (data.isDefault) {
-        await tx.address.updateMany({
-          where: { userId: user.userId, isDefault: true },
-          data: { isDefault: false },
-        })
-      }
-
-      // 如果是第一个地址，自动设为默认
-      let isDefault = data.isDefault
-      if (count === 0) {
-        isDefault = true
-      }
-
-      return await tx.address.create({
-        data: {
-          userId: user.userId,
-          recipientName: data.recipientName,
-          phone: data.phone,
-          province: data.province,
-          city: data.city,
-          district: data.district,
-          detailAddress: data.detailAddress,
-          isDefault,
-        },
-      })
-    })
+    const address = await AddressService.createAddress(user.userId, data)
 
     await logOperation({
       userId: user.userId,
@@ -122,6 +83,7 @@ export async function POST(request: NextRequest) {
     return successResponse(address, '地址添加成功')
   } catch (error) {
     logger.error('新建地址失败:', error)
-    return errorResponse('新建地址失败', 500)
+    const message = error instanceof Error ? error.message : '新建地址失败'
+    return errorResponse(message, 500)
   }
 }

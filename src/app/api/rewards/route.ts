@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { RewardService } from '@/lib/services/reward.service'
-import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { logger } from '@/lib/logger'
 
@@ -18,30 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || undefined
 
-    const rewards = await prisma.reward.findMany({
-      where: {
-        userId: auth.userId,
-        ...(type && { type }),
-        // v50 O: 过滤掉已退款的奖励记录（退款时 reward.service 已标记 status='refunded'）
-        status: { not: 'refunded' },
-      },
-      include: {
-        order: {
-          select: {
-            orderNo: true,
-            payAmount: true,
-          },
-        },
-        fromUser: {
-          select: {
-            id: true,
-            phone: true,
-            nickname: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    const rewards = await RewardService.getUserRewards(auth.userId, type)
 
     return NextResponse.json({
       success: true,

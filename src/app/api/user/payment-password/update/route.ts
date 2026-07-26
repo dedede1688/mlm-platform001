@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import {
@@ -35,13 +35,9 @@ export async function PUT(request: NextRequest) {
       return errorResponse('支付密码至少6位，必须同时包含字母和数字', 400)
     }
 
-    // 查用户当前 hash
-    const currentUser = await prisma.user.findUnique({
-      where: { id: user.userId },
-      select: { paymentPasswordHash: true },
-    })
-
-    if (!currentUser?.paymentPasswordHash) {
+    // 获取用户当前 hash
+    const currentHash = await UserService.getPaymentPasswordHash(user.userId)
+    if (!currentHash) {
       return errorResponse('尚未设置支付密码，请先设置', 400)
     }
 
@@ -52,7 +48,7 @@ export async function PUT(request: NextRequest) {
 
     const valid = await verifyPaymentPassword(
       oldPassword,
-      currentUser.paymentPasswordHash
+      currentHash
     )
     if (!valid) {
       const result = await incrementFailedAttempt(user.userId)
@@ -67,10 +63,7 @@ export async function PUT(request: NextRequest) {
 
     // 更新为新密码
     const newHash = await hashPaymentPassword(newPassword)
-    await prisma.user.update({
-      where: { id: user.userId },
-      data: { paymentPasswordHash: newHash },
-    })
+    await UserService.setPaymentPasswordHash(user.userId, newHash)
 
     return successResponse(null, '支付密码修改成功')
   } catch (error: unknown) {

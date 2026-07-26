@@ -1,8 +1,8 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
+import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
-import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 
@@ -61,12 +61,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: auth.userId },
-      select: { paymentPasswordHash: true },
-    })
-
-    if (!user?.paymentPasswordHash) {
+    const paymentPasswordHash = await UserService.getPaymentPasswordHash(auth.userId)
+    if (!paymentPasswordHash) {
       return NextResponse.json(
         { error: '请先设置支付密码' },
         { status: 400 }
@@ -81,7 +77,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const isValid = await verifyPaymentPassword(paymentPassword, user.paymentPasswordHash)
+    const isValid = await verifyPaymentPassword(paymentPassword, paymentPasswordHash)
     if (!isValid) {
       const result = await incrementFailedAttempt(auth.userId)
       if (result.locked) {

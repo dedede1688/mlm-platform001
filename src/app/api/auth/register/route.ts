@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { UserService } from '@/lib/services/user.service'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
@@ -28,6 +27,10 @@ const registerSchema = z.object({
     .optional()
     .or(z.literal('')),
 })
+
+function isPrismaP2002(err: unknown): boolean {
+  return err instanceof Error && 'code' in err && (err as Record<string, unknown>).code === 'P2002'
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    if (isPrismaP2002(error)) {
       return NextResponse.json(
         { success: false, message: '该手机号已注册' },
         { status: 400 }
