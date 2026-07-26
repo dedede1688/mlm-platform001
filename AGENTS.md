@@ -1208,3 +1208,215 @@ try {
 ```
 ❌ 事项 1 要不要推？事项 2 要不要提交？事项 3 要不要启动？事项 4 要不要开始？
 ```
+
+---
+
+## 🏗️ D 系列架构规范（2026-07-27 沉淀，D-5~D-17 实战总结）
+
+以下规范是 D 系列批量重构（59 条 admin 路由、17 个 Service 文件）的产出，
+**任何新增或修改 admin API 路由必须遵守**。
+
+### 1. 路由三层架构
+
+```
+Route（薄层）      → 只做：鉴权 + Zod 入参校验 + 调 Service + 返回响应
+Service（厚层）    → 业务逻辑、数据库操作、事务、通知
+Prisma（底层）     → 只在 Service 中使用，路由层禁止直接调用
+```
+
+**路由层模板**：
+```typescript
+import { verifyPermission } from '@/lib/utils/admin-auth'
+import { XxxService } from '@/lib/services/xxx.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
+import { parseBody } from '@/lib/validations/helper'
+import { xxxSchema } from '@/lib/validations/admin/xxx'
+
+export async function POST(request: NextRequest) {
+  try {
+    // 1. 鉴权
+    const { user, error } = await verifyPermission(request, ['xxx_admin'])
+    if (error || !user) return error!
+
+    // 2. Zod 校验
+    const { data, error: parseError } = await parseBody(xxxSchema, request)
+    if (parseError) return parseError
+
+    // 3. 调 Service
+    const result = await XxxService.create(data, user.id)
+
+    // 4. 操作日志
+    await logOperation({ userId: user.id, action: 'CREATE', module: 'xxx', targetId: result.id })
+
+    // 5. 返回
+    return successResponse(result, '创建成功')
+  } catch (error) {
+    logger.error('XXX create error:', error)
+    return errorResponse(error instanceof Error ? error.message : '创建失败', 500)
+  }
+}
+```
+
+### 2. Zod 入参校验（替代手写 if/else）
+
+```typescript
+// lib/validations/admin/xxx.ts
+import { z } from 'zod'
+
+export const createProductSchema = z.object({
+  name: z.string().min(1, '商品名不能为空'),
+  price: z.number().positive('价格必须大于0'),
+  status: z.enum(['active', 'inactive']).default('active'),
+})
+
+export type CreateProductInput = z.infer<typeof createProductSchema>
+```
+
+```typescript
+// 路由中使用
+import { parseBody } from '@/lib/validations/helper'
+import { createProductSchema } from '@/lib/validations/admin/products'
+
+const { data, error: parseError } = await parseBody(createProductSchema, request)
+if (parseError) return parseError  // 自动返回 400 + 中文错误信息
+```
+
+**规则**：
+- 每个 route.ts 的入参必须有 Zod schema
+- 复用 `parseBody` / `parseQuery` / `parseParams` 工具函数
+- Schema 文件放在 `src/lib/validations/admin/<module>.ts`
+
+### 3. API 响应标准化
+
+```typescript
+import { errorResponse, successResponse } from '@/lib/api-response'
+
+// 成功
+return successResponse(data)                          // 200 { success: true, data }
+return successResponse(data, '创建成功')               // 200 { success: true, data, message }
+return successResponse(data, null, { page, total })   // 200 { success: true, data, pagination }
+
+// 失败
+return errorResponse('商品不存在', 404)                // 404 { success: false, error }
+return errorResponse('无权操作', 403)                  // 403 { success: false, error }
+```
+
+**绝对禁止**：
+- ❌ `NextResponse.json({ ... })` — 直接构造响应
+- ❌ `return new Response(JSON.stringify(...))` — 手动序列化
+- ✅ 统一使用 `errorResponse` / `successResponse`
+
+### 4. Console → Logger
+
+```typescript
+import { logger } from '@/lib/logger'
+
+// ✅ 正确
+logger.info('用户登录', { userId: user.id })
+logger.error('支付失败', error)
+logger.warn('库存不足', { productId, stock })
+
+// ❌ 禁止
+console.log('xxx')
+console.error('xxx')
+```
+
+### 5. Prisma 错误处理标准
+
+```typescript
+import { handlePrismaError } from '@/lib/utils/prisma-errors'
+
+try {
+  await prisma.xxx.create({ data })
+} catch (error) {
+  const appError = handlePrismaError(error)
+  // P2002 → 409 "XXX 已存在"
+  // P2025 → 404 "记录不存在"
+  // 其他  → 500 "数据库操作失败"
+  return errorResponse(appError.message, appError.status)
+}
+```
+
+### 6. 动态导入懒加载（性能优化）
+
+```typescript
+import dynamic from 'next/dynamic'
+
+// 重型组件（图表库、富文本编辑器、弹窗）用 dynamic 懒加载
+const ProductForm = dynamic(() => import('./_components/ProductForm'), {
+  ssr: false,
+  loading: () => <div className="animate-pulse">加载中...</div>,
+})
+```
+
+**适用场景**：
+- `recharts` / `chart.js` 等图表库
+- `RichTextEditor` / `CodeMirror` 等编辑器
+- 弹窗/模态框（只在打开时需要）
+- 树形组件（ReferralTree 等大数据渲染）
+
+### 7. 系统参数注册
+
+新增后台可配参数时：
+1. 在 `SystemParameterKey` 联合类型中添加 key
+2. 在 `SYSTEM_PARAMETERS` 注册表中添加定义
+3. 在业务代码中用 `getSystemParameter('xxx.yyy')` 读取
+
+```typescript
+// 1. 类型声明
+export type SystemParameterKey = ...
+  | 'dividend.settlement_paused'
+
+// 2. 注册表
+export const SYSTEM_PARAMETERS = {
+  'dividend.settlement_paused': {
+    key: 'dividend.settlement_paused', type: 'boolean', defaultValue: true,
+    unit: '-', group: 'dividend',
+    description: '分红周结暂停开关',
+  },
+}
+
+// 3. 使用
+const paused = await getSystemParameter('dividend.settlement_paused') as boolean
+```
+
+### 8. 派单前检查清单（D 系列总结）
+
+| # | 检查项 | 命令/方法 |
+|---|--------|----------|
+| 1 | 路由有鉴权 | grep `verifyPermission` 目标路由 |
+| 2 | 入参有 Zod | grep `parseBody\|xxxSchema` 目标路由 |
+| 3 | 响应标准化 | grep `errorResponse\|successResponse`，禁 `NextResponse.json` |
+| 4 | 无 Prisma 直调 | 路由层不得出现 `prisma.` |
+| 5 | 无 console | grep `console\.`，全部改用 `logger.` |
+| 6 | 无 $queryRaw | grep `\$queryRaw`，铁律 5 |
+| 7 | 状态变更通知 | 涉及状态变更的路由必须有 `sendInApp` 或 `NotificationService` |
+| 8 | tsc 0 错误 | `npx tsc --noEmit` |
+| 9 | build 0 错误 | `pnpm build` |
+| 10 | 远程 commit 一致 | `git log origin/main --oneline -1` |
+
+---
+
+## 📅 变更日志（续）
+
+### 2026-07-27 — D 系列架构重构 + A-2 审计 + B 性能优化
+
+| 版本 | 内容 | commit |
+|------|------|--------|
+| D-5 | 16 条 admin list 路由 Service 层迁移 | - |
+| D-6 | 动态路由 Prisma 直调迁移到 Service | `56d3b46` `b7dd3f8` |
+| D-7 | 30 条路由响应标准化（errorResponse/successResponse） | `24fb37d` `44b4b87` `9ef4d30` |
+| D-8 | 分页响应格式 + settings 类型修复 | `2d05025` `bdd6aed` |
+| D-9 | 17 条 admin 路由 Zod 入参校验统一 | `7b7f2bd` |
+| D-10 | 37 个文件 console→logger 清理 | `e305dd7` |
+| D-11 | products/users/withdrawals/orders 路由 Zod 化 | `1f0df55` `346d98e` |
+| D-12 | Prisma 错误处理标准化（P2002/P2025） | `f3818e5` |
+| D-13 | API 响应格式统一（4 条用户端路由） | `7987966` |
+| D-14 | 结构化错误码替代字符串匹配 | `7650435` |
+| D-15 | JWT 过期时间对齐 cookie maxAge | `a5a9243` |
+| D-16 | RewardService 返回类型修复 + rewards 路由重构 | `8cc53b4` |
+| D-17 | __tests__ 目录排除 tsc 类型检查 | `114c89e` |
+| E-1 | 测试修复（1064/1064 全绿） | `f3818e5` `418c0ce` |
+| A-2 | 分红周结暂停改为后台系统参数可配置 | `79452f0` |
+| B | 性能优化：懒加载重型组件（admin/products -92%、dashboard -91%） | `08aa539` |
+| C | 文档同步：D 系列架构规范写入 AGENTS.md | *本次* |
