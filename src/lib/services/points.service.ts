@@ -434,6 +434,10 @@ export class PointsService {
         select: { totalPoints: true, unlockedPoints: true, lockedPoints: true },
       })
 
+      if (!afterUser) {
+        throw new Error(`????????? ${userId} ??????????????`)
+      }
+
       await tx.pointsRecord.create({
         data: {
           userId,
@@ -441,9 +445,9 @@ export class PointsService {
           amount: -totalVoid,
           sourceId: orderId,
           description: `退款冲销升级积分（${group.length}个解锁计划，总积分${totalVoid}）`,
-          totalPoints: afterUser?.totalPoints ?? 0,
-          unlockedPoints: afterUser?.unlockedPoints ?? 0,
-          lockedPoints: afterUser?.lockedPoints ?? 0,
+          totalPoints: afterUser.totalPoints,
+          unlockedPoints: afterUser.unlockedPoints,
+          lockedPoints: afterUser.lockedPoints,
         },
       })
     }
