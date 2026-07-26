@@ -1,6 +1,7 @@
 ﻿import { NextRequest } from "next/server"
 import { UserService } from "@/lib/services/user.service"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { AppErrorCode } from "@/lib/utils/error-codes"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
@@ -43,14 +44,14 @@ export async function POST(request: NextRequest) {
     if (!validationResult.success) {
       const errors = validationResult.error.issues
       const firstError = errors[0]?.message || "输入参数错误"
-      return errorResponse(firstError, 400)
+      return errorResponse(firstError, 400, { code: AppErrorCode.VALIDATION_ERROR })
     }
 
     const { phone, password, nickname, referrerCode } = validationResult.data
 
     const existingUser = await UserService.findByPhone(phone)
     if (existingUser) {
-      return errorResponse("该手机号已注册", 400)
+      return errorResponse("该手机号已注册", 400, { code: AppErrorCode.RESOURCE_CONFLICT })
     }
 
     let referrerId: string | undefined
@@ -80,10 +81,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const prismaErr = handlePrismaError(error)
     if (prismaErr) {
-      return errorResponse(prismaErr.message, prismaErr.status)
+      return errorResponse(prismaErr.message, prismaErr.status, { code: AppErrorCode.RESOURCE_CONFLICT })
     }
     logger.error("Register error:", error)
     const errMsg = error instanceof Error ? error.message : "未知错误"
-    return errorResponse(`注册失败：${errMsg}`, 500)
+    return errorResponse(`注册失败：${errMsg}`, 500, { code: AppErrorCode.INTERNAL_ERROR })
   }
 }
