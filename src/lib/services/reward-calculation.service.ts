@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+﻿import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { UserService } from './user.service'
 import { MEMBER_LEVELS, BALANCE_SELECT } from '@/lib/constants'
@@ -32,23 +32,27 @@ async function findBrandBonusRecipients(
   tx: RewardQueryClient
 ): Promise<Array<{ userId: string; layer: number }>> {
   const recipients: Array<{ userId: string; layer: number }> = []
-  let currentId: string | null = buyerId
   let layer = 0
   const visited = new Set<string>()
   const MAX_DEPTH = 50
 
-  while (layer < maxLayers && currentId && recipients.length < MAX_DEPTH) {
-    const user: { parentId: string | null } | null = await tx.user.findUnique({
-      where: { id: currentId },
-      select: { parentId: true },
-    })
-    if (!user?.parentId) break
-    if (visited.has(user.parentId)) break
-    visited.add(user.parentId)
+  // Seed: get buyer's parentId (single query)
+  const seed = await tx.user.findUnique({
+    where: { id: buyerId },
+    select: { parentId: true },
+  })
+  if (!seed?.parentId) return recipients
 
-    const parent = await tx.user.findUnique({
-      where: { id: user.parentId },
-      select: { id: true, level: true },
+  let nextParentId: string | null = seed.parentId
+
+  // Walk parent chain: 1 query/level instead of 2 (combined parentId fetch)
+  while (layer < maxLayers && nextParentId && recipients.length < MAX_DEPTH) {
+    if (visited.has(nextParentId)) break
+    visited.add(nextParentId)
+
+    const parent: { id: string; level: number; parentId: string | null } | null = await tx.user.findUnique({
+      where: { id: nextParentId },
+      select: { id: true, level: true, parentId: true },
     })
     if (!parent) break
 
@@ -57,7 +61,7 @@ async function findBrandBonusRecipients(
       recipients.push({ userId: parent.id, layer })
     }
 
-    currentId = user.parentId
+    nextParentId = parent.parentId
   }
 
   return recipients
@@ -282,38 +286,44 @@ export class RewardCalculationService {
             const perUserAmount = Math.round((totalPool / poolMembers.length) * 100) / 100
             const poolType = POOL_TYPE_MAP[pool.level]
 
-            const dividendRecords: Array<{ id: string; userId: string; amount: number }> = []
+            // Parallelize dividend + reward creates (was serial N+1)
+            const createdDividends = await Promise.all(
+              poolMembers.map(member =>
+                tx.dividend.create({
+                  data: {
+                    userId: member.userId,
+                    orderId,
+                    amount: perUserAmount,
+                    userLevel: member.level,
+                    totalPool,
+                    dividendDate: new Date(),
+                    settled: true,
+                    settleDate: new Date(),
+                    settleBatchId: null,
+                    refundedAt: null,
+                    poolType,
+                  },
+                })
+              )
+            )
+            const dividendRecords = createdDividends.map(d => ({ id: d.id, userId: d.userId, amount: d.amount }))
+
+            await Promise.all(
+              poolMembers.map(member =>
+                tx.reward.create({
+                  data: {
+                    userId: member.userId,
+                    type: 'dividend',
+                    orderId,
+                    amount: perUserAmount,
+                    status: 'paid',
+                    idempotencyKey: `${orderId}:dividend:${member.userId}:${poolType}`,
+                  },
+                })
+              )
+            )
 
             for (const member of poolMembers) {
-              const dividend = await tx.dividend.create({
-                data: {
-                  userId: member.userId,
-                  orderId,
-                  amount: perUserAmount,
-                  userLevel: member.level,
-                  totalPool,
-                  dividendDate: new Date(),
-                  settled: true,
-                  settleDate: new Date(),
-                  settleBatchId: null,
-                  refundedAt: null,
-                  poolType,
-                },
-              })
-              dividendRecords.push({ id: dividend.id, userId: dividend.userId, amount: dividend.amount })
-
-              const dividendIdempotencyKey = `${orderId}:dividend:${member.userId}:${poolType}`
-              await tx.reward.create({
-                data: {
-                  userId: member.userId,
-                  type: 'dividend',
-                  orderId,
-                  amount: perUserAmount,
-                  status: 'paid',
-                  idempotencyKey: dividendIdempotencyKey,
-                },
-              })
-
               userEarningsDelta[member.userId] = (userEarningsDelta[member.userId] || 0) + perUserAmount
               allUserIds.add(member.userId)
             }
@@ -351,14 +361,14 @@ export class RewardCalculationService {
           }
         }
 
+        // Use updateMany (atomic) instead of findUnique + update (saves N queries)
         for (const [userId, delta] of Object.entries(userEarningsDelta)) {
           if (delta > 0) {
-            const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true } })
-            if (!user) throw new Error(`用户 ${userId} 不存在`)
-            await tx.user.update({
+            const result = await tx.user.updateMany({
               where: { id: userId },
               data: { earningsAvailable: { increment: delta } },
             })
+            if (result.count === 0) throw new Error(`用户 ${userId} 不存在`)
           }
         }
 
