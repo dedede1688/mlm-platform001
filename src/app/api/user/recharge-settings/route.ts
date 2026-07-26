@@ -1,20 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { RechargeService } from '@/lib/services/recharge.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 })
+      return errorResponse('未登录', 401)
     }
 
     const settings = await RechargeService.getRechargeSettings()
 
-    return NextResponse.json({ success: true, data: settings })
+    return successResponse(settings)
   } catch (error) {
     logger.error('Get recharge settings error:', error)
-    return NextResponse.json({ error: '获取充值设置失败' }, { status: 500 })
+    return errorResponse('获取充值设置失败', 500)
   }
 }

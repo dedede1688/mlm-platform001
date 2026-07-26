@@ -1,16 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json(
-        { success: false, message: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const { searchParams } = new URL(request.url)
@@ -26,15 +24,9 @@ export async function GET(request: NextRequest) {
       endDate,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: result,
-    })
+    return successResponse(result)
   } catch (error) {
     logger.error('Get balance records error:', error)
-    return NextResponse.json(
-      { success: false, message: '获取余额流水失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取余额流水失败', 500)
   }
 }

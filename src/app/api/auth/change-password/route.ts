@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { AuthService } from '@/lib/services/auth.service'
-import { errorResponse } from '@/lib/api-response'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 
 // POST /api/auth/change-password — 用户改密（需登录 + 旧密码 + 新密码）
@@ -37,10 +37,7 @@ export async function POST(request: NextRequest) {
       newPassword,
     })
 
-    return NextResponse.json({
-      success: true,
-      message: '密码修改成功',
-    })
+    return successResponse(null, '密码修改成功')
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : '未知错误'
     // 业务错误返回 400，系统错误返回 500

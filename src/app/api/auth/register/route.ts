@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { UserService } from '@/lib/services/user.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
@@ -45,20 +46,14 @@ export async function POST(request: NextRequest) {
     if (!validationResult.success) {
       const errors = validationResult.error.issues
       const firstError = errors[0]?.message || '输入参数错误'
-      return NextResponse.json(
-        { success: false, message: firstError },
-        { status: 400 }
-      )
+      return errorResponse(firstError, 400)
     }
 
     const { phone, password, nickname, referrerCode } = validationResult.data
 
     const existingUser = await UserService.findByPhone(phone)
     if (existingUser) {
-      return NextResponse.json(
-        { success: false, message: '该手机号已注册' },
-        { status: 400 }
-      )
+      return errorResponse('该手机号已注册', 400)
     }
 
     let referrerId: string | undefined
@@ -79,28 +74,18 @@ export async function POST(request: NextRequest) {
       referrerId,
     })
 
-    return NextResponse.json({
-      success: true,
-      message: '注册成功',
-      data: {
-        id: user.id,
-        phone: user.phone,
-        nickname: user.nickname,
-        level: user.level,
-      },
-    })
+    return successResponse({
+      id: user.id,
+      phone: user.phone,
+      nickname: user.nickname,
+      level: user.level,
+    }, '注册成功')
   } catch (error) {
     if (isPrismaP2002(error)) {
-      return NextResponse.json(
-        { success: false, message: '该手机号已注册' },
-        { status: 400 }
-      )
+      return errorResponse('该手机号已注册', 400)
     }
     logger.error('Register error:', error)
     const errMsg = error instanceof Error ? error.message : '未知错误'
-    return NextResponse.json(
-      { success: false, message: `注册失败：${errMsg}` },
-      { status: 500 }
-    )
+    return errorResponse(`注册失败：${errMsg}`, 500)
   }
 }

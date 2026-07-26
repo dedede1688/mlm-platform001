@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { generateToken } from '@/lib/utils/auth'
-import { errorResponse } from '@/lib/api-response'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { UserService } from '@/lib/services/user.service'
@@ -56,22 +56,21 @@ export async function POST(request: NextRequest) {
     const maskedPhone = phone.slice(0, 3) + '****' + phone.slice(-2)
     logger.info(`[Login] user=${maskedPhone} role=${user.role}`, { event: 'login_success', role: user.role, userId: user.id })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        token,
-        user: {
-          id: user.id,
-          phone: user.phone,
-          nickname: user.nickname,
-          level: user.level,
-          role: user.role,
-          balance: user.balance,
-          totalPoints: user.totalPoints,
-          unlockedPoints: user.unlockedPoints,
-        },
+    const response = successResponse({
+      token,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        nickname: user.nickname,
+        level: user.level,
+        role: user.role,
+        balance: user.balance,
+        totalPoints: user.totalPoints,
+        unlockedPoints: user.unlockedPoints,
       },
     })
+    setAuthCookie(response, token)
+    return response
   } catch (error) {
     logger.error('[Login] 登录失败', { event: 'login_error', errType: error instanceof Error ? error.constructor.name : typeof error })
     return errorResponse('登录失败，请稍后重试', 500)

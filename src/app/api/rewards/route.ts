@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { RewardService } from '@/lib/services/reward.service'
 import { verifyToken } from '@/lib/utils/auth'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 
 // 获取用户的奖励记录
@@ -8,10 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const { searchParams } = new URL(request.url)
@@ -19,16 +17,10 @@ export async function GET(request: NextRequest) {
 
     const rewards = await RewardService.getUserRewards(auth.userId, type)
 
-    return NextResponse.json({
-      success: true,
-      data: rewards,
-    })
+    return successResponse(rewards)
   } catch (error) {
     logger.error('Get rewards error:', error)
-    return NextResponse.json(
-      { error: '获取奖励记录失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取奖励记录失败', 500)
   }
 }
 
@@ -37,23 +29,14 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+      return errorResponse('未登录', 401)
     }
 
     const stats = await RewardService.getUserRewardStats(auth.userId)
 
-    return NextResponse.json({
-      success: true,
-      data: stats,
-    })
+    return successResponse(stats)
   } catch (error) {
     logger.error('Get reward stats error:', error)
-    return NextResponse.json(
-      { error: '获取奖励统计失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取奖励统计失败', 500)
   }
 }

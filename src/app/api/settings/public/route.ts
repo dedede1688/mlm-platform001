@@ -1,29 +1,17 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
+import { SettingsService } from '@/lib/services/settings.service'
+import { BannerService } from '@/lib/services/banner.service'
 
-// 强制动态渲染，禁止任何缓存，确保管理后台修改的设置能立即在前台生效
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// 获取公开系统配置（非敏感信息）
 export async function GET() {
   try {
-    // 使用 findUnique 精确查询，避免返回错误记录
-    const config = await prisma.systemConfig.findUnique({
-      where: { key: 'site_settings' },
-    })
-
-    // 读取积分转赠手续费配置（让前端弹窗跟随后台配置变化）
-    const feeConfig = await prisma.systemConfig.findUnique({
-      where: { key: 'points.transfer_fee_percent' },
-    })
+    const config = await SettingsService.getSiteSettings()
+    const feeConfig = await SettingsService.getConfig('points.transfer_fee_percent')
     const pointsTransferFeePercent = feeConfig ? parseInt(feeConfig.value, 10) || 10 : 10
-
-    // 从独立 banners 表查询轮播图
-    const bannerRecords = await prisma.banners.findMany({
-      orderBy: { order: 'asc' },
-    })
+    const bannerRecords = await BannerService.getAll()
     const banners = bannerRecords.map(record => ({
       id: record.id,
       imageUrl: record.image_url,
@@ -34,64 +22,52 @@ export async function GET() {
     }))
 
     if (!config) {
-      // 返回默认值（注意：logoUrl 为空字符串，前端会用 logo.svg 兜底）
-      return NextResponse.json({
-        success: true,
-        data: {
-          siteName: '敏维科技',
-          logoUrl: '',
-          contactPhone: '18566793066',
-          serviceEmail: '381901944@qq.com',
-          serviceTime: '周一至周日 9:00-21:00',
-          companyName: '广州敏维科技有限公司',
-          companyAddress: '广州市花都区金谷南路',
-          icp: '粤ICP备XXXXXXXX号',
-          copyright: '2026',
-          aboutUs: null,
-          termsHtml: null,
-          privacyHtml: null,
-          helpFaq: [],
-          banners,
-          seoTitle: null,
-          seoDescription: null,
-          seoKeywords: null,
-          paymentProvider: 'mock',
-          pointsTransferFeePercent,
-        },
+      return successResponse({
+        siteName: '敏维科技',
+        logoUrl: '',
+        contactPhone: '18566793066',
+        serviceEmail: '381901944@qq.com',
+        serviceTime: '周一至周日 9:00-21:00',
+        companyName: '广州敏维科技有限公司',
+        companyAddress: '广州市花都区金谷南路',
+        icp: '粤ICP备XXXXXX号',
+        copyright: '2026',
+        aboutUs: null,
+        termsHtml: null,
+        privacyHtml: null,
+        helpFaq: [],
+        banners,
+        seoTitle: null,
+        seoDescription: null,
+        seoKeywords: null,
+        paymentProvider: 'mock',
+        pointsTransferFeePercent,
       })
     }
 
-    // 返回非敏感配置（含关于我们公开内容）
-    return NextResponse.json({
-      success: true,
-      data: {
-        siteName: config.siteName ?? '敏维科技',
-        // logoUrl 为空时前端会用 logo.svg 兜底
-        logoUrl: config.logoUrl ?? '',
-        contactPhone: config.contactPhone ?? '18566793066',
-        serviceEmail: config.serviceEmail ?? '381901944@qq.com',
-        serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
-        companyName: config.companyName ?? '广州敏维科技有限公司',
-        companyAddress: config.companyAddress ?? '广州市花都区金谷南路',
-        icp: config.icp ?? '',
-        copyright: config.copyright ?? '2026',
-        aboutUs: config.aboutUs ?? null,
-        termsHtml: config.termsHtml ?? null,
-        privacyHtml: config.privacyHtml ?? null,
-        helpFaq: (config.helpFaq as Array<{ question: string; answer: string }>) ?? [],
-        banners,
-        seoTitle: config.seoTitle ?? null,
-        seoDescription: config.seoDescription ?? null,
-        seoKeywords: config.seoKeywords ?? null,
-        paymentProvider: config.paymentProvider ?? 'mock',
-        pointsTransferFeePercent,
-      },
+    return successResponse({
+      siteName: config.siteName ?? '敏维科技',
+      logoUrl: config.logoUrl ?? '',
+      contactPhone: config.contactPhone ?? '18566793066',
+      serviceEmail: config.serviceEmail ?? '381901944@qq.com',
+      serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
+      companyName: config.companyName ?? '广州敏维科技有限公司',
+      companyAddress: config.companyAddress ?? '广州市花都区金谷南路',
+      icp: config.icp ?? '',
+      copyright: config.copyright ?? '2026',
+      aboutUs: config.aboutUs ?? null,
+      termsHtml: config.termsHtml ?? null,
+      privacyHtml: config.privacyHtml ?? null,
+      helpFaq: (config.helpFaq as Array<{ question: string; answer: string }>) ?? [],
+      banners,
+      seoTitle: config.seoTitle ?? null,
+      seoDescription: config.seoDescription ?? null,
+      seoKeywords: config.seoKeywords ?? null,
+      paymentProvider: config.paymentProvider ?? 'mock',
+      pointsTransferFeePercent,
     })
   } catch (error) {
     logger.error('获取公开配置失败:', error)
-    return NextResponse.json(
-      { error: '获取配置失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取配置失败', 500)
   }
 }

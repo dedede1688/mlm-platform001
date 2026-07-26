@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/utils/auth'
 import { RechargeService } from '@/lib/services/recharge.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 })
+      return errorResponse('未登录', 401)
     }
 
     const { searchParams } = new URL(request.url)
@@ -31,16 +32,13 @@ export async function GET(request: NextRequest) {
       remark: r.remark,
     }))
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        requests: safeRequests,
-        pagination: result.pagination,
-      },
+    return successResponse({
+      requests: safeRequests,
+      pagination: result.pagination,
     })
   } catch (error) {
     logger.error('Get recharge requests error:', error)
-    return NextResponse.json({ error: '获取充值申请记录失败' }, { status: 500 })
+    return errorResponse('获取充值申请记录失败', 500)
   }
 }
 
@@ -48,7 +46,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 })
+      return errorResponse('未登录', 401)
     }
 
     const { amount, paymentProofUrl, remark } = await request.json()
@@ -80,10 +78,10 @@ export async function POST(request: NextRequest) {
       amount: recharge.amount,
     }).catch(() => {})
 
-    return NextResponse.json({ success: true, data: safeRecharge })
+    return successResponse(safeRecharge)
   } catch (error: unknown) {
     logger.error('Create recharge request error:', error)
     const message = error instanceof Error ? error.message : '创建充值申请失败'
-    return NextResponse.json({ error: message }, { status: 400 })
+    return errorResponse(message, 400)
   }
 }

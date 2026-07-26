@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '@/lib/utils/auth'
+import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { UserService } from '@/lib/services/user.service'
 
@@ -10,10 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { success: false, error: '未提供认证令牌' },
-        { status: 401 }
-      )
+      return errorResponse('未提供认证令牌', 401)
     }
 
     const token = authHeader.substring(7)
@@ -21,30 +19,18 @@ export async function GET(request: NextRequest) {
     try {
       payload = jwt.verify(token, JWT_SECRET) as AuthUser
     } catch {
-      return NextResponse.json(
-        { success: false, error: '令牌无效或已过期' },
-        { status: 401 }
-      )
+      return errorResponse('令牌无效或已过期', 401)
     }
 
     const user = await UserService.getUserById(payload.userId)
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: '用户不存在' },
-        { status: 404 }
-      )
+      return errorResponse('用户不存在', 404)
     }
 
-    return NextResponse.json({
-      success: true,
-      data: user,
-    })
+    return successResponse(user)
   } catch (error) {
     logger.error('Get current user error:', error)
-    return NextResponse.json(
-      { success: false, error: '获取用户信息失败' },
-      { status: 500 }
-    )
+    return errorResponse('获取用户信息失败', 500)
   }
 }
