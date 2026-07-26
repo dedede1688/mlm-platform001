@@ -67,19 +67,28 @@ export class DividendService {
         throw new Error('今日分红已快照，不可重复生成')
       }
 
-      // 2. 获取当日所有已支付订单
-      const paidOrders = await tx.order.findMany({
-        where: {
-          status: 'paid',
-          paidAt: {
-            gte: today,
-            lte: todayEnd,
+      // 2. 获取当日已支付订单的聚合统计（D-3: 下推 DB，避免拉全量订单）
+      const [orderAgg, firstOrder] = await Promise.all([
+        tx.order.aggregate({
+          _sum: { payAmount: true },
+          _count: { id: true },
+          where: {
+            status: 'paid',
+            paidAt: { gte: today, lte: todayEnd },
           },
-        },
-      })
+        }),
+        tx.order.findFirst({
+          where: {
+            status: 'paid',
+            paidAt: { gte: today, lte: todayEnd },
+          },
+          select: { id: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ])
 
-      // 3. v50 B: 计算总订单金额 + 5 级独立池
-      const totalOrderAmount = paidOrders.reduce((sum, order) => sum + order.payAmount, 0)
+      const totalOrders = orderAgg._count.id ?? 0
+      const totalOrderAmount = orderAgg._sum.payAmount ?? 0
 
       const [
         directorRate, managerRate, supervisorRate, presidentRate, boardRate,
@@ -115,7 +124,7 @@ export class DividendService {
       if (totalDividendPool <= 0) {
         return {
           dividendPool: 0,
-          totalOrders: paidOrders.length,
+          totalOrders: totalOrders,
           totalOrderAmount,
           eligibleUsers: 0,
           distributedUsers: 0,
@@ -143,7 +152,7 @@ export class DividendService {
       if (eligibleUsers.length === 0) {
         return {
           dividendPool: totalDividendPool,
-          totalOrders: paidOrders.length,
+          totalOrders: totalOrders,
           totalOrderAmount,
           eligibleUsers: 0,
           distributedUsers: 0,
@@ -201,7 +210,7 @@ export class DividendService {
       logger.info('[分红快照 v3] 用户分红明细:', userTotalDividends)
 
       // 7. 获取一个订单ID用于分红记录关联
-      const referenceOrderId = paidOrders.length > 0 ? paidOrders[0].id : ''
+      const referenceOrderId = firstOrder?.id ?? ''
 
       // 8. 为每个用户创建分红记录（settled=false，不入账）
       const details = []
@@ -238,7 +247,7 @@ export class DividendService {
 
       return {
         dividendPool: totalDividendPool,
-        totalOrders: paidOrders.length,
+        totalOrders: totalOrders,
         totalOrderAmount,
         eligibleUsers: eligibleUsers.length,
         distributedUsers: details.length,
