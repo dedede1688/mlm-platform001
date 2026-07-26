@@ -59,8 +59,8 @@ describe('PointsService.dailyUnlock 通知', () => {
       {
         id: 's1',
         userId: 'u1',
+        totalPoints: 1000,
         remainingPoints: 1000,
-        dailyUnlockRate: 0.01,
         completedDays: 0,
         totalDays: 100,
       },
@@ -91,7 +91,7 @@ describe('PointsService.dailyUnlock 通知', () => {
     const callArgs = (sendInApp as any).mock.calls[0][0]
     expect(callArgs.templateType).toBe('points_unlock')
     expect(callArgs.userId).toBe('u1')
-    expect(callArgs.variables.unlockAmount).toBe('10') // Math.floor(1000 * 0.01) = 10
+    expect(callArgs.variables.unlockAmount).toBe('10') // Math.floor(1000 / 100) = 10
   })
 
   it('通知失败（sendInApp 抛错）不影响 dailyUnlock 主流程', async () => {
@@ -100,8 +100,8 @@ describe('PointsService.dailyUnlock 通知', () => {
       {
         id: 's2',
         userId: 'u2',
+        totalPoints: 1000,
         remainingPoints: 500,
-        dailyUnlockRate: 0.02,
         completedDays: 5,
         totalDays: 50,
       },
