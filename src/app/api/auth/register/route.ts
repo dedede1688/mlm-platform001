@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { UserService } from '@/lib/services/user.service'
 import bcrypt from 'bcryptjs'
@@ -7,7 +6,6 @@ import { z } from 'zod'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { logger } from '@/lib/logger'
 
-// 注册输入校验 schema
 const registerSchema = z.object({
   phone: z
     .string()
@@ -52,10 +50,7 @@ export async function POST(request: NextRequest) {
 
     const { phone, password, nickname, referrerCode } = validationResult.data
 
-    const existingUser = await prisma.user.findUnique({
-      where: { phone },
-    })
-
+    const existingUser = await UserService.findByPhone(phone)
     if (existingUser) {
       return NextResponse.json(
         { success: false, message: '该手机号已注册' },
@@ -65,15 +60,8 @@ export async function POST(request: NextRequest) {
 
     let referrerId: string | undefined
     if (referrerCode) {
-      const referrer = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { phone: referrerCode },
-            { id: referrerCode },
-          ],
-        },
-      })
-
+      const referrer = await UserService.findByPhone(referrerCode)
+        ?? await UserService.getUserById(referrerCode)
       if (referrer) {
         referrerId = referrer.id
       }
@@ -99,7 +87,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    // v60.x HV-4: P2002 并发注册保护 — 数据库唯一约束作为最终防线
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return NextResponse.json(
         { success: false, message: '该手机号已注册' },

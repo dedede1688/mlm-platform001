@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { ProductService } from '@/lib/services/product.service'
 
-// 获取商品列表
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || 'active'
     const isUpgrade = searchParams.get('isUpgrade')
 
-    const where: Record<string, unknown> = { status }
-    if (isUpgrade !== null) {
-      where.isUpgradeProduct = isUpgrade === 'true'
-    }
-
-    const products = await prisma.product.findMany({
-      where,
-      orderBy: { sortOrder: 'asc' },
+    const result = await ProductService.getAllProducts({
+      page: 1,
+      pageSize: 1000,
+      status,
+      isUpgrade,
     })
 
     return NextResponse.json({
       success: true,
-      data: products,
+      data: result.products,
     })
   } catch (error) {
     logger.error('Get products error:', error)

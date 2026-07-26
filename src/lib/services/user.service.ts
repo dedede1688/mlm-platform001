@@ -360,6 +360,7 @@ export class UserService {
       select: {
         id: true, phone: true, nickname: true, status: true, level: true, role: true,
         balance: true, frozenBalance: true, consumeBalance: true,
+        avatarUrl: true, totalPoints: true, unlockedPoints: true,
         earningsPending: true, earningsAvailable: true, earningsVoided: true,
       },
     })
@@ -968,6 +969,18 @@ static async getUsersList(params: UserListParams) {
       ...user,
       directDistributorCount: actualDistributorCount,
     }
+  }
+
+
+
+  /**
+   * D-6.2: 根据手机号查找用户（用于登录/注册推荐人查找）
+   * 原路由: src/app/api/auth/login/route.ts + register/route.ts
+   */
+  static async findByPhone(phone: string) {
+    return prisma.user.findUnique({
+      where: { phone },
+    })
   }
 
 

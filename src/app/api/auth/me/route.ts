@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '@/lib/utils/auth'
 import { logger } from '@/lib/logger'
+import { UserService } from '@/lib/services/user.service'
 
 const JWT_SECRET = process.env.JWT_SECRET!
 
@@ -27,20 +27,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: {
-        id: true,
-        phone: true,
-        nickname: true,
-        avatarUrl: true,
-        level: true,
-        role: true,
-        balance: true,
-        totalPoints: true,
-        unlockedPoints: true,
-      },
-    })
+    const user = await UserService.getUserById(payload.userId)
 
     if (!user) {
       return NextResponse.json(
