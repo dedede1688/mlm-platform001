@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from '@/lib/auth/payment-password'
@@ -105,8 +105,7 @@ export async function POST(request: NextRequest) {
       accountNumber,
       accountName,
       bankName,
-      paymentPassword,
-    })
+})
 
     return NextResponse.json({
       success: true,

@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
@@ -11,7 +11,6 @@ export interface CreateWithdrawalParams {
   accountNumber: string
   accountName: string
   bankName?: string
-  paymentPassword: string
 }
 
 export interface ReviewWithdrawalParams {
