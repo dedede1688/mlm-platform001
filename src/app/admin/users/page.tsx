@@ -9,14 +9,16 @@ import {
   X, Eye, Network, Wallet,
   Lock, LockOpen, Download, AlertTriangle
 } from 'lucide-react'
-import ReferralTreePanel from '@/components/ReferralTreePanel'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import dynamic from 'next/dynamic'
 
 import UserTable from './_components/UserTable'
+
+const ReferralTreePanel = dynamic(() => import('@/components/ReferralTreePanel'), { ssr: false })
+const UserDetailModal = dynamic(() => import('./_components/UserDetailModal'), { ssr: false })
 import Section from './_components/Section'
-import UserDetailModal from './_components/UserDetailModal'
 
 // ---- 类型定义 ----
 

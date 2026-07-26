@@ -7,8 +7,14 @@ import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/clien
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
 import { getAuthToken } from '@/lib/utils/auth-token'
-import ProductForm, { type ProductFormData } from './_components/ProductForm'
+import dynamic from 'next/dynamic'
+import type { ProductFormData } from './_components/ProductForm'
 import ProductTable, { type Product, type Pagination } from './_components/ProductTable'
+
+const ProductForm = dynamic(() => import('./_components/ProductForm'), {
+  ssr: false,
+  loading: () => <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"><div className="bg-white rounded-xl p-8 animate-pulse">???...</div></div>,
+})
 
 export type { Product, Pagination } from './_components/ProductTable'
 
