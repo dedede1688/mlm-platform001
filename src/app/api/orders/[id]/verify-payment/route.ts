@@ -163,9 +163,9 @@ export async function POST(
 
       // v46.10.3: 触发订单支付通知
       await OrderNotificationService.notifyOrderPaid(orderId)
-    } catch (rewardError: any) {
+    } catch (rewardError: unknown) {
       // 奖励/通知失败不影响支付结果（支付事务已完成），仅记录日志
-      logger.error('[v56] 奖励/通知处理失败（订单已支付）:', rewardError.message)
+      logger.error('[v56] 奖励/通知处理失败（订单已支付）:', rewardError instanceof Error ? rewardError.message : String(rewardError))
     }
 
     return successResponse(
@@ -177,11 +177,12 @@ export async function POST(
       },
       '支付成功'
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('验证支付失败:', error)
 
     // 余额不足：返回结构化错误（前端可据此弹收益转余额浮窗）
-    if (error.message === '可用余额不足' && paymentContextRef.current) {
+    const errMsg = error instanceof Error ? error.message : '';
+    if (errMsg === '可用余额不足' && paymentContextRef.current) {
       const ctx = paymentContextRef.current
       const shortage = ctx.payAmount - ctx.balance
       return errorResponse('可用余额不足', 400, {
@@ -195,9 +196,9 @@ export async function POST(
     }
 
     const msg =
-      error.message === '支付密码错误'
+      errMsg === '支付密码错误'
         ? '支付密码错误'
-        : error.message || '支付失败'
-    return errorResponse(msg, error.message === '支付密码错误' ? 401 : 500)
+        : error instanceof Error ? error.message : '支付失败'
+    return errorResponse(msg, errMsg === '支付密码错误' ? 401 : 500)
   }
 }

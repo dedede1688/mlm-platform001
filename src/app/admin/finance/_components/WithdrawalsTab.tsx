@@ -43,9 +43,9 @@ export interface WithdrawalsTabProps {
   setBatchRejectReason: (v: string) => void
   setBatchRemark: (v: string) => void
   setSelectedTemplateId: (v: string) => void
-  setReviewModal: (v: any) => void
-  setCompleteModal: (v: any) => void
-  setLargeWithdrawalConfirm: (v: any) => void
+  setReviewModal: (v: { type: 'approve' | 'reject'; item: import('../page').WithdrawalItem } | null) => void
+  setCompleteModal: (v: import('../page').WithdrawalItem | null) => void
+  setLargeWithdrawalConfirm: (v: { item: import('../page').WithdrawalItem; type: 'approve' | 'reject' } | null) => void
   onSearch: () => void
   onPageChange: (page: number) => void
   onBatchReview: () => void

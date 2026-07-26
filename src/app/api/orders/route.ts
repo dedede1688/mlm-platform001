@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: order,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Create order error:', error)
     return errorResponse('创建订单失败', 500)
   }

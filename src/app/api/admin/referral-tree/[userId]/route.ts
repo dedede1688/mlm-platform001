@@ -4,14 +4,14 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logger } from '@/lib/logger'
 // ---- v38: 内存缓存 (30s TTL) ----
 
-const apiCache = new Map<string, { data: any; timestamp: number }>()
+const apiCache = new Map<string, { data: unknown; timestamp: number }>()
 const CACHE_TTL = 30 * 1000
 
 function getCacheKey(userId: string, maxLevel: number, mode: string, boundaryDown: number): string {
   return `${userId}:${maxLevel}:${mode}:${boundaryDown}`
 }
 
-function getCached(key: string): any | null {
+function getCached(key: string): unknown | null {
   const entry = apiCache.get(key)
   if (!entry) return null
   if (Date.now() - entry.timestamp > CACHE_TTL) {

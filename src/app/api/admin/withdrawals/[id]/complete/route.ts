@@ -24,9 +24,9 @@ export async function PATCH(
     let safePaymentProofUrl: string
     try {
       safePaymentProofUrl = validatePaymentProofUrl(paymentProofUrl)
-    } catch (e: any) {
+    } catch (e: unknown) {
       return NextResponse.json(
-        { success: false, message: e?.message || '打款凭证无效' },
+        { success: false, message: e instanceof Error ? e.message : '打款凭证无效' },
         { status: 400 }
       )
     }
@@ -56,14 +56,15 @@ export async function PATCH(
       data: updated,
       message: '提现打款已完成，冻结收益已扣除',
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Admin complete withdrawal error:', error)
-    const status = error.message === '提现记录不存在' ? 404
-      : error.message === '只有已审核通过的提现才能完成打款' ? 400
-      : error.message === '打款凭证不能为空' ? 400
+    const errMsg = error instanceof Error ? error.message : ''
+    const status = errMsg === '提现记录不存在' ? 404
+      : errMsg === '只有已审核通过的提现才能完成打款' ? 400
+      : errMsg === '打款凭证不能为空' ? 400
       : 500
     return NextResponse.json(
-      { success: false, message: error.message || '完成提现打款失败' },
+      { success: false, message: error instanceof Error ? error.message : '完成提现打款失败' },
       { status }
     )
   }

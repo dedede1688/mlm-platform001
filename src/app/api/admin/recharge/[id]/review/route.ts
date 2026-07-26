@@ -144,9 +144,9 @@ export async function PATCH(
         message: '充值已拒绝',
       })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Admin review recharge error:', error)
-    const message = error?.message || '审核充值申请失败'
+    const message = error instanceof Error ? error.message : '审核充值申请失败'
     const status =
       message === '充值申请不存在' ? 404 :
       message === '充值申请不存在或已审核' ? 400 :

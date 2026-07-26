@@ -90,8 +90,8 @@ export function AddressForm({
         detailAddress: detailAddress.trim(),
         isDefault,
       })
-    } catch (err: any) {
-      setError(err?.message || '保存失败')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '保存失败')
     }
   }
 

@@ -73,7 +73,7 @@ export async function PUT(request: NextRequest) {
     })
 
     return successResponse(null, '支付密码修改成功')
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('修改支付密码失败:', error)
     return errorResponse('修改支付密码失败', 500)
   }

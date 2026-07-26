@@ -123,9 +123,9 @@ export async function POST(
       data: updatedOrder,
       message: '支付成功',
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Pay order error:', error)
-    const msg = error.message || '支付失败'
+    const msg = error instanceof Error ? error.message : '支付失败'
     const status = msg === '支付密码错误' ? 401 : 500
     return NextResponse.json(
       { success: false, error: msg },
@@ -171,7 +171,7 @@ export async function PUT(
       success: true,
       data: updatedOrder,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Complete order error:', error)
     return NextResponse.json(
       { error: '确认收货失败' },
@@ -217,7 +217,7 @@ export async function DELETE(
       success: true,
       message: '订单已取消',
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Cancel order error:', error)
     return NextResponse.json(
       { error: '取消订单失败' },

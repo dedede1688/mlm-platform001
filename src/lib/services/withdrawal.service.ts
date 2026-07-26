@@ -323,9 +323,9 @@ export class WithdrawalService {
       try {
         await this.reviewWithdrawal(id, params)
         results.success++
-      } catch (e: any) {
+      } catch (e: unknown) {
         results.failed++
-        results.errors.push({ id, error: e.message || '未知错误' })
+        results.errors.push({ id, error: e instanceof Error ? e.message : '未知错误' })
       }
     }
 

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         feePercent,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('积分转赠失败:', error)
     return NextResponse.json(
       { error: '积分转赠失败' },

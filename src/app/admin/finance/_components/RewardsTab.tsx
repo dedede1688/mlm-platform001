@@ -34,7 +34,7 @@ export interface RewardsTabProps {
   rewardType: string
   rewardStartDate: string
   rewardEndDate: string
-  stats: any
+  stats: { referral: { total: number; count: number }; brand_bonus: { total: number; count: number }; dividend: { total: number; count: number }; grandTotal: number; grandCount: number } | null
   onSearchFieldChange: (field: string, value: string) => void
   onSearch: () => void
   onPageChange: (page: number) => void

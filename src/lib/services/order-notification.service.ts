@@ -312,12 +312,12 @@ export class OrderNotificationService {
     senderId?: string; sourceType?: string; sourceId?: string; omitSenderId?: boolean
   }) {
     try {
-      const batchData: any = {
+      const batchData: Record<string, unknown> = {
         type: 'business', title: params.title, content: params.content,
         templateType: params.templateType, recipientCount: 1,
       }
       if (!params.omitSenderId) batchData.senderId = params.senderId ?? null
-      const batch = await prisma.notificationBatch.create({ data: batchData })
+      const batch = await prisma.notificationBatch.create({ data: batchData as any })
       await sendInApp({
         userId: params.userId, templateType: params.templateType, variables: params.variables,
         batchId: batch.id, senderId: params.senderId, sourceType: params.sourceType, sourceId: params.sourceId,

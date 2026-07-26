@@ -9,19 +9,19 @@ import { logger } from '@/lib/logger'
 const MAX_ADDRESSES_PER_USER = 20
 
 // 字段校验
-function validateAddressInput(body: any): { ok: true; data: Required<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
+function validateAddressInput(body: Record<string, unknown>): { ok: true; data: Required<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
   const { recipientName, phone, province, city, district, detailAddress, isDefault } = body || {}
 
   if (!recipientName || typeof recipientName !== 'string' || recipientName.trim().length < 2 || recipientName.length > 20) {
     return { ok: false, error: '收件人姓名长度必须为 2-20 字' }
   }
-  if (!phone || !/^1\d{10}$/.test(phone)) {
+  if (typeof phone !== 'string' || !/^1\d{10}$/.test(phone)) {
     return { ok: false, error: '手机号格式错误' }
   }
-  if (!province || !city || !district) {
+  if (typeof province !== 'string' || !province || typeof city !== 'string' || !city || typeof district !== 'string' || !district) {
     return { ok: false, error: '省/市/区不能为空' }
   }
-  if (!detailAddress || detailAddress.trim().length < 5 || detailAddress.length > 100) {
+  if (typeof detailAddress !== 'string' || detailAddress.trim().length < 5 || detailAddress.length > 100) {
     return { ok: false, error: '详细地址长度必须为 5-100 字' }
   }
   return {

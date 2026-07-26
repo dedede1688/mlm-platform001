@@ -171,8 +171,8 @@ export async function GET(request: NextRequest) {
       lowStockProducts,
       timestamp: now.toISOString(),
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[Dashboard Summary] 错误:', err)
-    return errorResponse(err.message || '获取数据失败', 500)
+    return errorResponse(err instanceof Error ? err.message : '获取数据失败', 500)
   }
 }

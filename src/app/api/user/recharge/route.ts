@@ -81,9 +81,9 @@ export async function POST(request: NextRequest) {
     }).catch(() => {})
 
     return NextResponse.json({ success: true, data: safeRecharge })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Create recharge request error:', error)
-    const message = error?.message || '创建充值申请失败'
+    const message = error instanceof Error ? error.message : '创建充值申请失败'
     return NextResponse.json({ error: message }, { status: 400 })
   }
 }

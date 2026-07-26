@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: result,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('分红操作失败:', error)
     return NextResponse.json(
       { success: false, error: '分红操作失败' },
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: summary,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('获取分红摘要失败:', error)
     return NextResponse.json(
       { success: false, error: '获取分红摘要失败' },

@@ -216,7 +216,7 @@ export async function PUT(request: NextRequest) {
         paymentNotifyUrl: config.paymentNotifyUrl,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('更新系统配置失败:', error)
     return NextResponse.json(
       { error: '更新系统配置失败' },

@@ -152,13 +152,14 @@ export async function PUT(request: NextRequest) {
       data: updated,
       message: approved ? '提现已审核通过，等待线下打款' : '提现已拒绝，冻结收益已退回可提现收益',
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Admin review withdrawal error:', error)
-    const status = error.message === '提现记录不存在' ? 404
-      : error.message === '提现记录已处理' ? 400
+    const errMsg = error instanceof Error ? error.message : ''
+    const status = errMsg === '提现记录不存在' ? 404
+      : errMsg === '提现记录已处理' ? 400
       : 500
     return NextResponse.json(
-      { success: false, message: error.message || '审核提现失败' },
+      { success: false, message: error instanceof Error ? error.message : '审核提现失败' },
       { status }
     )
   }

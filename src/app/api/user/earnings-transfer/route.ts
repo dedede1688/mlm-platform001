@@ -54,9 +54,9 @@ export async function POST(request: NextRequest) {
       balance: result.balance,
       earningsAvailable: result.earningsAvailable,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Earnings transfer error:', error)
-    const message = error?.message || '收益转余额失败'
+    const message = error instanceof Error ? error.message : '收益转余额失败'
     const status =
       message === '未登录' ? 401 :
       message === '用户不存在' ? 404 :

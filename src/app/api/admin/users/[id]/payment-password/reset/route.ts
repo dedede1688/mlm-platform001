@@ -115,7 +115,7 @@ export async function POST(
       { hasPaymentPassword: false },
       '支付密码已重置，请通知用户重新设置'
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('[payment-password/reset] 未知错误:', error)
     return errorResponse('服务器内部错误', 500)
   }

@@ -108,7 +108,7 @@ export async function PUT(request: NextRequest) {
   try {
     await saveToDb(body.config, user.id)
     return successResponse({ config: body.config }, '保存成功')
-  } catch (err: any) {
-    return errorResponse(err.message || '保存失败', 500)
+  } catch (err: unknown) {
+    return errorResponse(err instanceof Error ? err.message : '保存失败', 500)
   }
 }

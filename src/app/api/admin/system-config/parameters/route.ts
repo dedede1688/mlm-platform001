@@ -35,7 +35,7 @@ export async function PUT(request: NextRequest) {
   try {
     await setSystemParameter(key, value, user.id)
     return successResponse({ key, value }, '更新成功')
-  } catch (err: any) {
-    return errorResponse(err.message || '更新失败', 400)
+  } catch (err: unknown) {
+    return errorResponse(err instanceof Error ? err.message : '更新失败', 400)
   }
 }

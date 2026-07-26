@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'active'
     const isUpgrade = searchParams.get('isUpgrade')
 
-    const where: any = { status }
+    const where: Record<string, unknown> = { status }
     if (isUpgrade !== null) {
       where.isUpgradeProduct = isUpgrade === 'true'
     }

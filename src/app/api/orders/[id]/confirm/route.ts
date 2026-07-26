@@ -39,7 +39,7 @@ export async function POST(
       data: updatedOrder,
       message: '确认收货成功',
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Confirm order error:', error)
     return NextResponse.json(
       { error: '确认收货失败' },

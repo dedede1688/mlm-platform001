@@ -43,7 +43,7 @@ interface FinanceModalsProps {
   onSelectedTemplateIdChange: (v: string) => void
   auditModalId: string | null
   onAuditModalClose: () => void
-  auditLogs: any[]
+  auditLogs: { id: string; action: string; createdAt: string; oldStatus?: string; newStatus?: string; reason?: string; remark?: string; user?: { nickname?: string } }[]
   auditLoading: boolean
   manualModal: boolean
   onManualModalClose: () => void
@@ -331,7 +331,7 @@ export default function FinanceModals(props: FinanceModalsProps) {
               <p className="text-gray-400 text-center py-10">暂无日志</p>
             ) : (
               <div className="space-y-3">
-                {p.auditLogs.map((log: any) => (
+                {p.auditLogs.map((log: { id: string; action: string; createdAt: string; oldStatus?: string; newStatus?: string; reason?: string; remark?: string; user?: { nickname?: string } }) => (
                   <div key={log.id} className="bg-gray-50 rounded-lg p-3 text-sm">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${

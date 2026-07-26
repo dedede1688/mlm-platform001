@@ -112,9 +112,9 @@ export async function POST(request: NextRequest) {
       success: true,
       data: withdrawal,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Create withdrawal error:', error)
-    const message = error?.message || '创建提现申请失败'
+    const message = error instanceof Error ? error.message : '创建提现申请失败'
     return NextResponse.json(
       { error: message },
       { status: 400 }

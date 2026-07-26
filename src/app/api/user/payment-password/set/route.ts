@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     })
 
     return successResponse(null, '支付密码设置成功')
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('设置支付密码失败:', error)
     return errorResponse('设置支付密码失败', 500)
   }

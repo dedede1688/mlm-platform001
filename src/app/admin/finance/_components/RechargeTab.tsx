@@ -45,7 +45,7 @@ export interface RechargeTabProps {
   canApprove: boolean
   setRechargeSearch: (v: string) => void
   setRechargeStatus: (v: string) => void
-  setRechargeReviewModal: (v: any) => void
+  setRechargeReviewModal: (v: { type: 'approve' | 'reject'; item: import('../page').RechargeItem } | null) => void
   onSearch: () => void
   onPageChange: (page: number) => void
   onViewAuditLogs: (id: string) => void

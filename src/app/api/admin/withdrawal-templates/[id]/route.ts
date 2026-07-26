@@ -20,9 +20,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
 
     return NextResponse.json({ success: true, data: template, message: '模板更新成功' })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Update reject template error:', error)
-    return NextResponse.json({ success: false, message: error.message || '更新模板失败' }, { status: 500 })
+    return NextResponse.json({ success: false, message: error instanceof Error ? error.message : '更新模板失败' }, { status: 500 })
   }
 }
 
@@ -35,8 +35,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await WithdrawalRejectTemplateService.delete(id)
 
     return NextResponse.json({ success: true, message: '模板删除成功' })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Delete reject template error:', error)
-    return NextResponse.json({ success: false, message: error.message || '删除模板失败' }, { status: 500 })
+    return NextResponse.json({ success: false, message: error instanceof Error ? error.message : '删除模板失败' }, { status: 500 })
   }
 }

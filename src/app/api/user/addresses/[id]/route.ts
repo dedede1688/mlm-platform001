@@ -6,8 +6,8 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
 
 // 字段校验（部分字段可选更新）
-function validatePartialAddressInput(body: any): { ok: true; data: Partial<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
-  const data: any = {}
+function validatePartialAddressInput(body: Record<string, unknown>): { ok: true; data: Partial<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
+  const data: Record<string, unknown> = {}
 
   if (body.recipientName !== undefined) {
     if (typeof body.recipientName !== 'string' || body.recipientName.trim().length < 2 || body.recipientName.length > 20) {
@@ -16,7 +16,7 @@ function validatePartialAddressInput(body: any): { ok: true; data: Partial<{ rec
     data.recipientName = body.recipientName.trim()
   }
   if (body.phone !== undefined) {
-    if (!/^1\d{10}$/.test(body.phone)) {
+    if (typeof body.phone !== 'string' || !/^1\d{10}$/.test(body.phone)) {
       return { ok: false, error: '手机号格式错误' }
     }
     data.phone = body.phone

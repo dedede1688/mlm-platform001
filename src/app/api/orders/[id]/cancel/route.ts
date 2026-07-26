@@ -38,8 +38,8 @@ export async function POST(
     const cancelledOrder = await OrderLifecycleService.cancelOrder(orderId)
 
     return successResponse(cancelledOrder, '订单已取消')
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('取消订单失败:', error)
-    return errorResponse(error.message || '取消订单失败', 500)
+    return errorResponse(error instanceof Error ? error.message : '取消订单失败', 500)
   }
 }

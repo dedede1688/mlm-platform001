@@ -690,7 +690,7 @@ function DashboardSection({ data }: { data: DashboardData }) {
                         <Cell key={idx} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: any) => `¥${formatMoney(Number(v))}`} />
+                    <Tooltip formatter={(value) => `${formatMoney(Number(value))}`} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -724,7 +724,7 @@ function DashboardSection({ data }: { data: DashboardData }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
                   <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <Tooltip formatter={(v: any) => `¥${formatMoney(Number(v))}`} />
+                  <Tooltip formatter={(value) => `${formatMoney(Number(value))}`} />
                   <Line
                     type="monotone"
                     dataKey="amount"
