@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -84,7 +85,7 @@ export default function WithdrawalsPage() {
         if (data.success) setUser(data.data)
       }
     } catch (error) {
-      console.error('获取用户信息失败:', error)
+      logger.error('获取用户信息失败:', error)
     } finally {
       setLoading(false)
     }
@@ -103,7 +104,7 @@ export default function WithdrawalsPage() {
         }
       }
     } catch (error) {
-      console.error('获取提现记录失败:', error)
+      logger.error('获取提现记录失败:', error)
     } finally {
       setRecordsLoading(false)
     }

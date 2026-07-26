@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -147,7 +148,7 @@ export default function RechargePage() {
         }
       }
     } catch (error) {
-      console.error('获取充值记录失败:', error)
+      logger.error('获取充值记录失败:', error)
     } finally {
       setRecordsLoading(false)
     }
@@ -213,7 +214,7 @@ export default function RechargePage() {
         toast.error(data.error || '提交失败')
       }
     } catch (error) {
-      console.error('Submit recharge error:', error)
+      logger.error('Submit recharge error:', error)
       toast.error('网络错误，请重试')
     } finally {
       setSubmitting(false)

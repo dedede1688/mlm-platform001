@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -82,7 +83,7 @@ export default function TeamPage() {
         if (data.success) setMembers(data.data || [])
       }
     } catch (err) {
-      console.error('获取团队数据失败:', err)
+      logger.error('获取团队数据失败:', err)
     } finally {
       setLoading(false)
     }
@@ -100,7 +101,7 @@ export default function TeamPage() {
         if (data.success) setTreeData(data.data || [])
       }
     } catch (err) {
-      console.error('获取树形数据失败:', err)
+      logger.error('获取树形数据失败:', err)
     }
   }
 

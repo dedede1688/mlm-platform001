@@ -1,4 +1,5 @@
-﻿'use client'
+'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -336,7 +337,7 @@ const [stats, setStats] = useState<{
         if (data.stats) setStats(data.stats)
       }
     } catch (error) {
-      console.error('获取奖励流水失败:', error)
+      logger.error('获取奖励流水失败:', error)
       showMessage('error', '获取奖励流水失败')
     } finally {
       setRewardLoading(false)
@@ -367,7 +368,7 @@ const [stats, setStats] = useState<{
         setRechargePagination(data.pagination || { page: 1, pageSize: 10, total: 0, totalPages: 0 })
       }
     } catch (error) {
-      console.error('获取充值列表失败:', error)
+      logger.error('获取充值列表失败:', error)
       showMessage('error', '获取充值列表失败')
     } finally {
       setRechargeLoading(false)
@@ -398,7 +399,7 @@ const [stats, setStats] = useState<{
         setWithdrawalPagination(data.pagination || { page: 1, pageSize: 10, total: 0, totalPages: 0 })
       }
     } catch (error) {
-      console.error('获取提现列表失败:', error)
+      logger.error('获取提现列表失败:', error)
       showMessage('error', '获取提现列表失败')
     } finally {
       setWithdrawalLoading(false)

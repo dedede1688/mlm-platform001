@@ -1,4 +1,5 @@
-﻿import { NextRequest } from "next/server"
+﻿import { logger } from '@/lib/logger'
+import { NextRequest } from "next/server"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { BannerService } from "@/lib/services/banner.service"
 import { errorResponse, successResponse } from "@/lib/api-response"
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     return successResponse(banners)
   } catch (error) {
-    console.error("获取轮播图列表失败", error)
+    logger.error("获取轮播图列表失败", error)
     return errorResponse("获取轮播图列表失败", 500)
   }
 }
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse(toBannerItem(record))
   } catch (error) {
-    console.error("创建轮播图失败", error)
+    logger.error("创建轮播图失败", error)
     return errorResponse("创建轮播图失败", 500)
   }
 }
@@ -88,7 +89,7 @@ export async function PUT(request: NextRequest) {
 
     return successResponse([])
   } catch (error) {
-    console.error("保存轮播图失败", error)
+    logger.error("保存轮播图失败", error)
     return errorResponse("保存轮播图失败", 500)
   }
 }
@@ -114,7 +115,7 @@ export async function DELETE(request: NextRequest) {
     if (errMsg === "轮播图不存在") {
       return errorResponse("轮播图不存在", 404)
     }
-    console.error("删除轮播图失败", error)
+    logger.error("删除轮播图失败", error)
     return errorResponse("删除轮播图失败", 500)
   }
 }

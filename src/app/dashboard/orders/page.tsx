@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -95,7 +96,7 @@ export default function OrdersPage() {
         setOrders(data.data?.orders || [])
       }
     } catch (err) {
-      console.error('获取订单列表失败:', err)
+      logger.error('获取订单列表失败:', err)
     } finally {
       setLoading(false)
     }

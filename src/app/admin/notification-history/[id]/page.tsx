@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -54,7 +55,7 @@ export default function BatchDetailPage() {
         setBatch(data.data)
       }
     } catch (err) {
-      console.error('获取批次详情失败:', err)
+      logger.error('获取批次详情失败:', err)
     } finally {
       setLoading(false)
     }

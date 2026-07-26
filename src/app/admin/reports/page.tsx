@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { BarChart3, Users, DollarSign, TrendingUp, Loader2, Filter, Download } from 'lucide-react'
@@ -96,7 +97,7 @@ export default function ReportsPage() {
       setMembers(m)
       setFinance(f)
       setFunnel(fn)
-    }).catch(err => console.error('[Reports]', err)).finally(() => setLoading(false))
+    }).catch(err => logger.error('[Reports]', err)).finally(() => setLoading(false))
   }, [days])
 
   return (

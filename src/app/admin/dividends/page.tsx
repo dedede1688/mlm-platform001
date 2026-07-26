@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -46,7 +47,7 @@ export default function AdminDividendsPage() {
         if (data.success) setSummary(data.data)
       }
     } catch (err) {
-      console.error('获取分红摘要失败:', err)
+      logger.error('获取分红摘要失败:', err)
     } finally {
       setLoading(false)
     }

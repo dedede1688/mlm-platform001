@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -93,7 +94,7 @@ export default function BalancePage() {
           setUserEarningsVoided(data.data.earningsVoided ?? 0)
         }
       }
-    } catch (_error) { console.error('获取用户信息失败:', _error) }
+    } catch (_error) { logger.error('获取用户信息失败:', _error) }
   }
 
   const fetchRecords = async (authToken: string) => {
@@ -114,7 +115,7 @@ export default function BalancePage() {
         setRecords(data.data.records || [])
         setTotalPages(data.data.pagination?.totalPages || 1)
       }
-    } catch (_error) { console.error('获取流水失败:', _error) }
+    } catch (_error) { logger.error('获取流水失败:', _error) }
     finally { setLoading(false) }
   }
 

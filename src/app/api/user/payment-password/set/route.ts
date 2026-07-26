@@ -1,3 +1,4 @@
+﻿import { logger } from '@/lib/logger'
 import { NextRequest } from 'next/server'
 import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse(null, '支付密码设置成功')
   } catch (error: unknown) {
-    console.error('设置支付密码失败:', error)
+    logger.error('设置支付密码失败:', error)
     return errorResponse('设置支付密码失败', 500)
   }
 }

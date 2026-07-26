@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef } from 'react'
 import { logger } from '@/lib/logger'
@@ -162,7 +162,7 @@ export default function ProductDetailPage() {
         if (data.success) setAddresses(data.data || [])
       }
     } catch (error) {
-      console.error('获取地址列表失败:', error)
+      logger.error('获取地址列表失败:', error)
     }
   }
 
@@ -180,7 +180,7 @@ export default function ProductDetailPage() {
         return null
       }
     } catch (err) {
-      console.error('获取用户信息失败:', err)
+      logger.error('获取用户信息失败:', err)
       return null
     }
   }
@@ -601,7 +601,7 @@ export default function ProductDetailPage() {
       }
       return false
     } catch (error) {
-      console.error('保存地址失败:', error)
+      logger.error('保存地址失败:', error)
       return false
     }
   }

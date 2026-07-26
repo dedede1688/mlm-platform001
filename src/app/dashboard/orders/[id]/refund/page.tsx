@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -127,7 +128,7 @@ export default function RefundApplyPage() {
         const url = await uploadImage(file)
         setForm(prev => ({ ...prev, images: [...prev.images, url] }))
       } catch (err) {
-        console.error('上传图片失败:', err)
+        logger.error('上传图片失败:', err)
       }
     }
     setUploadingIndex(-1)

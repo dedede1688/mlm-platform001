@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { Inbox, Eye, Loader2, User } from 'lucide-react'
@@ -51,7 +52,7 @@ export default function NotificationHistoryPage() {
         setTotalPages(data.data.pagination.totalPages)
       }
     } catch (err) {
-      console.error('获取发件箱失败:', err)
+      logger.error('获取发件箱失败:', err)
     } finally {
       setLoading(false)
     }

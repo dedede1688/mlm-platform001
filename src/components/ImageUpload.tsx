@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
@@ -118,7 +119,7 @@ export default function ImageUpload({
           throw new Error('Supabase 不可用')
         }
       } catch (supabaseError) {
-        console.warn('Supabase 上传失败，回退到 Base64:', supabaseError)
+        logger.warn('Supabase 上传失败，回退到 Base64:', supabaseError)
         setUploadState({ status: 'uploading', progress: 75 })
         url = await fileToBase64(file)
       }

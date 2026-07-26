@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -154,7 +155,7 @@ export default function DashboardPage() {
         }
       }
     } catch (error) {
-      console.error('Fetch data error:', error)
+      logger.error('Fetch data error:', error)
     } finally {
       setLoading(false)
     }

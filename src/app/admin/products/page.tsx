@@ -1,4 +1,5 @@
-﻿'use client'
+'use client'
+import { logger } from '@/lib/logger'
 // v7.0-fix: 修复构建错误 - 调试日志语法优化
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
@@ -124,7 +125,7 @@ export default function AdminProductsPage() {
         setCategories(data.data || [])
       }
     } catch (error) {
-      console.error('获取分类列表失败:', error)
+      logger.error('获取分类列表失败:', error)
     }
   }, [])
 
@@ -170,7 +171,7 @@ export default function AdminProductsPage() {
         setPagination(data.pagination || { page: 1, pageSize: 10, total: 0, totalPages: 0 })
       }
     } catch (error) {
-      console.error('获取商品列表失败:', error)
+      logger.error('获取商品列表失败:', error)
       showMessage('error', '获取商品列表失败')
     } finally {
       setLoading(false)
@@ -402,7 +403,7 @@ export default function AdminProductsPage() {
         showMessage('error', data.message || '保存失败')
       }
     } catch (error) {
-      console.error('保存商品失败:', error)
+      logger.error('保存商品失败:', error)
       showMessage('error', '网络错误，请重试')
     } finally {
       setSaving(false)

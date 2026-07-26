@@ -1,3 +1,4 @@
+﻿import { logger } from '@/lib/logger'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { safeJsonLd } from '@/lib/utils/sanitize-html';
@@ -108,7 +109,7 @@ export async function generateMetadata(
       alternates: { canonical: `${SITE_URL}/products/${id}` },
     }
   } catch (error) {
-    console.error('[ProductLayout generateMetadata]', error)
+    logger.error('[ProductLayout generateMetadata]', error)
     return {}
   }
 }
@@ -138,7 +139,7 @@ export default async function ProductLayout(
       breadcrumbLdJson = JSON.stringify(buildBreadcrumbLd(product.name, product.id))
     }
   } catch (error) {
-    console.error('[ProductLayout] JSON-LD fetch failed:', error)
+    logger.error('[ProductLayout] JSON-LD fetch failed:', error)
   }
 
   return (

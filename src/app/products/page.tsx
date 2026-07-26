@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
@@ -44,7 +45,7 @@ export default function ProductsPage() {
         setProducts(data.data)
       }
     } catch (error) {
-      console.error('Fetch products error:', error)
+      logger.error('Fetch products error:', error)
     } finally {
       setLoading(false)
     }

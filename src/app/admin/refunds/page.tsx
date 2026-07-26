@@ -1,4 +1,5 @@
-﻿'use client'
+'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
@@ -148,7 +149,7 @@ export default function AdminRefundsPage() {
         setPagination(data.pagination || { page: 1, pageSize: 10, total: 0, totalPages: 0 })
       }
     } catch (error) {
-      console.error('获取退款列表失败:', error)
+      logger.error('获取退款列表失败:', error)
       showMessage('error', '获取退款列表失败')
     } finally {
       setLoading(false)

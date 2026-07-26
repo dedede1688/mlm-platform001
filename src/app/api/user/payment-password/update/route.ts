@@ -1,3 +1,4 @@
+﻿import { logger } from '@/lib/logger'
 import { NextRequest } from 'next/server'
 import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
@@ -67,7 +68,7 @@ export async function PUT(request: NextRequest) {
 
     return successResponse(null, '支付密码修改成功')
   } catch (error: unknown) {
-    console.error('修改支付密码失败:', error)
+    logger.error('修改支付密码失败:', error)
     return errorResponse('修改支付密码失败', 500)
   }
 }

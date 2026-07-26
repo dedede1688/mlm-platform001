@@ -1,3 +1,4 @@
+﻿import { logger } from '@/lib/logger'
 import type { MetadataRoute } from 'next'
 import { prisma } from '@/lib/prisma'
 
@@ -32,7 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }))
   } catch (error) {
-    console.error('[sitemap] 商品查询失败:', error)
+    logger.error('[sitemap] 商品查询失败:', error)
   }
 
   // ---- 动态分类页 ----
@@ -48,7 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     }))
   } catch (error) {
-    console.error('[sitemap] 分类查询失败:', error)
+    logger.error('[sitemap] 分类查询失败:', error)
   }
 
   return [...staticPages, ...categoryPages, ...productPages]

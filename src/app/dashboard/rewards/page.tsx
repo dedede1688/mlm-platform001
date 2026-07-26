@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -110,7 +111,7 @@ export default function RewardsPage() {
         if (data.success) setStats(data.data)
       }
     } catch (err) {
-      console.error('获取收益数据失败:', err)
+      logger.error('获取收益数据失败:', err)
     } finally {
       setLoading(false)
     }

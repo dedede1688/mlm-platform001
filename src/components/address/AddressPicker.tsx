@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
@@ -63,7 +63,7 @@ export function AddressPicker({ value, onChange, disabled }: AddressPickerProps)
           logger.error('加载省市区数据失败:', { error: data.error })
         }
       })
-      .catch((err) => console.error('加载省市区数据失败:', err))
+      .catch((err) => logger.error('加载省市区数据失败:', err))
       .finally(() => {
         if (!cancelled) setLoading(false)
       })

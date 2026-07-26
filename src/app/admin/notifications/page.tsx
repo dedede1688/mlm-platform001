@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import {
@@ -167,7 +168,7 @@ export default function AdminNotificationsPage() {
         setTemplates(data.data)
       }
     } catch (err) {
-      console.error('获取通知模板失败:', err)
+      logger.error('获取通知模板失败:', err)
       setMessage({ type: 'error', text: '加载模板失败' })
     } finally {
       setLoading(false)

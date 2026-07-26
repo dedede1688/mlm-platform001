@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -109,7 +110,7 @@ export default function OperationLogsPage() {
         setTotalPages(data.pagination.totalPages)
       }
     } catch (error) {
-      console.error('获取操作日志失败:', error)
+      logger.error('获取操作日志失败:', error)
     } finally {
       setLoading(false)
     }

@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -101,7 +102,7 @@ export default function CartPage() {
         }
       }
     } catch (error) {
-      console.error('获取用户信息失败:', error)
+      logger.error('获取用户信息失败:', error)
     }
   }
 
@@ -124,7 +125,7 @@ export default function CartPage() {
         if (data.success) setAddresses(data.data || [])
       }
     } catch (error) {
-      console.error('获取地址列表失败:', error)
+      logger.error('获取地址列表失败:', error)
     }
   }
 
@@ -143,7 +144,7 @@ export default function CartPage() {
         setCartItems(data.data || [])
       }
     } catch (error) {
-      console.error('获取购物车失败:', error)
+      logger.error('获取购物车失败:', error)
     } finally {
       setLoading(false)
     }

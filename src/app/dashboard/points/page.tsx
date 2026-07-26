@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
@@ -176,7 +177,7 @@ export default function PointsPage() {
         }
       }
     } catch (err) {
-      console.error('获取积分数据失败:', err)
+      logger.error('获取积分数据失败:', err)
     } finally {
       setLoading(false)
     }
@@ -214,7 +215,7 @@ export default function PointsPage() {
           setPhoneChecked(true)
         }
       } catch (err) {
-        console.error('查询用户失败:', err)
+        logger.error('查询用户失败:', err)
         setRecipientInfo(null)
         setPhoneChecked(true)
       } finally {
@@ -269,7 +270,7 @@ export default function PointsPage() {
         toast.error(data.error || '转赠失败')
       }
     } catch (err) {
-      console.error('转赠失败:', err)
+      logger.error('转赠失败:', err)
       toast.error('网络错误，请重试')
     } finally {
       setSubmitting(false)

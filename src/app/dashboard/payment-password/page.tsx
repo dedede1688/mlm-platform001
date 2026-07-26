@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -53,7 +54,7 @@ export default function PaymentPasswordPage() {
         }
       }
     } catch (error) {
-      console.error('获取支付密码状态失败:', error)
+      logger.error('获取支付密码状态失败:', error)
     } finally {
       setLoading(false)
     }

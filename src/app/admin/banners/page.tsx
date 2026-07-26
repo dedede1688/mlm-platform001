@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
@@ -98,7 +99,7 @@ export default function BannersPage() {
         setError(data.error || '获取轮播图失败')
       }
     } catch (err) {
-      console.error('获取轮播图失败:', err)
+      logger.error('获取轮播图失败:', err)
       setError('网络错误，加载失败')
     } finally {
       setLoading(false)
@@ -229,7 +230,7 @@ export default function BannersPage() {
         setMessage({ type: 'error', text: data.error || '保存失败' })
       }
     } catch (err) {
-      console.error('保存轮播图失败:', err)
+      logger.error('保存轮播图失败:', err)
       setMessage({ type: 'error', text: '网络错误，保存失败' })
     } finally {
       setSaving(false)

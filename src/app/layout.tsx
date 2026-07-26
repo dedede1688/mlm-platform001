@@ -1,3 +1,4 @@
+﻿import { logger } from '@/lib/logger'
 import type { Metadata } from "next";
 import { safeJsonLd } from '@/lib/utils/sanitize-html';
 import { Geist, Geist_Mono } from "next/font/google";
@@ -50,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
       seoKeywords = config.seoKeywords || DEFAULT_SEO_KEYWORDS;
     }
   } catch (error) {
-    console.error("获取 SEO 配置失败，使用默认值:", error);
+    logger.error("获取 SEO 配置失败，使用默认值:", error);
   }
 
   // 更新缓存

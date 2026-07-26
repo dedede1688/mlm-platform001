@@ -1,4 +1,5 @@
 'use client'
+import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import {
@@ -71,7 +72,7 @@ export default function AdminSettingsPage() {
         })
       }
     } catch (_error) {
-      console.error('获取配置失败:', _error)
+      logger.error('获取配置失败:', _error)
       setMessage({ type: 'error', text: '加载配置失败，使用默认值' })
     } finally {
       setLoading(false)

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
@@ -162,7 +162,7 @@ export default function AdminDashboardPage() {
         setLastUpdated(new Date())
       }
     } catch (error) {
-      console.error('获取统计数据失败:', error)
+      logger.error('获取统计数据失败:', error)
     } finally {
       setLoading(false)
       setRefreshing(false)
