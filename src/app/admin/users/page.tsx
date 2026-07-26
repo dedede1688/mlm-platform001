@@ -6,14 +6,16 @@ import { formatMoney } from '@/lib/utils/format'
 
 import {
   Users, Search, Loader2, ChevronLeft, ChevronRight,
-  X, Eye, Network, ChevronDown, ChevronUp, Wallet,
+  X, Eye, Network, Wallet,
   Lock, LockOpen, Download, AlertTriangle
 } from 'lucide-react'
-import * as XLSX from 'xlsx'
 import ReferralTreePanel from '@/components/ReferralTreePanel'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
 import { getAuthToken } from '@/lib/utils/auth-token'
+
+import UserTable from './_components/UserTable'
+import Section from './_components/Section'
 
 // ---- 类型定义 ----
 
@@ -582,225 +584,30 @@ const [treeUserName, setTreeUserName] = useState<string>('')
           </div>
         )}
 
-        {/* 工具栏 */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                placeholder="搜索手机号/昵称..."
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 placeholder-gray-400 hover:border-gray-400" />
-            </div>
-            <select value={filterLevel} onChange={e => { setFilterLevel(e.target.value); if (token) fetchUsers(token, 1) }}
-              className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 hover:border-gray-400">
-              {LEVEL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-            </select>
-            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); if (token) fetchUsers(token, 1) }}
-              className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900 hover:border-gray-400">
-              <option value="">全部状态</option>
-              <option value="active">正常</option>
-              <option value="frozen">冻结</option>
-            </select>
-            <button onClick={handleSearch} className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium whitespace-nowrap">搜索</button>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">注册时间：</span>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-              <span className="text-gray-400">~</span>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">排序：</span>
-              <select value={`${sortBy}-${sortOrder}`} onChange={e => {
-                const [by, order] = e.target.value.split('-')
-                setSortBy(by)
-                setSortOrder(order)
-                if (token) fetchUsers(token, 1)
-              }}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <option value="createdAt-desc">注册时间↓</option>
-                <option value="createdAt-asc">注册时间↑</option>
-                <option value="balance-desc">余额↓</option>
-                <option value="balance-asc">余额↑</option>
-                <option value="level-desc">等级↓</option>
-                <option value="level-asc">等级↑</option>
-                <option value="directSalesAmount-desc">直推销售额↓</option>
-                <option value="directSalesAmount-asc">直推销售额↑</option>
-              </select>
-            </div>
-            <button onClick={() => {
-              const data = users.map(u => ({
-                手机号: u.phone,
-                昵称: u.nickname || '-',
-                推荐人: u.referrer ? `${u.referrer.nickname || '-'}(${u.referrer.phone.slice(-4)})` : '-',
-                等级: LEVEL_NAMES[u.level],
-                状态: u.status === 'active' ? '正常' : '冻结',
-                余额: u.balance,
-                冻结余额: u.frozenBalance,
-                消费余额: u.consumeBalance,
-                待结算: u.earningsPending,
-                可提现: u.earningsAvailable,
-                累计作废: u.earningsVoided,
-                总积分: u.totalPoints,
-                订单数: u.orderCount,
-                订单总额: u.totalOrderAmount,
-                直推人数: u.directReferralCount,
-                直推经销商: u.directDistributorCount,
-                注册时间: formatTime(u.createdAt),
-              }))
-              const ws = XLSX.utils.json_to_sheet(data)
-              const wb = XLSX.utils.book_new()
-              XLSX.utils.book_append_sheet(wb, ws, '会员列表')
-              XLSX.writeFile(wb, `会员列表_${new Date().toISOString().slice(0, 10)}.xlsx`)
-            }} disabled={users.length === 0}
-              className="inline-flex items-center gap-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
-              <Download className="w-4 h-4" />导出Excel
-            </button>
-          </div>
-        </div>
-
-        {/* 会员列表 */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
-          {loading ? (
-            <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /><span className="ml-2 text-gray-500">加载中...</span></div>
-          ) : users.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400"><Users className="w-12 h-12 mb-3" /><p>暂无会员数据</p></div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">手机号</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">昵称</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">推荐人</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">等级</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">状态</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">余额</th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">冻结余额</th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">消费余额</th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">待结算</th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">可提现</th>
-                    <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">累计作废</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">总积分</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">订单数</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">订单总额</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">直推人数</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">直推经销商</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">注册时间</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {users.map(u => (
-                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm text-gray-900">{u.phone}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{u.nickname || '-'}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {u.referrer ? (
-                          <span className="text-gray-700">
-                            {u.referrer.nickname || '-'}
-                            <span className="text-gray-400 text-xs ml-1">
-                              ({u.referrer.phone.slice(-4)})
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {u.role === 'super_admin' || u.role === 'goods_admin' || u.role === 'finance_admin' || u.role === 'support_admin' || u.role === 'auditor' ? (
-                          <span className="text-gray-400">-</span>
-                        ) : (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[u.level] || 'bg-gray-100 text-gray-500'}`}>
-                            {LEVEL_NAMES[u.level]}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${u.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                          {u.status === 'active' ? '正常' : '冻结'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">¥{u.balance.toFixed(2)}</td>
-                      <td className="px-3 py-3 text-sm text-gray-500 text-right whitespace-nowrap">¥{formatMoney(u.frozenBalance)}</td>
-                      <td className="px-3 py-3 text-sm text-gray-700 text-right whitespace-nowrap">¥{formatMoney(u.consumeBalance)}</td>
-                      <td className="px-3 py-3 text-sm text-gray-500 text-right whitespace-nowrap">¥{formatMoney(u.earningsPending)}</td>
-                      <td className="px-3 py-3 text-sm text-green-600 text-right whitespace-nowrap">¥{formatMoney(u.earningsAvailable)}</td>
-                      <td className="px-3 py-3 text-sm text-red-600 text-right whitespace-nowrap">¥{formatMoney(u.earningsVoided)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{u.totalPoints}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{u.orderCount}单</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">¥{formatMoney(u.totalOrderAmount)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{u.directReferralCount}人</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{u.directDistributorCount}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{formatTime(u.createdAt)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1 flex-wrap">
-                          <button onClick={() => handleViewDetail(u.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
-                            <Eye className="w-3.5 h-3.5" />详情
-                          </button>
-                          <button onClick={() => { setTreeUserId(u.id); setTreeUserName(u.nickname || u.phone.slice(-4)) }}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium">
-                            <Network className="w-3.5 h-3.5" />推荐树
-                          </button>
-                          <Link href={`/admin/users/${u.id}/balance`}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50 rounded-lg transition-colors font-medium">
-                            <Wallet className="w-3.5 h-3.5" />流水
-                          </Link>
-                          {u.status === 'active' ? (
-                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setDetailTab('basic'); setNewStatus('frozen'); setOpenSections(prev => ({ ...prev, status: true })) }}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
-                              <Lock className="w-3.5 h-3.5" />冻结
-                            </button>
-                          ) : (
-                            <button onClick={() => { setDetailUser({ ...u, email: null, parent: null, referrals: [], children: [], orderCount: u.orderCount, totalOrderAmount: u.totalOrderAmount } as UserDetail); setDetailTab('basic'); setNewStatus('active'); setOpenSections(prev => ({ ...prev, status: true })) }}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors font-medium">
-                              <LockOpen className="w-3.5 h-3.5" />解冻
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* 分页 */}
-          {!loading && pagination.totalPages > 0 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="text-sm text-gray-500">共 {pagination.total} 个会员，第 {pagination.page}/{pagination.totalPages} 页</div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  <ChevronLeft className="w-4 h-4" />上一页
-                </button>
-                {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-                  .filter(p => pagination.totalPages <= 7 || Math.abs(p - pagination.page) <= 2 || p === 1 || p === pagination.totalPages)
-                  .map((p, idx, arr) => {
-                    const prev = arr[idx - 1]
-                    return (
-                      <span key={p} className="flex items-center">
-                        {prev && p - prev > 1 && <span className="px-2 text-gray-400">...</span>}
-                        <button onClick={() => handlePageChange(p)}
-                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${p === pagination.page ? 'bg-blue-600 text-white' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'}`}>
-                          {p}
-                        </button>
-                      </span>
-                    )
-                  })}
-                <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  下一页<ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+      {/* 用户表格 */}
+      <UserTable
+        users={users}
+        pagination={pagination}
+        loading={loading}
+        search={search}
+        setSearch={setSearch}
+        filterLevel={filterLevel}
+        setFilterLevel={setFilterLevel}
+        filterStatus={filterStatus}
+        setFilterStatus={setFilterStatus}
+        startDate={startDate}
+        setStartDate={setStartDate}
+        endDate={endDate}
+        setEndDate={setEndDate}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        sortOrder={sortOrder}
+        setSortOrder={setSortOrder}
+        handleSearch={handleSearch}
+        handlePageChange={handlePageChange}
+        onViewDetail={handleViewDetail}
+        onOpenTree={(userId, userName) => { setTreeUserId(userId); setTreeUserName(userName) }}
+      />
 
       {/* 详情弹窗 */}
       {detailUser && (
@@ -1428,18 +1235,3 @@ onCancel={() => setBalanceConfirm(null)}
   )
 }
 
-// ---- 折叠区块组件 ----
-
-function Section({ title, open, onToggle, children }: {
-  title: string; open: boolean; onToggle: () => void; children: React.ReactNode
-}) {
-  return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <button onClick={onToggle} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors">
-        <span className="font-medium text-sm text-gray-900">{title}</span>
-        {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-      </button>
-      {open && <div className="px-4 py-3 bg-white">{children}</div>}
-    </div>
-  )
-}
