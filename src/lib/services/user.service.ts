@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { PointsService } from './points.service'
+import { LevelSnapshotService } from './level-snapshot.service'
 import { getBusinessConfig } from '@/lib/config/business'
 import type { Prisma } from '@prisma/client'
 
@@ -204,6 +206,13 @@ export class UserService {
           })
         }
       })
+
+      // ????????
+      try {
+        await LevelSnapshotService.createSnapshotForUser(userId)
+      } catch (snapErr) {
+        logger.warn('[UserService] level snapshot failed', { userId, error: snapErr instanceof Error ? snapErr.message : String(snapErr) })
+      }
     }
 
     return newLevel
