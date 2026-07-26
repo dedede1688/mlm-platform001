@@ -1,10 +1,10 @@
-import { NextRequest } from 'next/server'
-import jwt from 'jsonwebtoken'
+﻿import { NextRequest } from "next/server"
+import jwt from "jsonwebtoken"
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET
   if (!secret) {
-    throw new Error('JWT_SECRET environment variable is not set. Please configure it before starting the application.')
+    throw new Error("JWT_SECRET environment variable is not set. Please configure it before starting the application.")
   }
   return secret
 }
@@ -17,10 +17,10 @@ export interface AuthUser {
 
 export async function verifyToken(request: NextRequest): Promise<AuthUser | null> {
   try {
-    const authHeader = request.headers.get('authorization')
+    const authHeader = request.headers.get("authorization")
     if (!authHeader) return null
 
-    const token = authHeader.replace('Bearer ', '')
+    const token = authHeader.replace("Bearer ", "")
     const decoded = jwt.verify(token, getJwtSecret()) as AuthUser
 
     return decoded
@@ -33,10 +33,10 @@ export function generateToken(userId: string, phone: string, role?: string) {
   return jwt.sign(
     { userId, phone, role },
     getJwtSecret(),
-    { expiresIn: '1d' } // v5B: ? 7d ??? 1d??? token ??????
+    { expiresIn: "7d" } // D-15: 对齐 cookie maxAge 7 天，避免 token 提前过期导致用户被踢出
   )
 }
 
 export function generateReferralCode(phone: string): string {
-  return phone.replace(/[^0-9]/g, '')
+  return phone.replace(/[^0-9]/g, "")
 }
