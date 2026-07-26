@@ -705,4 +705,270 @@ static async getUsersList(params: UserListParams) {
   }
 
 
+
+  /**
+   * D-6.1: 用户 Dashboard 聚合数据（KPI + 分类 + 趋势 + 时间线）
+   * 原路由: src/app/api/user/dashboard/route.ts (v62 P2-B)
+   */
+  static async getUserDashboard(userId: string) {
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+
+    // ---- 1. KPI ----
+    const [monthRewards, monthDividends, userInfo, monthOrders] = await Promise.all([
+      prisma.reward.findMany({
+        where: {
+          userId,
+          status: "paid",
+          createdAt: { gte: monthStart, lt: monthEnd },
+        },
+        select: { amount: true, type: true },
+      }),
+      prisma.dividend.findMany({
+        where: {
+          userId,
+          dividendDate: { gte: monthStart, lt: monthEnd },
+        },
+        select: { amount: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          earningsAvailable: true,
+          earningsPending: true,
+          earningsVoided: true,
+          balance: true,
+          frozenBalance: true,
+          unlockedPoints: true,
+          lockedPoints: true,
+        },
+      }),
+      prisma.order.count({
+        where: {
+          userId,
+          createdAt: { gte: monthStart, lt: monthEnd },
+        },
+      }),
+    ])
+
+    const monthRewardTotal = monthRewards.reduce((s, r) => s + r.amount, 0)
+    const monthDividendTotal = monthDividends.reduce((s, d) => s + d.amount, 0)
+    const monthEarnings = monthRewardTotal + monthDividendTotal
+
+    const pendingLockedAmount = Math.round((userInfo?.lockedPoints ?? 0) * 0.2 * 100) / 100
+    const availableAmount = userInfo?.earningsAvailable ?? 0
+    const pendingAmount = userInfo?.earningsPending ?? 0
+
+    // ---- 2. 分类饼图 ----
+    const typeLabelMap: Record<string, string> = {
+      referral: "推荐奖",
+      brand_bonus: "品牌管理奖",
+      upgrade_reward: "升级奖励",
+      manual_reward: "手动奖励",
+      refund_reward: "退款冲销",
+    }
+    const typeColorMap: Record<string, string> = {
+      referral: "#3b82f6",
+      brand_bonus: "#10b981",
+      upgrade_reward: "#a855f7",
+      manual_reward: "#f59e0b",
+    }
+
+    const categoryMap = new Map<string, number>()
+    for (const r of monthRewards) {
+      categoryMap.set(r.type, (categoryMap.get(r.type) || 0) + r.amount)
+    }
+    if (monthDividendTotal > 0) {
+      categoryMap.set("dividend", monthDividendTotal)
+    }
+
+    const categoryBreakdown = Array.from(categoryMap.entries())
+      .filter(([, amt]) => amt > 0)
+      .map(([type, amount]) => ({
+        type,
+        label: type === "dividend" ? "每日分红" : (typeLabelMap[type] || type),
+        amount: Math.round(amount * 100) / 100,
+        color: type === "dividend" ? "#ef4444" : (typeColorMap[type] || "#6b7280"),
+      }))
+      .sort((a, b) => b.amount - a.amount)
+
+    // ---- 3. 趋势线（过去 6 个月月度总收益）----
+    const [pastRewards, pastDividends] = await Promise.all([
+      prisma.reward.findMany({
+        where: {
+          userId,
+          status: "paid",
+          createdAt: { gte: sixMonthsAgo },
+        },
+        select: { amount: true, createdAt: true },
+      }),
+      prisma.dividend.findMany({
+        where: {
+          userId,
+          dividendDate: { gte: sixMonthsAgo },
+        },
+        select: { amount: true, dividendDate: true },
+      }),
+    ])
+
+    const trendMap = new Map<string, number>()
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+      trendMap.set(key, 0)
+    }
+    for (const r of pastRewards) {
+      const k = r.createdAt.getFullYear() + "-" + String(r.createdAt.getMonth() + 1).padStart(2, "0")
+      trendMap.set(k, (trendMap.get(k) || 0) + r.amount)
+    }
+    for (const d of pastDividends) {
+      const k = d.dividendDate.getFullYear() + "-" + String(d.dividendDate.getMonth() + 1).padStart(2, "0")
+      trendMap.set(k, (trendMap.get(k) || 0) + d.amount)
+    }
+    const trend = Array.from(trendMap.entries()).map(([month, amount]) => ({
+      month,
+      amount: Math.round(amount * 100) / 100,
+    }))
+
+    // ---- 4. 时间线（本月每条收益明细）----
+    const [recentRewards, recentDividends] = await Promise.all([
+      prisma.reward.findMany({
+        where: {
+          userId,
+          status: "paid",
+          createdAt: { gte: monthStart, lt: monthEnd },
+        },
+        select: {
+          id: true,
+          type: true,
+          amount: true,
+          createdAt: true,
+          order: { select: { orderNo: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }),
+      prisma.dividend.findMany({
+        where: {
+          userId,
+          dividendDate: { gte: monthStart, lt: monthEnd },
+        },
+        select: {
+          id: true,
+          amount: true,
+          dividendDate: true,
+          order: { select: { orderNo: true } },
+        },
+        orderBy: { dividendDate: "desc" },
+        take: 50,
+      }),
+    ])
+
+    const timelineLabelMap: Record<string, string> = {
+      referral: "直推奖励",
+      brand_bonus: "品牌管理奖",
+      upgrade_reward: "升级奖励",
+      manual_reward: "手动奖励",
+    }
+
+    const timeline = [
+      ...recentRewards.map(r => ({
+        id: r.id,
+        date: r.createdAt.toISOString(),
+        amount: Math.round(r.amount * 100) / 100,
+        type: r.type,
+        label: timelineLabelMap[r.type] || r.type,
+        orderNo: r.order?.orderNo ?? null,
+      })),
+      ...recentDividends.map(d => ({
+        id: d.id,
+        date: d.dividendDate.toISOString(),
+        amount: Math.round(d.amount * 100) / 100,
+        type: "dividend",
+        label: "每日分红",
+        orderNo: d.order?.orderNo ?? null,
+      })),
+    ].sort((a, b) => b.date.localeCompare(a.date))
+
+    return {
+      kpi: {
+        monthEarnings: Math.round(monthEarnings * 100) / 100,
+        monthOrders,
+        pendingLockedAmount,
+        availableAmount: Math.round(availableAmount * 100) / 100,
+        pendingAmount: Math.round(pendingAmount * 100) / 100,
+      },
+      categoryBreakdown,
+      trend,
+      timeline,
+    }
+  }
+
+
+  /**
+   * D-6.1: 判断 target 用户是否在 meId 的团队内（推荐链 + 安置链）
+   * 原路由: src/app/api/users/lookup/route.ts (isInMyTeam helper)
+   */
+  static async isInTeam(meId: string, target: { id: string; referrerId: string | null }): Promise<boolean> {
+    if (target.id === meId) return true
+    if (target.referrerId === meId) return true
+    let cur = await prisma.user.findUnique({ where: { id: meId }, select: { referrerId: true } })
+    for (let i = 0; i < 10 && cur?.referrerId; i++) {
+      if (cur.referrerId === target.id) return true
+      cur = await prisma.user.findUnique({ where: { id: cur.referrerId }, select: { referrerId: true } })
+    }
+    let curP = await prisma.user.findUnique({ where: { id: meId }, select: { parentId: true } })
+    for (let i = 0; i < 10 && curP?.parentId; i++) {
+      if (curP.parentId === target.id) return true
+      curP = await prisma.user.findUnique({ where: { id: curP.parentId }, select: { parentId: true } })
+    }
+    return false
+  }
+
+
+  /**
+   * D-6.1: 获取当前用户完整 Profile（含推荐列表 + 经销商数量校正）
+   * 原路由: src/app/api/users/me/route.ts (GET)
+   */
+  static async getProfile(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        referrals: {
+          select: {
+            id: true,
+            phone: true,
+            nickname: true,
+            level: true,
+            createdAt: true,
+          },
+        },
+      },
+    })
+
+    if (!user) return null
+
+    // 实时校正直销经销商数量（防止字段与实际不一致）
+    const actualDistributorCount = await prisma.user.count({
+      where: {
+        referrerId: userId,
+        level: { gte: 2 },
+      },
+    })
+    if (actualDistributorCount !== user.directDistributorCount) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { directDistributorCount: actualDistributorCount },
+      })
+    }
+
+    return {
+      ...user,
+      directDistributorCount: actualDistributorCount,
+    }
+  }
+
+
 }

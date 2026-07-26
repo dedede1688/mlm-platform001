@@ -1,59 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/utils/auth'
 import { getBusinessConfig } from '@/lib/config/business'
 import { logger } from '@/lib/logger'
+import { UserService } from '@/lib/services/user.service'
 
-// 获取当前用户信息
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: auth.userId },
-      include: {
-        referrals: {
-          select: {
-            id: true,
-            phone: true,
-            nickname: true,
-            level: true,
-            createdAt: true,
-          },
-        },
-      },
-    })
-
+    const user = await UserService.getProfile(auth.userId)
     if (!user) {
-      return NextResponse.json(
-        { error: '用户不存在' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: '用户不存在' }, { status: 404 })
     }
 
-    // v50 G: 读取动态百分比（与 service 层一致，有 60s 缓存）
     const referralRate = await getBusinessConfig<number>('reward.referral_rate', 0.20)
     const brandBonusRate = await getBusinessConfig<number>('reward.brand_bonus_rate', 0.20)
-
-    // 实时校正直推经销商数量（防止字段与实际不一致）
-    const actualDistributorCount = await prisma.user.count({
-      where: {
-        referrerId: auth.userId,
-        level: { gte: 2 },
-      },
-    })
-    if (actualDistributorCount !== user.directDistributorCount) {
-      await prisma.user.update({
-        where: { id: auth.userId },
-        data: { directDistributorCount: actualDistributorCount },
-      })
-    }
 
     return NextResponse.json({
       success: true,
@@ -76,48 +40,33 @@ export async function GET(request: NextRequest) {
         lockedPoints: user.lockedPoints,
         referrerId: user.referrerId,
         parentId: user.parentId,
-        directDistributorCount: actualDistributorCount,
+        directDistributorCount: user.directDistributorCount,
         directSalesAmount: user.directSalesAmount,
         upgradeProductCount: user.upgradeProductCount ?? 0,
-        hasUpgradeProduct: (user.upgradeProductCount ?? 0) >= 1, // v50 E: 会员双轨制派生字段
-        hasPaymentPassword: !!user.paymentPasswordHash, // v43-4: 前端判断设置/修改模式
+        hasUpgradeProduct: (user.upgradeProductCount ?? 0) >= 1,
+        hasPaymentPassword: !!user.paymentPasswordHash,
         referrals: user.referrals,
         createdAt: user.createdAt,
-        // v50 G: 等级 desc 动态百分比
         referralRate,
         brandBonusRate,
       },
     })
   } catch (error) {
     logger.error('Get user error:', error)
-    return NextResponse.json(
-      { error: '获取用户信息失败' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '获取用户信息失败' }, { status: 500 })
   }
 }
 
-// 更新用户信息
 export async function PUT(request: NextRequest) {
   try {
     const auth = await verifyToken(request)
     if (!auth) {
-      return NextResponse.json(
-        { error: '未登录' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: '未登录' }, { status: 401 })
     }
 
     const { nickname, avatarUrl, email } = await request.json()
 
-    const user = await prisma.user.update({
-      where: { id: auth.userId },
-      data: {
-        nickname,
-        avatarUrl,
-        email,
-      },
-    })
+    const user = await UserService.updateProfile(auth.userId, { nickname, avatarUrl, email })
 
     return NextResponse.json({
       success: true,
@@ -131,9 +80,6 @@ export async function PUT(request: NextRequest) {
     })
   } catch (error) {
     logger.error('Update user error:', error)
-    return NextResponse.json(
-      { error: '更新用户信息失败' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '更新用户信息失败' }, { status: 500 })
   }
 }
