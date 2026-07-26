@@ -85,7 +85,7 @@ export class RewardCalculationService {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        user: true,
+        user: { select: { id: true, referrerId: true } },
         items: {
           include: { product: true },
         },

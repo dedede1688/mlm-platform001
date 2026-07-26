@@ -184,7 +184,7 @@ export class AdminService {
         skip,
         take: limit,
         include: {
-          user: true,
+          user: { select: { id: true, nickname: true, phone: true, email: true, level: true } },
           items: {
             include: { product: true },
           },
@@ -233,7 +233,7 @@ export class AdminService {
         skip,
         take: limit,
         include: {
-          user: true,
+          user: { select: { id: true, nickname: true, phone: true, email: true, level: true } },
           order: true,
         },
         orderBy: { createdAt: 'desc' },
