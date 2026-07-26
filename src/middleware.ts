@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { logger } from '@/lib/logger'
 
+const COOKIE_NAME = 'auth_token'
+
 // ---- 用户侧需要登录的路径（仅验证 JWT，不校验角色） ----
 //
 // 注意：/api/settings 已移除——当前 /api/settings/public 是公开接口。

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import { setAuthToken, setAuthUser } from '@/lib/utils/auth-token'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { logger } from '@/lib/logger'
@@ -45,8 +46,9 @@ function LoginForm() {
       const data = await res.json()
 
       if (data.success) {
-        localStorage.setItem('token', data.data.token)
-        localStorage.setItem('user', JSON.stringify(data.data.user))
+        // Batch 20: HttpOnly cookie by server, sessionStorage as fallback
+        setAuthToken(data.data.token)
+        setAuthUser(data.data.user)
         
         // 通知 Header 更新登录状态
         window.dispatchEvent(new Event('auth-change'))

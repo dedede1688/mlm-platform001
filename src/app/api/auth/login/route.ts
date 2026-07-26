@@ -6,6 +6,19 @@ import { errorResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 
+const COOKIE_NAME = 'auth_token'
+const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 // 7 days
+
+function setAuthCookie(response: NextResponse, token: string) {
+  response.cookies.set(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: COOKIE_MAX_AGE,
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { phone, password } = await request.json()

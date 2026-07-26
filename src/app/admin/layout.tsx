@@ -8,7 +8,7 @@ import {
   ShieldAlert
 } from 'lucide-react'
 import { MENU_ITEMS, ROLE_MENUS } from '@/lib/admin-menu'
-import { getAuthToken } from '@/lib/utils/auth-token'
+import { getAuthUser, removeAuthUser } from '@/lib/utils/auth-token'
 
 // ---- 所有管理员角色（用于权限验证） ----
 const ALL_ADMIN_ROLES = Object.keys(ROLE_MENUS)
@@ -51,97 +51,85 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // v66:从 API 拉的自定义角色菜单(DB 覆盖 ROLE_MENUS 默认)
   const [customRoleMenus, setCustomRoleMenus] = useState<Record<string, string[]> | null>(null)
 
-  // 从 JWT token 解析角色（降级方案：localStorage 中无 user 时使用）
-  const parseRoleFromToken = (token: string): string | null => {
-    try {
-      const payload = token.split('.')[1]
-      const decoded = JSON.parse(atob(payload))
-      return decoded.role || null
-    } catch {
-      return null
-    }
-  }
 
-  // 权限验证（仅在挂载时执行一次）
+  // ?????HttpOnly cookie ???sessionStorage ???Batch 20?
   useEffect(() => {
     let cancelled = false
 
-    try {
-      const token = getAuthToken()
-      if (!token) {
-        router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
-        return
-      }
-
-      let role: string = ''
-      let displayName: string = '管理员'
-
+    const checkAuth = async () => {
       try {
-        const userStr = localStorage.getItem('user')
-        if (userStr) {
-          const user = JSON.parse(userStr)
-          role = user.role || ''
-          displayName = user.nickname || user.phone || '管理员'
-        } else {
-          // 降级：从 token 中解析角色
-          const tokenRole = parseRoleFromToken(token)
-          if (tokenRole) {
-            role = tokenRole
-          } else {
-            router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
+        const res = await fetch('/api/auth/me')
+
+        if (res.status === 401) {
+          const cachedUser = getAuthUser()
+          if (cachedUser) {
+            const role = (cachedUser as Record<string, unknown>).role as string || ''
+            if (!ALL_ADMIN_ROLES.includes(role)) {
+              if (!cancelled) setNoPermission(true)
+              return
+            }
+            if (!cancelled) {
+              setUserRole(role)
+              setAdminName((cachedUser as Record<string, unknown>).nickname as string || '???')
+              setAuthed(true)
+            }
+            return
+          }
+          removeAuthUser()
+          router.push('/login')
+          return
+        }
+
+        const data = await res.json()
+
+        if (cancelled) return
+
+        if (!data.success || !data.data) {
+          const cachedUser = getAuthUser()
+          if (cachedUser) {
+            const role = (cachedUser as Record<string, unknown>).role as string || ''
+            if (!ALL_ADMIN_ROLES.includes(role)) {
+              setNoPermission(true)
+              return
+            }
+            setUserRole(role)
+            setAdminName((cachedUser as Record<string, unknown>).nickname as string || '???')
+            setAuthed(true)
+            return
+          }
+          removeAuthUser()
+          router.push('/login')
+          return
+        }
+
+        const user = data.data
+        const role = user.role || ''
+
+        if (!ALL_ADMIN_ROLES.includes(role)) {
+          setNoPermission(true)
+          return
+        }
+
+        setUserRole(role)
+        setAdminName(user.nickname || user.phone || '???')
+        setAuthed(true)
+      } catch {
+        const cachedUser = getAuthUser()
+        if (cachedUser) {
+          const role = (cachedUser as Record<string, unknown>).role as string || ''
+          if (ALL_ADMIN_ROLES.includes(role)) {
+            setUserRole(role)
+            setAdminName((cachedUser as Record<string, unknown>).nickname as string || '???')
+            setAuthed(true)
             return
           }
         }
-      } catch (parseErr) {
-        console.error('[AdminLayout] 解析用户信息失败:', parseErr)
-        // 解析失败，尝试从 token 降级
-        const tokenRole = parseRoleFromToken(token)
-        if (tokenRole) {
-          role = tokenRole
-        } else {
-          // 完全无法识别身份，清除状态并跳登录
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
-          return
-        }
-      }
-
-      if (cancelled) return
-
-      if (!ALL_ADMIN_ROLES.includes(role)) {
-        setNoPermission(true)
-        return
-      }
-
-      setAdminName(displayName)
-      setUserRole(role)
-
-      // 如果 localStorage 缺少 user 对象，从 API 补充并存回
-      if (!localStorage.getItem('user')) {
-        fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (!cancelled && data.success && data.data) {
-              localStorage.setItem('user', JSON.stringify(data.data))
-              setAdminName(data.data.nickname || data.data.phone || '管理员')
-            }
-          })
-          .catch((fetchErr) => {
-            console.warn('[AdminLayout] 补充用户信息失败:', fetchErr)
-          })
-      }
-
-      setAuthed(true)
-    } catch (e) {
-      // 任何异常都不让页面崩溃
-      console.error('[AdminLayout] 初始化异常:', e)
-      if (!cancelled) {
-        setAuthed(true) // 仍然放行，让用户看到布局
+        removeAuthUser()
+        router.push('/login')
       }
     }
+
+    checkAuth()
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,11 +141,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let cancelled = false
     Promise.all([
       fetch('/api/admin/roles', {
-        headers: { Authorization: `Bearer ${getAuthToken() || ''}` },
+        headers: {} // Batch 20: cookie auto-sends,
       }).then(r => r.json()),
       // v68:同时拉操作权限
       fetch('/api/admin/role-permissions', {
-        headers: { Authorization: `Bearer ${getAuthToken() || ''}` },
+        headers: {} // Batch 20: cookie auto-sends,
       }).then(r => r.json()),
     ])
       .then(([menusData, permsData]) => {
@@ -179,10 +167,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const visibleNavItems = NAV_ITEMS.filter(item => allowedMenuIds.includes(item.id))
 
   // 退出登录
+  // ?????Batch 20: ?? sessionStorage + ?? logout API ?? cookie?
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    router.push(`/login?redirect=${encodeURIComponent(pathnameRef.current)}`)
+    removeAuthUser()
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    router.push('/login')
   }
 
   // 判断高亮：pathname 以 nav.href 开头
