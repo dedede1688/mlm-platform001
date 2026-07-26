@@ -1,51 +1,48 @@
-import { NextRequest } from 'next/server'
-import { UserService } from '@/lib/services/user.service'
-import { errorResponse, successResponse } from '@/lib/api-response'
-import bcrypt from 'bcryptjs'
-import { z } from 'zod'
-import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
-import { logger } from '@/lib/logger'
+﻿import { NextRequest } from "next/server"
+import { UserService } from "@/lib/services/user.service"
+import { errorResponse, successResponse } from "@/lib/api-response"
+import bcrypt from "bcryptjs"
+import { z } from "zod"
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+import { handlePrismaError } from "@/lib/utils/prisma-errors"
+import { logger } from "@/lib/logger"
 
 const registerSchema = z.object({
   phone: z
     .string()
-    .min(1, '手机号不能为空')
-    .regex(/^1[3-9]\d{9}$/, '手机号格式不正确'),
+    .min(1, "手机号不能为空")
+    .regex(/^1[3-9]\d{9}$/, "手机号格式不正确"),
   password: z
     .string()
-    .min(1, '密码不能为空')
-    .min(8, '密码长度至少8位')
-    .regex(/[a-zA-Z]/, '密码必须包含字母')
-    .regex(/[0-9]/, '密码必须包含数字'),
+    .min(1, "密码不能为空")
+    .min(8, "密码长度至少8位")
+    .regex(/[a-zA-Z]/, "密码必须包含字母")
+    .regex(/[0-9]/, "密码必须包含数字"),
   nickname: z
     .string()
-    .min(2, '昵称长度必须在2-20个字符之间')
-    .max(20, '昵称长度必须在2-20个字符之间')
+    .min(2, "昵称长度必须在2-20个字符之间")
+    .max(20, "昵称长度必须在2-20个字符之间")
     .optional()
-    .or(z.literal('')),
+    .or(z.literal("")),
   referrerCode: z
     .string()
     .optional()
-    .or(z.literal('')),
+    .or(z.literal("")),
 })
-
-function isPrismaP2002(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && (err as Record<string, unknown>).code === 'P2002'
-}
 
 export async function POST(request: NextRequest) {
   try {
     const clientIP = getClientIP(request)
     const ipLimitResult = await checkRateLimit(`register:ip:${clientIP}`, 3, 60 * 1000)
     if (!ipLimitResult.allowed) {
-      return rateLimitResponse('注册请求过于频繁，请稍后再试', ipLimitResult.resetIn)
+      return rateLimitResponse("注册请求过于频繁，请稍后再试", ipLimitResult.resetIn)
     }
 
     const body = await request.json()
     const validationResult = registerSchema.safeParse(body)
     if (!validationResult.success) {
       const errors = validationResult.error.issues
-      const firstError = errors[0]?.message || '输入参数错误'
+      const firstError = errors[0]?.message || "输入参数错误"
       return errorResponse(firstError, 400)
     }
 
@@ -53,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const existingUser = await UserService.findByPhone(phone)
     if (existingUser) {
-      return errorResponse('该手机号已注册', 400)
+      return errorResponse("该手机号已注册", 400)
     }
 
     let referrerId: string | undefined
@@ -79,13 +76,14 @@ export async function POST(request: NextRequest) {
       phone: user.phone,
       nickname: user.nickname,
       level: user.level,
-    }, '注册成功')
+    }, "注册成功")
   } catch (error) {
-    if (isPrismaP2002(error)) {
-      return errorResponse('该手机号已注册', 400)
+    const prismaErr = handlePrismaError(error)
+    if (prismaErr) {
+      return errorResponse(prismaErr.message, prismaErr.status)
     }
-    logger.error('Register error:', error)
-    const errMsg = error instanceof Error ? error.message : '未知错误'
+    logger.error("Register error:", error)
+    const errMsg = error instanceof Error ? error.message : "未知错误"
     return errorResponse(`注册失败：${errMsg}`, 500)
   }
 }
