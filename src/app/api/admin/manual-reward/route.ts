@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
+import { RewardService } from '@/lib/services/reward.service'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
-import { BALANCE_SELECT } from '@/lib/constants'
-import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 import { logger } from '@/lib/logger'
 
-// POST /api/admin/manual-reward — 手动发放奖励（管理员）
-// 请求体：{ userId, amount, type?, reason }
 export async function POST(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['finance_admin', 'super_admin'])
@@ -16,7 +12,6 @@ export async function POST(request: NextRequest) {
 
     const { userId, amount, type, reason } = await request.json()
 
-    // 参数验证
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json(
         { success: false, message: '缺少用户 ID' },
@@ -38,92 +33,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 查找用户
-    const user = await prisma.user.findUnique({ where: { id: userId } })
-    if (!user || user.status === 'deleted') {
-      return NextResponse.json(
-        { success: false, message: '用户不存在' },
-        { status: 404 }
-      )
-    }
-
-    const rewardType = type || 'manual'
-    const rewardReason = reason.trim()
-
-    // 使用事务：增加余额 + 创建手动奖励记录 + BalanceRecord 流水（v43-7 Batch 3）
-    const result = await prisma.$transaction(async (tx) => {
-      // 步骤 1：查旧值
-      const before = await tx.user.findUnique({
-        where: { id: userId },
-        select: BALANCE_SELECT,
-      })
-      if (!before) throw new Error('用户不存在')
-
-      // 步骤 2：变更（资金底座重构: 手动奖励只进可提现收益，不进余额）
-      const updatedUser = await tx.user.update({
-        where: { id: userId },
-        data: { earningsAvailable: { increment: amount } },
-        select: { id: true, phone: true, nickname: true, balance: true },
-      })
-
-      // 步骤 3：创建手动奖励记录
-      const manualReward = await tx.manualReward.create({
-        data: {
-          userId,
-          amount,
-          type: rewardType,
-          reason: rewardReason,
-          operatorId: admin.id,
-        },
-      })
-
-      // 步骤 4：写 BalanceRecord
-      const afterReward = before ? { consumeBalance: before.consumeBalance, earningsAvailable: before.earningsAvailable + amount, earningsPending: before.earningsPending, earningsVoided: before.earningsVoided } : { consumeBalance: 0, earningsAvailable: 0, earningsPending: 0, earningsVoided: 0 }
-      await tx.balanceRecord.create({
-        data: {
-          userId,
-          type: 'manual_reward',
-          amount,
-          balance: before.balance,
-          frozenBalance: before.frozenBalance,
-          sourceType: 'manual_reward',
-          sourceId: manualReward.id,
-          description: `手动奖励 ¥${amount.toFixed(2)}，可提现收益增加，余额不变，原因：${rewardReason}${format4FieldDelta(before, afterReward)}`,
-        },
-      })
-
-      return { user: updatedUser, reward: manualReward }
+    const result = await RewardService.createManualReward({
+      userId,
+      adminId: admin.id,
+      amount,
+      type: type || undefined,
+      reason: reason.trim(),
     })
 
-    // 记录操作日志
     await logOperation({
       userId: admin.id,
       action: 'CREATE',
       module: 'finance',
       targetId: result.reward.id,
-      newValue: { userId, amount, type: rewardType, reason: rewardReason },
+      newValue: { userId, amount, type: type || 'manual', reason: reason.trim() },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })
 
-    // v54 阶段4: 通知用户手动奖励到账
     await OrderNotificationService.notifyManualReward({
       userId,
       amount,
-      reason: rewardReason,
+      reason: reason.trim(),
       operatorId: admin.id,
     })
 
     return NextResponse.json({
       success: true,
       data: result,
-      message: `已向 ${user.phone} 发放 ¥${amount.toFixed(2)} 奖励`,
+      message: `已向用户发放 ¥${amount.toFixed(2)} 奖励`,
     })
   } catch (error) {
     logger.error('Admin manual reward error:', error)
     return NextResponse.json(
-      { success: false, message: '手动发放奖励失败' },
-      { status: 500 }
+      { success: false, message: error instanceof Error ? error.message : '手动发放奖励失败' },
+      { status: error instanceof Error && error.message === '用户不存在' ? 404 : 500 }
     )
   }
 }

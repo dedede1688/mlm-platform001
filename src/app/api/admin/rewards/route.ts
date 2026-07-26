@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
+import { RewardService } from '@/lib/services/reward.service'
 import { logger } from '@/lib/logger'
 
-// GET /api/admin/rewards — 获取奖励流水列表（管理员）
 export async function GET(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['finance_admin', 'super_admin'])
@@ -17,121 +16,32 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')?.trim() || ''
     const endDate = searchParams.get('endDate')?.trim() || ''
 
-    // 构建用户搜索条件
-    const userSearchFilter = search ? {
-      user: {
-        OR: [
-          { phone: { contains: search } },
-          { nickname: { contains: search } },
-        ],
-      },
-    } : {}
+    const { rewards, rewardTotal, dividends, dividendTotal, rewardStats, dividendStats } =
+      await RewardService.getRewardsList({ page, pageSize, type: type || undefined, search: search || undefined, startDate: startDate || undefined, endDate: endDate || undefined })
 
-    // 构建日期条件
-    const dateFilter = (startDate || endDate) ? (() => {
-      const createdAt: Record<string, Date> = {}
-      if (startDate) createdAt.gte = new Date(startDate)
-      if (endDate) createdAt.lte = new Date(new Date(endDate).setHours(23, 59, 59, 999))
-      return { createdAt }
-    })() : {}
-
-    // 构建 Reward 查询条件
-    const rewardWhere: Record<string, unknown> = { ...userSearchFilter, ...dateFilter }
-    if (type && type !== 'dividend') {
-      rewardWhere.type = type
-    } else if (!type) {
-      // 查全部时排除 dividend 类型（dividend 从 Dividend 表查）
-      rewardWhere.type = { not: 'dividend' }
-    }
-
-    // 构建 Dividend 查询条件
-    const dividendWhere: Record<string, unknown> = { ...userSearchFilter, ...dateFilter }
-
-    // 并行查询
-    const queries: Promise<unknown>[] = []
-
-    // 查 Reward（非 dividend 类型）
-    if (!type || (type !== 'dividend')) {
-      queries.push(
-        prisma.reward.findMany({
-          where: rewardWhere,
-          orderBy: { createdAt: 'desc' },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-          include: {
-            user: { select: { id: true, phone: true, nickname: true, level: true } },
-            order: { select: { id: true, orderNo: true } },
-          },
-        }),
-        prisma.reward.count({ where: rewardWhere }),
-      )
-    } else {
-      queries.push(Promise.resolve([]), Promise.resolve(0))
-    }
-
-    // 查 Dividend（仅 dividend 类型或全部）
-    if (!type || type === 'dividend') {
-      queries.push(
-        prisma.dividend.findMany({
-          where: dividendWhere,
-          orderBy: { createdAt: 'desc' },
-          skip: type === 'dividend' ? (page - 1) * pageSize : 0,
-          take: type === 'dividend' ? pageSize : 1000,
-          include: {
-            user: { select: { id: true, phone: true, nickname: true, level: true } },
-            order: { select: { id: true, orderNo: true } },
-          },
-        }),
-        prisma.dividend.count({ where: dividendWhere }),
-      )
-    } else {
-      queries.push(Promise.resolve([]), Promise.resolve(0))
-    }
-
-    // 查汇总统计
-    const statsCondition = { ...userSearchFilter, ...dateFilter }
-    const statsConditionForDividend = { ...userSearchFilter, ...dateFilter }
-    queries.push(
-      // 各类型奖励总额
-      prisma.reward.groupBy({
-        by: ['type'],
-        where: { ...statsCondition, status: 'paid' },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      // 分红总额
-      prisma.dividend.aggregate({
-        where: statsConditionForDividend,
-        _sum: { amount: true },
-        _count: true,
-      }),
-    )
-
-    const results = await Promise.all(queries)
-    const rewards = results[0] as Array<{
+    const typedRewards = rewards as Array<{
       id: string; userId: string; type: string; amount: number;
       orderId: string; fromUserId: string | null; level: number | null;
       status: string; createdAt: Date;
       user: { id: string; phone: string; nickname: string | null; level: number };
       order: { id: string; orderNo: string } | null;
     }>
-    const rewardTotal = results[1] as number
-    const dividends = results[2] as Array<{
+    const rTotal = rewardTotal as number
+    const typedDividends = dividends as Array<{
       id: string; userId: string; amount: number; userLevel: number;
       totalPool: number; dividendDate: Date; orderId: string; createdAt: Date;
       user: { id: string; phone: string; nickname: string | null; level: number };
       order: { id: string; orderNo: string } | null;
     }>
-    const dividendTotal = results[3] as number
-    const rewardStats = results[4] as Array<{
+    const dTotal = dividendTotal as number
+    const rStats = rewardStats as Array<{
       type: string; _sum: { amount: number | null }; _count: number;
     }>
-    const dividendStats = results[5] as {
+    const dStats = dividendStats as {
       _sum: { amount: number | null }; _count: number;
     }
 
-    // 格式化分红记录
-    const formattedDividends = dividends.map(d => ({
+    const formattedDividends = typedDividends.map(d => ({
       id: d.id,
       userId: d.userId,
       user: d.user,
@@ -145,38 +55,35 @@ export async function GET(request: NextRequest) {
       createdAt: d.createdAt,
     }))
 
-    // 如果只查分红
     if (type === 'dividend') {
-      const stats = buildStats(rewardStats, dividendStats)
+      const stats = buildStats(rStats, dStats)
       return NextResponse.json({
         success: true,
         data: formattedDividends,
-        message: '获取奖励流水成功',
-        pagination: { page, pageSize, total: dividendTotal, totalPages: Math.ceil(dividendTotal / pageSize) },
+        message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u6210\u529f',
+        pagination: { page, pageSize, total: dTotal, totalPages: Math.ceil(dTotal / pageSize) },
         stats,
       })
     }
 
-    // 如果只查非分红类型
     if (type) {
-      const formattedRewards = rewards.map(r => ({
+      const formattedRewards = typedRewards.map(r => ({
         id: r.id, userId: r.userId, user: r.user, type: r.type,
         amount: r.amount, orderId: r.orderId, orderNo: r.order?.orderNo || null,
         fromUserId: r.fromUserId, level: r.level, status: r.status, createdAt: r.createdAt,
       }))
-      const stats = buildStats(rewardStats, dividendStats)
+      const stats = buildStats(rStats, dStats)
       return NextResponse.json({
         success: true,
         data: formattedRewards,
-        message: '获取奖励流水成功',
-        pagination: { page, pageSize, total: rewardTotal, totalPages: Math.ceil(rewardTotal / pageSize) },
+        message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u6210\u529f',
+        pagination: { page, pageSize, total: rTotal, totalPages: Math.ceil(rTotal / pageSize) },
         stats,
       })
     }
 
-    // 合并全部
     const allRewards = [
-      ...rewards.map(r => ({
+      ...typedRewards.map(r => ({
         id: r.id, userId: r.userId, user: r.user, type: r.type,
         amount: r.amount, orderId: r.orderId, orderNo: r.order?.orderNo || null,
         fromUserId: r.fromUserId, level: r.level, status: r.status, createdAt: r.createdAt,
@@ -184,26 +91,25 @@ export async function GET(request: NextRequest) {
       ...formattedDividends,
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-    const totalCount = rewardTotal + dividendTotal
-    const stats = buildStats(rewardStats, dividendStats)
+    const totalCount = rTotal + dTotal
+    const stats = buildStats(rStats, dStats)
 
     return NextResponse.json({
       success: true,
       data: allRewards,
-      message: '获取奖励流水成功',
+      message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u6210\u529f',
       pagination: { page, pageSize, total: totalCount, totalPages: Math.ceil(totalCount / pageSize) },
       stats,
     })
   } catch (error) {
     logger.error('Admin get rewards error:', error)
     return NextResponse.json(
-      { success: false, message: '获取奖励流水失败' },
+      { success: false, message: '\u83b7\u53d6\u5956\u52b1\u6d41\u6c34\u5931\u8d25' },
       { status: 500 }
     )
   }
 }
 
-// 构建汇总统计
 function buildStats(
   rewardStats: Array<{ type: string; _sum: { amount: number | null }; _count: number }>,
   dividendStats: { _sum: { amount: number | null }; _count: number },

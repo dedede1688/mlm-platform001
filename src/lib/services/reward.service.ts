@@ -292,4 +292,156 @@ export class RewardService {
       await prisma.$transaction(execute)
     }
   }
+  static async getRewardsList(params: { page: number; pageSize: number; type?: string; search?: string; startDate?: string; endDate?: string }) {
+    const { page, pageSize, type, search, startDate, endDate } = params
+
+    const userSearchFilter = search ? {
+      user: {
+        OR: [
+          { phone: { contains: search } },
+          { nickname: { contains: search } },
+        ],
+      },
+    } : {}
+
+    const dateFilter = (startDate || endDate) ? (() => {
+      const createdAt: Record<string, Date> = {}
+      if (startDate) createdAt.gte = new Date(startDate)
+      if (endDate) createdAt.lte = new Date(new Date(endDate).setHours(23, 59, 59, 999))
+      return { createdAt }
+    })() : {}
+
+    const rewardWhere: Record<string, unknown> = { ...userSearchFilter, ...dateFilter }
+    if (type && type !== 'dividend') {
+      rewardWhere.type = type
+    } else if (!type) {
+      rewardWhere.type = { not: 'dividend' }
+    }
+
+    const dividendWhere: Record<string, unknown> = { ...userSearchFilter, ...dateFilter }
+
+    const queries: Promise<unknown>[] = []
+
+    if (!type || type !== 'dividend') {
+      queries.push(
+        prisma.reward.findMany({
+          where: rewardWhere,
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: {
+            user: { select: { id: true, phone: true, nickname: true, level: true } },
+            order: { select: { id: true, orderNo: true } },
+          },
+        }),
+        prisma.reward.count({ where: rewardWhere }),
+      )
+    } else {
+      queries.push(Promise.resolve([]), Promise.resolve(0))
+    }
+
+    if (!type || type === 'dividend') {
+      queries.push(
+        prisma.dividend.findMany({
+          where: dividendWhere,
+          orderBy: { createdAt: 'desc' },
+          skip: type === 'dividend' ? (page - 1) * pageSize : 0,
+          take: type === 'dividend' ? pageSize : 1000,
+          include: {
+            user: { select: { id: true, phone: true, nickname: true, level: true } },
+            order: { select: { id: true, orderNo: true } },
+          },
+        }),
+        prisma.dividend.count({ where: dividendWhere }),
+      )
+    } else {
+      queries.push(Promise.resolve([]), Promise.resolve(0))
+    }
+
+    const statsCondition = { ...userSearchFilter, ...dateFilter }
+    queries.push(
+      prisma.reward.groupBy({
+        by: ['type'],
+        where: { ...statsCondition, status: 'paid' },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.dividend.aggregate({
+        where: statsCondition,
+        _sum: { amount: true },
+        _count: true,
+      }),
+    )
+
+    const results = await Promise.all(queries)
+    return {
+      rewards: results[0],
+      rewardTotal: results[1],
+      dividends: results[2],
+      dividendTotal: results[3],
+      rewardStats: results[4],
+      dividendStats: results[5],
+    }
+  }
+
+  static async createManualReward(params: {
+    userId: string
+    adminId: string
+    amount: number
+    type?: string
+    reason: string
+  }) {
+    const { userId, adminId, amount, type, reason } = params
+    const rewardType = type || 'manual'
+
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user || user.status === 'deleted') throw new Error('用户不存在')
+
+    return prisma.$transaction(async (tx) => {
+      const before = await tx.user.findUnique({
+        where: { id: userId },
+        select: BALANCE_SELECT,
+      })
+      if (!before) throw new Error('用户不存在')
+
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: { earningsAvailable: { increment: amount } },
+        select: { id: true, phone: true, nickname: true, balance: true },
+      })
+
+      const manualReward = await tx.manualReward.create({
+        data: {
+          userId,
+          amount,
+          type: rewardType,
+          reason,
+          operatorId: adminId,
+        },
+      })
+
+      const afterReward = {
+        consumeBalance: before.consumeBalance,
+        earningsAvailable: before.earningsAvailable + amount,
+        earningsPending: before.earningsPending,
+        earningsVoided: before.earningsVoided,
+      }
+
+      await tx.balanceRecord.create({
+        data: {
+          userId,
+          type: 'manual_reward',
+          amount,
+          balance: before.balance,
+          frozenBalance: before.frozenBalance,
+          sourceType: 'manual_reward',
+          sourceId: manualReward.id,
+          description: `手动奖励 ¥${amount.toFixed(2)}，可提现收益增加，余额不变，原因：${reason}${format4FieldDelta(before, afterReward)}`,
+        },
+      })
+
+      return { user: updatedUser, reward: manualReward }
+    })
+  }
+
 }
