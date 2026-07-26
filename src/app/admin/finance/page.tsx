@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -268,7 +268,7 @@ export default function AdminFinancePage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   // 审核日志弹窗
-  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [auditLogs, setAuditLogs] = useState<Array<{ id: string; action: string; createdAt: string; oldStatus?: string; newStatus?: string; reason?: string; remark?: string; user?: { nickname?: string } }>>([])
   const [auditModalId, setAuditModalId] = useState<string | null>(null)
   const [auditLoading, setAuditLoading] = useState(false)
 

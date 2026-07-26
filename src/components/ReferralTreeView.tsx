@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
@@ -376,7 +376,7 @@ function treeToNodesAndEdges(
   }
 
   // 注入 compact 标记到 data
-  ;(nodeData as any)._compact = compact
+  ;(nodeData as { _compact?: boolean })._compact = compact
 
   const node: Node<ReferralNodeData> = {
     id: treeNode.id,
@@ -422,7 +422,7 @@ function ReferralTreeInner(props: ReferralTreeViewProps) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<ReferralNodeData>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
-  const flowRef = useRef<any>(null)
+  const flowRef = useRef<HTMLDivElement & { fitView: (opts?: { padding?: number }) => void }>(null)
   // v33：hover 高亮状态
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
 

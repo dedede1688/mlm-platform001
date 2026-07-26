@@ -106,7 +106,7 @@ export default function AdminProductsPage() {
         .then(r => r.json())
         .then(data => {
           if (data?.success && data?.data?.config) {
-            ;(window as any).__ROLE_PERMISSIONS__ = data.data.config
+            ;(window as { __ROLE_PERMISSIONS__?: Record<string, string[]> }).__ROLE_PERMISSIONS__ = data.data.config
             setPermsLoaded(true)
           }
         })

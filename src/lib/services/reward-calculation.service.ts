@@ -83,7 +83,7 @@ export class RewardCalculationService {
     const claimResult = await OrderRewardStateService.claim(orderId)
 
     if (claimResult !== 'claimed') {
-      return { status: 'skipped', orderId, reason: claimResult as RewardProcessOutcome['status'] extends 'skipped' ? any : never }
+      return { status: 'skipped', orderId, reason: claimResult as never }
     }
 
     const order = await prisma.order.findUnique({

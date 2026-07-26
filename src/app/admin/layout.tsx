@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
@@ -155,7 +155,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
         // v68:注入操作权限到 window,供 hasPermission() 使用
         if (permsData?.success && permsData?.data?.config) {
-          ;(window as any).__ROLE_PERMISSIONS__ = permsData.data.config
+          ;(window as { __ROLE_PERMISSIONS__?: Record<string, string[]> }).__ROLE_PERMISSIONS__ = permsData.data.config
         }
       })
       .catch(() => { /* 静默失败,使用默认 */ })

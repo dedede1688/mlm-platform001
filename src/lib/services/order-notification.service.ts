@@ -1,6 +1,8 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 import { sendInApp } from '@/lib/notification/sendInApp'
 import { logger } from '@/lib/logger'
+
+type PrismaLikeError = { code?: string; meta?: unknown }
 
 export class OrderNotificationService {
   static async notifyOrderPaid(orderId: string) {
@@ -20,7 +22,7 @@ export class OrderNotificationService {
     await this.sendTemplate({
       userId: order.userId, templateType: 'order_shipped', title: '订单发货通知',
       content: '订单 ' + order.orderNo + ' 已发货',
-      variables: { orderNo: order.orderNo, trackingNumber: (order as any).trackingNumber || '', userName: order.user?.nickname ?? order.user?.phone },
+      variables: { orderNo: order.orderNo, trackingNumber: (order as { trackingNumber?: string | null }).trackingNumber || '', userName: order.user?.nickname ?? order.user?.phone },
       notifyName: 'notifyOrderShipped', errorLabel: '发货通知失败',
     })
   }
@@ -108,7 +110,7 @@ export class OrderNotificationService {
         notifyName: 'notifyRefundSubmitted', errorLabel: '发送退款申请站内信失败',
       })
     } catch (err) {
-      logger.error('[notifyRefundSubmitted]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyRefundSubmitted]', { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error('发送退款申请站内信失败', { error: String(err) })
     }
   }
@@ -215,7 +217,7 @@ export class OrderNotificationService {
         notifyName: 'notifyRechargeSubmitted', errorLabel: '充值申请提交通知失败', senderId: params.operatorId, sourceType: 'recharge_request', sourceId: params.rechargeId,
       })
     } catch (err) {
-      logger.error('[notifyRechargeSubmitted]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyRechargeSubmitted]', { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error('充值申请提交通知失败', { error: String(err) })
     }
   }
@@ -234,7 +236,7 @@ export class OrderNotificationService {
         notifyName: 'notifyEarningsVoid', errorLabel: '收益作废通知失败', senderId: params.operatorId, sourceType: 'balance_record', sourceId: params.balanceRecordId,
       })
     } catch (err) {
-      logger.error('[notifyEarningsVoid]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyEarningsVoid]', { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error('收益作废通知失败', { error: String(err) })
     }
   }
@@ -251,7 +253,7 @@ export class OrderNotificationService {
         notifyName: 'notifyPaymentPasswordReset', errorLabel: '支付密码重置通知失败', senderId: params.operatorId, sourceType: 'payment_password', sourceId: params.userId,
       })
     } catch (err) {
-      logger.error('[notifyPaymentPasswordReset]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyPaymentPasswordReset]', { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error('支付密码重置通知失败', { error: String(err) })
     }
   }
@@ -268,7 +270,7 @@ export class OrderNotificationService {
         notifyName: 'notifyPasswordResetByAdmin', errorLabel: '????????', senderId: params.operatorId, sourceType: 'password_reset', sourceId: params.userId,
       })
     } catch (err) {
-      logger.error('[notifyPasswordResetByAdmin]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyPasswordResetByAdmin]', { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error('????????', { error: String(err) })
     }
   }
@@ -286,7 +288,7 @@ export class OrderNotificationService {
         notifyName: 'notifyProfileChange', errorLabel: '??????????', senderId: params.operatorId, sourceType: 'profile_change', sourceId: params.userId,
       })
     } catch (err) {
-      logger.error('[notifyProfileChange]', { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error('[notifyProfileChange]', { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error('??????????', { error: String(err) })
     }
   }
@@ -317,13 +319,13 @@ export class OrderNotificationService {
         templateType: params.templateType, recipientCount: 1,
       }
       if (!params.omitSenderId) batchData.senderId = params.senderId ?? null
-      const batch = await prisma.notificationBatch.create({ data: batchData as any })
+      const batch = await prisma.notificationBatch.create({ data: batchData as Parameters<typeof prisma.notificationBatch.create>[0]['data'] })
       await sendInApp({
         userId: params.userId, templateType: params.templateType, variables: params.variables,
         batchId: batch.id, senderId: params.senderId, sourceType: params.sourceType, sourceId: params.sourceId,
       })
     } catch (err) {
-      logger.error(`[${params.notifyName}]`, { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error(`[${params.notifyName}]`, { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error(params.errorLabel, { error: String(err) })
     }
   }
@@ -343,7 +345,7 @@ export class OrderNotificationService {
         },
       })
     } catch (err) {
-      logger.error(`[${params.notifyName}]`, { error: String(err), code: (err as any)?.code, meta: (err as any)?.meta })
+      logger.error(`[${params.notifyName}]`, { error: String(err), code: (err as PrismaLikeError)?.code, meta: (err as PrismaLikeError)?.meta })
       logger.error(params.errorLabel, { error: String(err) })
     }
   }

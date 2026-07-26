@@ -1,4 +1,4 @@
-import type { NextRequest } from 'next/server'
+﻿import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -106,7 +106,7 @@ export function getClientIP(request: NextRequest): string {
   }
   const realIp = request.headers.get('x-real-ip')
   if (realIp) return realIp
-  return (request as any).ip || 'unknown'
+  return (request as { ip?: string }).ip || 'unknown'
 }
 
 /**

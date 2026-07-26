@@ -1,4 +1,4 @@
-// v68:操作级权限字典 + 工具函数
+﻿// v68:操作级权限字典 + 工具函数
 // 5 档权限:view / create / update / delete / approve
 
 export const ACTIONS = ['view', 'create', 'update', 'delete', 'approve'] as const
@@ -40,7 +40,7 @@ export function hasPermission(role: string | null | undefined, action: Action): 
   // v68.10:super_admin 永远 ALL(防自锁 — DB 配 [] / ['view'] 等任意值都不会影响超管)
   if (role === 'super_admin') return true
   // v68:支持从 DB 覆盖(由 layout 注入)
-  const perms = (window as any).__ROLE_PERMISSIONS__?.[role] || DEFAULT_ROLE_PERMISSIONS[role] || []
+  const perms = (window as { __ROLE_PERMISSIONS__?: Record<string, Action[]> }).__ROLE_PERMISSIONS__?.[role] || DEFAULT_ROLE_PERMISSIONS[role] || []
   return perms.includes(action)
 }
 
@@ -55,5 +55,5 @@ export function getAllowedActions(role: string | null | undefined): Action[] {
   if (!role) return []
   // v68.10:super_admin 永远返回完整 5 档
   if (role === 'super_admin') return ['view', 'create', 'update', 'delete', 'approve']
-  return (window as any).__ROLE_PERMISSIONS__?.[role] || DEFAULT_ROLE_PERMISSIONS[role] || []
+  return (window as { __ROLE_PERMISSIONS__?: Record<string, Action[]> }).__ROLE_PERMISSIONS__?.[role] || DEFAULT_ROLE_PERMISSIONS[role] || []
 }

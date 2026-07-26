@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { getAuthToken, setAuthToken, removeAuthToken, getAuthUser, setAuthUser, removeAuthUser, migrateFromLegacyStorage } from '@/lib/utils/auth-token'
 
 interface UserInfo {
@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setUser: (user) => {
     if (user) {
-      setAuthUser(user as any)
+      setAuthUser(user as unknown as Record<string, unknown>)
     } else {
       removeAuthUser()
     }
@@ -45,7 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: (token, user) => {
     setAuthToken(token)
-    setAuthUser(user as any)
+    setAuthUser(user as unknown as Record<string, unknown>)
     set({ token, user })
   },
 

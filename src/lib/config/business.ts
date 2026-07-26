@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
 
 let cache: Record<string, string> = {}
 let cacheTime = 0
@@ -30,9 +30,9 @@ export async function getBusinessConfig<T>(key: string, defaultValue: T): Promis
   try {
     return JSON.parse(value) as T
   } catch {
-    if (typeof defaultValue === 'number') return Number(value) as any
-    if (typeof defaultValue === 'boolean') return (value === 'true') as any
-    return value as any
+    if (typeof defaultValue === 'number') return Number(value) as unknown as T
+    if (typeof defaultValue === 'boolean') return (value === 'true') as unknown as T
+    return value as unknown as T
   }
 }
 
