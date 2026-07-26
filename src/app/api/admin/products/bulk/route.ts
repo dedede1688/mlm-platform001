@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
+import { ProductService } from '@/lib/services/product.service'
 
 // v53.2: 批量上下架 API
 // 用途：admin 商品管理页多选后批量改 status
@@ -42,31 +42,18 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // 查询存在的商品（排除已软删除的）
-    const existing = await prisma.product.findMany({
-      where: {
-        id: { in: ids as string[] },
-        status: { not: 'deleted' },
-      },
-      select: { id: true, name: true, status: true },
-    })
+    const result = await ProductService.bulkUpdateStatus(ids as string[], status as 'active' | 'inactive')
 
-    if (existing.length === 0) {
+    if (result.updated === 0) {
       return NextResponse.json(
         { success: false, message: '没有可操作的商品（可能都已删除）' },
         { status: 404 }
       )
     }
 
-    // 批量更新
-    const result = await prisma.product.updateMany({
-      where: { id: { in: existing.map(p => p.id) } },
-      data: { status },
-    })
-
     // 记录操作日志（每条商品一条日志）
     await Promise.all(
-      existing.map(p =>
+      result.products.map(p =>
         logOperation({
           userId: admin.id,
           action: 'UPDATE',
@@ -83,11 +70,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        updated: result.count,
-        requested: ids.length,
-        skipped: ids.length - existing.length, // 不存在或已删除的
+        updated: result.updated,
+        requested: result.requested,
+        skipped: result.skipped,
       },
-      message: `已${status === 'active' ? '上架' : '下架'} ${result.count} 个商品${ids.length - existing.length > 0 ? `（${ids.length - existing.length} 个已跳过）` : ''}`,
+      message: `${status === 'active' ? '上架' : '下架'} ${result.updated} 个商品${result.skipped > 0 ? `，${result.skipped} 个已跳过` : ''}`,
     })
   } catch (error) {
     logger.error('Admin bulk update products error:', error)

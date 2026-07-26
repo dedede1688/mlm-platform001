@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
+import { ProductService } from '@/lib/services/product.service'
 
-// GET /api/admin/products — 获取商品列表（分页、搜索、筛选）
+// GET /api/admin/products —— 获取商品列表（分页、搜索、筛选）
 export async function GET(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
@@ -17,45 +17,23 @@ export async function GET(request: NextRequest) {
     const isUpgrade = searchParams.get('isUpgrade')
     const status = searchParams.get('status') || ''
 
-    // 构建查询条件（默认排除已软删除的商品）
-    const where: Record<string, unknown> = { status: { not: 'deleted' } }
-    if (status) {
-      where.status = status
-    }
-    if (isUpgrade !== null && isUpgrade !== '') {
-      where.isUpgradeProduct = isUpgrade === 'true'
-    }
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } },
-      ]
-    }
-
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        orderBy: { sortOrder: 'asc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          category: {
-            select: { id: true, name: true },
-          },
-        },
-      }),
-      prisma.product.count({ where }),
-    ])
+    const result = await ProductService.getAllProducts({
+      page,
+      pageSize,
+      search: search || undefined,
+      isUpgrade,
+      status: status || undefined,
+    })
 
     return NextResponse.json({
       success: true,
-      data: products,
+      data: result.products,
       message: '获取商品列表成功',
       pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
+        page: result.page,
+        pageSize: result.pageSize,
+        total: result.total,
+        totalPages: result.totalPages,
       },
     })
   } catch (error) {
@@ -67,7 +45,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/admin/products — 创建新商品
+// POST /api/admin/products —— 创建新商品
 export async function POST(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
@@ -83,13 +61,13 @@ export async function POST(request: NextRequest) {
       stock,
       isUpgradeProduct,
       maxPointsRatio,
-  benefits,
-  status,
-  sortOrder,
-  categoryId,
-  specs,
-  research,
-  images,
+      benefits,
+      status,
+      sortOrder,
+      categoryId,
+      specs,
+      research,
+      images,
       videoUrl,
     } = body
 
@@ -139,8 +117,8 @@ export async function POST(request: NextRequest) {
 
     // 验证 categoryId 存在性
     if (categoryId) {
-      const categoryExists = await prisma.category.findUnique({ where: { id: categoryId } })
-      if (!categoryExists) {
+      const exists = await ProductService.categoryExists(categoryId)
+      if (!exists) {
         return NextResponse.json(
           { success: false, message: '所选分类不存在' },
           { status: 400 }
@@ -156,40 +134,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 验证 images 格式（应为字符串数组）
+    // 验证 research 格式（应为对象）
+    if (research != null && typeof research !== 'object') {
+      return NextResponse.json(
+        { success: false, message: 'research 必须为对象格式' },
+        { status: 400 }
+      )
+    }
+
+    // 验证 images 格式
     if (images != null && !Array.isArray(images)) {
       return NextResponse.json(
         { success: false, message: 'images 必须为字符串数组' },
         { status: 400 }
       )
     }
-    if (Array.isArray(images) && images.some((img: unknown) => typeof img !== 'string')) {
-      return NextResponse.json(
-        { success: false, message: 'images 数组元素必须为字符串URL' },
-        { status: 400 }
-      )
-    }
 
-    const product = await prisma.product.create({
-      data: {
-        name,
-        description: description || null,
-        imageUrl: imageUrl || null,
-        retailPrice: Number(retailPrice),
-        memberPrice: Number(memberPrice),
-        stock: stock != null ? Number(stock) : 0,
-        isUpgradeProduct: isUpgradeProduct === true,
-        // 升级产品强制为0，普通产品默认0，最高不超过50
-        maxPointsRatio: isUpgradeProduct ? 0 : (maxPointsRatio != null ? Math.min(50, Number(maxPointsRatio)) : 0),
-      benefits: benefits ? benefits : null,
-      status: status || 'active',
-      sortOrder: sortOrder != null ? Number(sortOrder) : 0,
+    const product = await ProductService.createProduct({
+      name,
+      description: description || null,
+      imageUrl: imageUrl || null,
+      retailPrice,
+      memberPrice,
+      stock: stock || 0,
+      isUpgradeProduct: isUpgradeProduct || false,
+      maxPointsRatio: maxPointsRatio ?? 0,
+      benefits: benefits?.length ? benefits : null,
+      status: status === 'active' ? 'active' : 'inactive',
+      sortOrder: sortOrder ?? 0,
       categoryId: categoryId || null,
       specs: specs || null,
       research: research || null,
-      images: images && images.length > 0 ? images : null,
-        videoUrl: videoUrl || null,
-      },
+      images: images || null,
+      videoUrl: videoUrl || null,
     })
 
     // 记录操作日志
@@ -198,7 +175,7 @@ export async function POST(request: NextRequest) {
       action: 'CREATE',
       module: 'product',
       targetId: product.id,
-      newValue: { name: product.name, retailPrice: product.retailPrice, memberPrice: product.memberPrice },
+      newValue: { name: product.name },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })

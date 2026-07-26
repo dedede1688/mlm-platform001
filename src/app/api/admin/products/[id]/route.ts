@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { prisma } from '@/lib/prisma'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
+import { ProductService } from '@/lib/services/product.service'
 
-// GET /api/admin/products/[id] — 获取单个商品详情
+// GET /api/admin/products/[id] —— 获取单个商品详情
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,14 +14,7 @@ export async function GET(
     if (authError || !admin) return authError!
 
     const { id } = await params
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        category: {
-          select: { id: true, name: true },
-        },
-      },
-    })
+    const product = await ProductService.getProductById(id, true)
 
     if (!product) {
       return NextResponse.json(
@@ -44,7 +37,7 @@ export async function GET(
   }
 }
 
-// PUT /api/admin/products/[id] — 更新商品信息（支持部分更新）
+// PUT /api/admin/products/[id] —— 更新商品信息（支持部分更新）
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -56,7 +49,7 @@ export async function PUT(
     const { id } = await params
 
     // 检查商品是否存在
-    const existing = await prisma.product.findUnique({ where: { id } })
+    const existing = await ProductService.getProductById(id)
     if (!existing) {
       return NextResponse.json(
         { success: false, message: '商品不存在' },
@@ -112,7 +105,7 @@ export async function PUT(
     // 交叉验证：会员价不能大于零售价
     const finalRetail = data.retailPrice != null ? data.retailPrice : existing.retailPrice
     const finalMember = data.memberPrice != null ? data.memberPrice : existing.memberPrice
-    if (finalMember > finalRetail) {
+    if (Number(finalMember) > Number(finalRetail)) {
       return NextResponse.json(
         { success: false, message: '会员价不能大于零售价' },
         { status: 400 }
@@ -172,8 +165,8 @@ export async function PUT(
     // categoryId
     if (body.categoryId !== undefined) {
       if (body.categoryId) {
-        const categoryExists = await prisma.category.findUnique({ where: { id: body.categoryId } })
-        if (!categoryExists) {
+        const exists = await ProductService.categoryExists(body.categoryId)
+        if (!exists) {
           return NextResponse.json(
             { success: false, message: '所选分类不存在' },
             { status: 400 }
@@ -228,10 +221,7 @@ export async function PUT(
       )
     }
 
-    const product = await prisma.product.update({
-      where: { id },
-      data,
-    })
+    const product = await ProductService.updateProduct(id, data)
 
     // 记录操作日志
     await logOperation({
@@ -259,7 +249,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/admin/products/[id] — 软删除商品（设置 status='deleted'）
+// DELETE /api/admin/products/[id] —— 软删除商品（设置 status='deleted'）
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -271,7 +261,7 @@ export async function DELETE(
     const { id } = await params
 
     // 检查商品是否存在
-    const existing = await prisma.product.findUnique({ where: { id } })
+    const existing = await ProductService.getProductById(id)
     if (!existing) {
       return NextResponse.json(
         { success: false, message: '商品不存在' },
@@ -287,10 +277,7 @@ export async function DELETE(
     }
 
     // 软删除：设置 status='deleted'
-    await prisma.product.update({
-      where: { id },
-      data: { status: 'deleted' },
-    })
+    await ProductService.deleteProduct(id)
 
     // 记录操作日志
     await logOperation({
