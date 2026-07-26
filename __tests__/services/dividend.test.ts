@@ -54,10 +54,8 @@ describe('DividendService', () => {
       // 1. 今日未快照
       prisma.dividend.findFirst.mockResolvedValueOnce(null)
       // 2. 今日有 paid 订单
-      prisma.order.findMany.mockResolvedValueOnce([
-        { id: 'order-1', payAmount: 10000, status: 'paid', paidAt: new Date() },
-        { id: 'order-2', payAmount: 10000, status: 'paid', paidAt: new Date() },
-      ])
+      prisma.order.aggregate.mockResolvedValueOnce({ _sum: { payAmount: 20000 }, _count: { id: 2 } })
+      prisma.order.findFirst.mockResolvedValueOnce({ id: 'order-latest' })
       // totalOrderAmount = 20000, totalDividendPool = 20000 * 0.05 * 5 = 5000
       // 3. 符合条件用户
       prisma.user.findMany.mockResolvedValueOnce([
@@ -106,7 +104,8 @@ describe('DividendService', () => {
 
     it('should return early when no paid orders', async () => {
       prisma.dividend.findFirst.mockResolvedValueOnce(null)
-      prisma.order.findMany.mockResolvedValueOnce([])
+      prisma.order.aggregate.mockResolvedValueOnce({ _sum: { payAmount: 0 }, _count: { id: 0 } })
+      prisma.order.findFirst.mockResolvedValueOnce(null)
 
       const result = await DividendService.snapshotDailyDividends()
 
@@ -117,9 +116,8 @@ describe('DividendService', () => {
 
     it('should return early when no eligible users', async () => {
       prisma.dividend.findFirst.mockResolvedValueOnce(null)
-      prisma.order.findMany.mockResolvedValueOnce([
-        { id: 'order-1', payAmount: 10000, status: 'paid', paidAt: new Date() },
-      ])
+      prisma.order.aggregate.mockResolvedValueOnce({ _sum: { payAmount: 10000 }, _count: { id: 1 } })
+      prisma.order.findFirst.mockResolvedValueOnce({ id: 'order-1' })
       prisma.user.findMany.mockResolvedValueOnce([])
 
       const result = await DividendService.snapshotDailyDividends()
@@ -139,9 +137,8 @@ describe('DividendService', () => {
 
       try {
         prisma.dividend.findFirst.mockResolvedValueOnce(null)
-        prisma.order.findMany.mockResolvedValueOnce([
-          { id: 'order-1', payAmount: 10000, status: 'paid', paidAt: new Date() },
-        ])
+        prisma.order.aggregate.mockResolvedValueOnce({ _sum: { payAmount: 10000 }, _count: { id: 1 } })
+        prisma.order.findFirst.mockResolvedValueOnce({ id: 'order-1' })
         prisma.user.findMany.mockResolvedValueOnce([
           { id: 'user-director', phone: '111', nickname: 'D', level: 3 },
           { id: 'user-manager', phone: '222', nickname: 'M', level: 4 },

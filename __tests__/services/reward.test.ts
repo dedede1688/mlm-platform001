@@ -852,6 +852,7 @@ describe('RewardService', () => {
       prisma.user.findUnique.mockResolvedValue({ parentId: null })
       prisma.user.findUnique.mockResolvedValueOnce({ id: 'buyer-main', referrerId: null, level: 1 })
 
+      prisma.user.updateMany.mockResolvedValue({ count: 1 })
       await RewardService.processPaidOrderRewards(orderId)
 
       const rewardCall = prisma.reward.create.mock.calls[0][0]
@@ -859,7 +860,7 @@ describe('RewardService', () => {
       expect(rewardCall.data.userId).toBe(referrerId)
       expect(rewardCall.data.amount).toBe(expectedAmount)
 
-      const userUpdateCall = prisma.user.update.mock.calls[0][0]
+      const userUpdateCall = prisma.user.updateMany.mock.calls[0][0]
       expect(userUpdateCall.data).toMatchObject({ earningsAvailable: { increment: expectedAmount } })
       expect(userUpdateCall.data).not.toHaveProperty('balance')
 
@@ -914,6 +915,7 @@ describe('RewardService', () => {
       prisma.user.findUnique.mockResolvedValueOnce({ id: targetUserId })
       prisma.order.update.mockResolvedValueOnce({})
 
+      prisma.user.updateMany.mockResolvedValue({ count: 1 })
       await RewardService.processPaidOrderRewards(orderId)
 
       const brandCall = prisma.reward.create.mock.calls.find((c: any) => c[0].data.type === 'brand_bonus')
@@ -921,7 +923,7 @@ describe('RewardService', () => {
       expect(brandCall![0].data.userId).toBe(targetUserId)
       expect(brandCall![0].data.amount).toBe(expectedAmount)
 
-      const userUpdateCall = prisma.user.update.mock.calls.find((c: any) => c[0].where.id === targetUserId)
+      const userUpdateCall = prisma.user.updateMany.mock.calls.find((c: any) => c[0].where.id === targetUserId)
       expect(userUpdateCall).toBeDefined()
       expect(userUpdateCall![0].data).toMatchObject({ earningsAvailable: { increment: expectedAmount } })
     })
