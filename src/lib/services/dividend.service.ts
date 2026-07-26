@@ -1,11 +1,10 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { MEMBER_LEVELS, BALANCE_SELECT } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
+import { getSystemParameter } from '@/lib/config/system-parameters'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 import { logger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
-
-const DIVIDEND_SETTLEMENT_PAUSED = true
 
 type DividendSettlementPausedResult = {
   paused: true
@@ -261,7 +260,8 @@ export class DividendService {
   // 每周结算：把"未结算"明细统一入账 + 幂等标记
   // ========================================
   static async settleWeeklyDividends(): Promise<DividendSettlementResult> {
-    if (DIVIDEND_SETTLEMENT_PAUSED) {
+    const paused = await getSystemParameter('dividend.settlement_paused') as boolean
+    if (paused) {
       const result: DividendSettlementResult = {
         paused: true,
         batchId: null,

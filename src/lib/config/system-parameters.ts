@@ -17,6 +17,7 @@ export type SystemParameterKey =
   | 'dividend.director.include_upstream' | 'dividend.manager.include_upstream'
   | 'dividend.supervisor.include_upstream' | 'dividend.president.include_upstream'
   | 'dividend.board.include_upstream'
+  | 'dividend.settlement_paused'
   // 业务参数 - 升级
   | 'upgrade.distributor.box_count' | 'upgrade.points_per_box'
   | 'upgrade.daily_unlock_rate'
@@ -137,6 +138,11 @@ export const SYSTEM_PARAMETERS: Record<SystemParameterKey, SystemParameterDef> =
     key: 'dividend.board.include_upstream', type: 'boolean', defaultValue: false,
     unit: '-', group: 'dividend',
     description: '董事池"包含上级"开关',
+  },
+  'dividend.settlement_paused': {
+    key: 'dividend.settlement_paused', type: 'boolean', defaultValue: true,
+    unit: '-', group: 'dividend',
+    description: '分红周结暂停开关',
   },
 
   // ===== 升级门槛（8 项）=====
