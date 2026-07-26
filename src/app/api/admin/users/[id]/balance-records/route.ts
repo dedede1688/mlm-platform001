@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
+import { UserService } from '@/lib/services/user.service'
 import { logger } from '@/lib/logger'
 
 export async function GET(
@@ -8,9 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user: _admin, error: authError } = await verifyPermission(
-      request, ['support_admin', 'super_admin']
-    )
+    const { user: _admin, error: authError } = await verifyPermission(request, ['support_admin', 'super_admin'])
     if (authError || !_admin) return authError!
 
     const { id } = await params
@@ -21,75 +19,30 @@ export async function GET(
     const startDate = searchParams.get('startDate') || undefined
     const endDate = searchParams.get('endDate') || undefined
 
-    const skip = (page - 1) * limit
-
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true, phone: true, nickname: true, status: true,
-        balance: true, frozenBalance: true,
-        consumeBalance: true,
-        earningsPending: true,
-        earningsAvailable: true,
-        earningsVoided: true,
-      },
-    })
+    const user = await UserService.getUserById(id)
     if (!user || user.status === 'deleted') {
-      return NextResponse.json(
-        { success: false, message: '用户不存在' },
-        { status: 404 }
-      )
+      return NextResponse.json({ success: false, message: '用户不存在' }, { status: 404 })
     }
 
-    const where: Record<string, unknown> = { userId: id }
-    if (type) {
-      const types = type.split(',')
-      where.type = types.length === 1 ? types[0] : { in: types }
-    }
-    if (startDate || endDate) {
-      where.createdAt = {}
-      if (startDate) (where.createdAt as Record<string, unknown>).gte = new Date(startDate)
-      if (endDate) (where.createdAt as Record<string, unknown>).lte = new Date(endDate)
-    }
-
-    const [records, total] = await Promise.all([
-      prisma.balanceRecord.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.balanceRecord.count({ where }),
-    ])
+    const { records, pagination } = await UserService.getUserBalanceRecords(id, page, limit, { type, startDate, endDate })
 
     return NextResponse.json({
       success: true,
       data: {
         user: {
-          id: user.id,
-          phone: user.phone,
-          nickname: user.nickname,
-          balance: user.balance,
-          frozenBalance: user.frozenBalance,
+          id: user.id, phone: user.phone, nickname: user.nickname,
+          balance: user.balance, frozenBalance: user.frozenBalance,
           consumeBalance: user.consumeBalance ?? 0,
           earningsPending: user.earningsPending ?? 0,
           earningsAvailable: user.earningsAvailable ?? 0,
           earningsVoided: user.earningsVoided ?? 0,
         },
         records,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
+        pagination,
       },
     })
   } catch (error) {
     logger.error('Admin get balance records error:', error)
-    return NextResponse.json(
-      { success: false, message: '获取余额流水失败' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, message: '获取余额流水失败' }, { status: 500 })
   }
 }

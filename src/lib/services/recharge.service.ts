@@ -446,4 +446,24 @@ export class RechargeService {
       updatedAt: request.updatedAt,
     }
   }
+
+  // 获取充值审核日志
+  static async getAuditLogs(requestId: string) {
+    const logs = await prisma.rechargeAuditLog.findMany({
+      where: { requestId },
+      orderBy: { createdAt: 'asc' },
+    })
+    const operatorIds = logs.map(l => l.operatorId).filter((oid): oid is string => !!oid)
+    const operators = operatorIds.length > 0
+      ? await prisma.user.findMany({ where: { id: { in: operatorIds } }, select: { id: true, phone: true, nickname: true } })
+      : []
+    const operatorMap = new Map(operators.map(o => [o.id, o]))
+    return logs.map(log => ({
+      id: log.id, requestId: log.requestId, action: log.action,
+      oldStatus: log.oldStatus, newStatus: log.newStatus,
+      operatorId: log.operatorId,
+      operator: log.operatorId ? operatorMap.get(log.operatorId) || null : null,
+      reason: log.reason, remark: log.remark, createdAt: log.createdAt,
+    }))
+  }
 }

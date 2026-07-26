@@ -334,4 +334,39 @@ export class UserService {
       })
     }
   }
+  // 获取用户基本信息（管理员用，含余额字段）
+  static async getUserById(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true, phone: true, nickname: true, status: true,
+        balance: true, frozenBalance: true, consumeBalance: true,
+        earningsPending: true, earningsAvailable: true, earningsVoided: true,
+      },
+    })
+  }
+
+  static async getUserBalanceRecords(userId: string, page: number = 1, limit: number = 20, filters?: { type?: string; startDate?: string; endDate?: string }) {
+    const skip = (page - 1) * limit
+    const where: Record<string, unknown> = { userId }
+
+    if (filters?.type) {
+      const types = filters.type.split(',')
+      where.type = types.length === 1 ? types[0] : { in: types }
+    }
+
+    if (filters?.startDate || filters?.endDate) {
+      where.createdAt = {} as Record<string, unknown>
+      if (filters.startDate) (where.createdAt as Record<string, unknown>).gte = new Date(filters.startDate)
+      if (filters.endDate) (where.createdAt as Record<string, unknown>).lte = new Date(filters.endDate)
+    }
+
+    const [records, total] = await Promise.all([
+      prisma.balanceRecord.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      prisma.balanceRecord.count({ where }),
+    ])
+
+    return { records, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+  }
+
 }

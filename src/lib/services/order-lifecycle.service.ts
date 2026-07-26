@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+﻿import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
 import { PointsService } from './points.service'
@@ -481,4 +481,36 @@ export class OrderLifecycleService {
 
     return prisma.order.findUnique({ where: { id: orderId } })
   }
+
+  // ???????????????????????
+  static async getAdminRefunds(page: number = 1, limit: number = 20, filters?: { status?: string; search?: string }) {
+    const skip = (page - 1) * limit
+    const where: Record<string, unknown> = {}
+
+    if (filters?.status) where.status = filters.status
+    if (filters?.search) {
+      where.OR = [
+        { order: { orderNo: { contains: filters.search } } },
+        { user: { phone: { contains: filters.search } } },
+        { user: { nickname: { contains: filters.search } } },
+      ]
+    }
+
+    const [refundRequests, total] = await Promise.all([
+      prisma.refundRequest.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: {
+          user: { select: { id: true, phone: true, nickname: true } },
+          order: { select: { id: true, orderNo: true, payAmount: true } },
+        },
+      }),
+      prisma.refundRequest.count({ where }),
+    ])
+
+    return { data: refundRequests, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+  }
+
 }

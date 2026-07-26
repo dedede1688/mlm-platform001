@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
@@ -410,5 +410,41 @@ export class WithdrawalService {
       completed,
       totalAmount: totalAmount._sum.amount || 0,
     }
+  }
+
+  // 管理员获取提现列表（支持分页、状态过滤、搜索）
+  static async getAdminWithdrawals(page: number = 1, limit: number = 20, filters?: { status?: string; search?: string }) {
+    const skip = (page - 1) * limit
+    const where: Record<string, unknown> = {}
+
+    if (filters?.status) where.status = filters.status
+    if (filters?.search) {
+      where.user = { OR: [{ phone: { contains: filters.search } }, { nickname: { contains: filters.search } }] }
+    }
+
+    const [withdrawals, total] = await Promise.all([
+      prisma.withdrawal.findMany({
+        where, orderBy: { createdAt: 'desc' }, skip, take: limit,
+        include: { user: { select: { id: true, phone: true, nickname: true, level: true } } },
+      }),
+      prisma.withdrawal.count({ where }),
+    ])
+
+    // 补充审核人信息
+    const reviewerIds = withdrawals.map(w => w.reviewedBy).filter((id): id is string => !!id)
+    const reviewers = reviewerIds.length > 0
+      ? await prisma.user.findMany({ where: { id: { in: reviewerIds } }, select: { id: true, phone: true, nickname: true } })
+      : []
+    const reviewerMap = new Map(reviewers.map(r => [r.id, r]))
+
+    const data = withdrawals.map(w => ({
+      id: w.id, userId: w.userId, user: w.user, amount: w.amount, status: w.status,
+      rejectReason: w.rejectReason, reviewedBy: w.reviewedBy,
+      reviewer: w.reviewedBy ? reviewerMap.get(w.reviewedBy) || null : null,
+      reviewedAt: w.reviewedAt, paidAt: w.paidAt, completedBy: w.completedBy,
+      completedAt: w.completedAt, paymentProofUrl: w.paymentProofUrl, createdAt: w.createdAt,
+    }))
+
+    return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
   }
 }
