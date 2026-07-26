@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { RewardService } from './reward.service'
 import { PointsService } from './points.service'
 import { UserService } from './user.service'
@@ -203,9 +203,7 @@ export class OrderLifecycleService {
       },
     })
 
-    for (const order of orders) {
-      await this.completeOrder(order.id)
-    }
+    await Promise.all(orders.map(order => this.completeOrder(order.id)))
 
     return orders.length
   }
@@ -228,8 +226,8 @@ export class OrderLifecycleService {
     // 使用事务保证原子性
     await prisma.$transaction(async (tx) => {
       // 退回库存
-      for (const item of order.items) {
-        await tx.product.update({
+      await Promise.all(order.items.map(item =>
+        tx.product.update({
           where: { id: item.productId },
           data: {
             stock: {
@@ -237,7 +235,7 @@ export class OrderLifecycleService {
             },
           },
         })
-      }
+      ))
 
       // 如果使用了积分，退回积分
       if (order.pointsUsed > 0) {
@@ -334,8 +332,8 @@ export class OrderLifecycleService {
     // 使用事务保证原子性
     await prisma.$transaction(async (tx) => {
       // 退回库存
-      for (const item of order.items) {
-        await tx.product.update({
+      await Promise.all(order.items.map(item =>
+        tx.product.update({
           where: { id: item.productId },
           data: {
             stock: {
@@ -343,7 +341,7 @@ export class OrderLifecycleService {
             },
           },
         })
-      }
+      ))
 
       // 如果使用了积分，退回积分
       if (order.pointsUsed > 0) {

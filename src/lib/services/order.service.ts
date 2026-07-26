@@ -136,8 +136,8 @@ export class OrderService {
       })
 
       // 原子扣减库存（防并发超卖）
-      for (const item of items) {
-        const result = await tx.product.updateMany({
+      const stockResults = await Promise.all(items.map(item =>
+        tx.product.updateMany({
           where: {
             id: item.productId,
             stock: { gte: item.quantity },
@@ -146,8 +146,10 @@ export class OrderService {
             stock: { decrement: item.quantity },
           },
         })
-        if (result.count === 0) {
-          throw new Error(`商品 ${item.productId} 库存不足，请刷新页面重试`)
+      ))
+      for (let i = 0; i < items.length; i++) {
+        if (stockResults[i].count === 0) {
+          throw new Error(`商品 ${items[i].productId} 库存不足，请刷新页面重试`)
         }
       }
 

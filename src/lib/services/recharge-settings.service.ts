@@ -163,13 +163,13 @@ export class RechargeSettingsService {
 
     await prisma.$transaction(async (tx) => {
       const configEntries = Object.values(RECHARGE_CONFIG)
-      for (const { key, description } of configEntries) {
-        await tx.systemConfig.upsert({
+      await Promise.all(configEntries.map(({ key, description }) =>
+        tx.systemConfig.upsert({
           where: { key },
           create: { key, value: stored[key], description },
           update: { value: stored[key] },
         })
-      }
+      ))
     })
 
     // 事务成功后才清除业务配置缓存（事务失败时不清，避免缓存与数据库不一致）
