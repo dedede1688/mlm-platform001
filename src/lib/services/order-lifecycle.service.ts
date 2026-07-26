@@ -513,4 +513,35 @@ export class OrderLifecycleService {
     return { data: refundRequests, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
   }
 
+
+  static async getRefundRequestById(id: string) {
+    return prisma.refundRequest.findUnique({
+      where: { id },
+      include: { order: { select: { id: true, orderNo: true, userId: true, payAmount: true } } },
+    })
+  }
+
+  static async reviewRefund(id: string, data: { action: 'approve' | 'reject'; reviewedBy: string; adminComment?: string }) {
+    const refund = await prisma.refundRequest.findUnique({ where: { id } })
+    if (!refund) throw new Error('???????')
+    if (refund.status !== 'pending') throw new Error('???????????')
+    const updateData: Record<string, unknown> = {
+      status: data.action === 'approve' ? 'approved' : 'rejected',
+      reviewedBy: data.reviewedBy,
+      reviewedAt: new Date(),
+    }
+    if (data.adminComment !== undefined) updateData.adminComment = data.adminComment || null
+    return prisma.refundRequest.update({ where: { id }, data: updateData })
+  }
+
+  static async completeRefund(id: string) {
+    const refund = await prisma.refundRequest.findUnique({ where: { id } })
+    if (!refund) throw new Error('???????')
+    if (refund.status !== 'approved') throw new Error('???????????')
+    return prisma.refundRequest.update({
+      where: { id },
+      data: { status: 'completed' },
+    })
+  }
+
 }

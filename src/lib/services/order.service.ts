@@ -271,4 +271,50 @@ export class OrderService {
       },
     })
   }
+
+  static async getAdminOrders(params: { page: number; pageSize: number; status?: string; search?: string }) {
+    const { page, pageSize, status, search } = params
+    const skip = (page - 1) * pageSize
+    const where: Record<string, unknown> = {}
+    if (status) where.status = status
+    if (search) {
+      where.OR = [
+        { orderNo: { contains: search } },
+        { user: { phone: { contains: search } } },
+        { user: { nickname: { contains: search } } },
+      ]
+    }
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where, orderBy: { createdAt: 'desc' }, skip, take: pageSize,
+        include: {
+          user: { select: { id: true, phone: true, nickname: true, level: true } },
+          items: { include: { product: { select: { id: true, name: true, imageUrl: true } } } },
+        },
+      }),
+      prisma.order.count({ where }),
+    ])
+    return { orders, page, pageSize, total }
+  }
+
+  static async getAdminOrderDetail(id: string) {
+    return prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, phone: true, nickname: true, level: true } },
+        items: { include: { product: { select: { id: true, name: true, imageUrl: true, retailPrice: true, memberPrice: true } } } },
+        rewards: { select: { id: true, type: true, amount: true, status: true, fromUserId: true, level: true } },
+      },
+    })
+  }
+
+
+  static async getOrderById(id: string) {
+    return prisma.order.findUnique({ where: { id } })
+  }
+
+  static async updateOrder(id: string, data: Record<string, unknown>) {
+    return prisma.order.update({ where: { id }, data })
+  }
+
 }

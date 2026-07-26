@@ -3,7 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { RechargeService } from '@/lib/services/recharge.service'
 import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
-import { prisma } from '@/lib/prisma'
+import { UserService } from '@/lib/services/user.service'
 import { logger } from '@/lib/logger'
 
 /**
@@ -59,10 +59,7 @@ export async function PATCH(
       // 通知用户：充值审核通过（非阻塞，失败不影响主流程）
       if (updated) {
         try {
-          const userAfterApprove = await prisma.user.findUnique({
-            where: { id: updated.userId },
-            select: { balance: true },
-          })
+          const userAfterApprove = await UserService.getUserById(updated.userId)
           if (!userAfterApprove || typeof userAfterApprove.balance !== 'number' || isNaN(userAfterApprove.balance)) {
             logger.error('[v3.2-1-hotfix notifyRechargeApproved] 跳过通知：无法获取用户余额', {
               userId: updated.userId,
