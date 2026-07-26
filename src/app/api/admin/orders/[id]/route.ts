@@ -6,6 +6,8 @@ import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { logger } from '@/lib/logger'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { parseBody } from '@/lib/validations/helper'
+import { orderStatusActionSchema } from '@/lib/validations/admin/orders'
 
 // GET /api/admin/orders/[id] — 获取订单详情
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -28,19 +30,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { user: admin, error: authError } = await verifyPermission(request, ['goods_admin', 'super_admin'])
     if (authError || !admin) return authError!
     const { id } = await params
-    const body = await request.json()
-    const { action, trackingNumber } = body
-    if (!action || !['ship', 'cancel'].includes(action)) {
-      return errorResponse('action 必须是 ship 或 cancel', 400)
-    }
-    if (action === 'ship') {
-      if (!trackingNumber || typeof trackingNumber !== 'string' || trackingNumber.trim().length < 3) {
-        return errorResponse('物流单号至少 3 字符', 400)
-      }
-      const updated = await OrderLifecycleService.shipOrder(id, trackingNumber.trim())
+
+    const { data: body, error: parseError } = await parseBody(orderStatusActionSchema, request)
+    if (parseError) return parseError
+
+    if (body.action === 'ship') {
+      const updated = await OrderLifecycleService.shipOrder(id, body.trackingNumber.trim())
       await logOperation({
         userId: admin.id, action: 'UPDATE', module: 'order', targetId: id,
-        newValue: { trackingNumber: trackingNumber.trim() },
+        newValue: { trackingNumber: body.trackingNumber.trim() },
         ip: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
       }).catch(() => {})

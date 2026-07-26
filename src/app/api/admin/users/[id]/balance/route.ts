@@ -7,6 +7,8 @@ import { BalanceService } from "@/lib/services/balance.service"
 import { OrderNotificationService } from "@/lib/services/order-notification.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { parseBody } from "@/lib/validations/helper"
+import { balanceAdjustSchema } from "@/lib/validations/admin/balance"
 
 const VALID_TYPES = ["balance", "frozenBalance", "recharge", "consume_void", "earnings_add", "earnings_void"] as const
 type AdjustType = typeof VALID_TYPES[number]
@@ -39,33 +41,17 @@ export async function POST(
     if (authError || !admin) return authError!
 
     const { id } = await params
-    const body = await request.json()
-    const { type, amount, reason } = body
+    const { data: body, error: parseError } = await parseBody(balanceAdjustSchema, request)
+    if (parseError) return parseError
 
-    if (!type || !VALID_TYPES.includes(type as AdjustType)) {
-      return errorResponse(`type 必须为 ${VALID_TYPES.join(" / ")}`, 400)
-    }
-
-    const adjustType: AdjustType = type as AdjustType
-
-    if (typeof amount !== "number" || !Number.isFinite(amount) || amount === 0) {
-      return errorResponse("amount 必须为非零有限数字", 400)
-    }
-
-    if (adjustType === "earnings_void" && amount <= 0) {
-      return errorResponse("作废收益金额必须为正数", 400)
-    }
-
-    if (!reason || typeof reason !== "string" || reason.trim().length < 5) {
-      return errorResponse("原因至少 5 个字", 400)
-    }
+    const adjustType: AdjustType = body.type as AdjustType
 
     const result = await BalanceService.adjustBalance({
       userId: id,
       adminId: admin.id,
-      type,
-      amount,
-      reason: reason.trim(),
+      type: body.type,
+      amount: body.amount,
+      reason: body.reason.trim(),
     })
 
     if (!result.updated) {
@@ -90,10 +76,10 @@ export async function POST(
     if (adjustType === "earnings_void") {
       await OrderNotificationService.notifyEarningsVoid({
         userId: id,
-        amount,
+        amount: body.amount,
         earningsAvailable: result.updated.earningsAvailable,
         earningsVoided: result.updated.earningsVoided,
-        reason: reason.trim(),
+        reason: body.reason.trim(),
         operatorId: admin.id,
         balanceRecordId: result.balanceRecordId!,
       }).catch((err) => {
@@ -102,23 +88,23 @@ export async function POST(
     } else {
       await OrderNotificationService.notifyBalanceChange({
         userId: id,
-        adjustType: type as string,
-        amount,
+        adjustType: body.type,
+        amount: body.amount,
         newBalance: result.updated.balance,
-        reason: reason.trim(),
+        reason: body.reason.trim(),
         operatorId: admin.id,
       })
     }
 
-    const actionLabel = amount > 0 ? "增加" : "扣减"
+    const actionLabel = body.amount > 0 ? "增加" : "扣减"
     logger.info(
-      `[BalanceAdjust] 用户 ${id} 的${fieldLabel}已${actionLabel} ¥${Math.abs(amount).toFixed(2)}，原因：${reason}`
+      `[BalanceAdjust] 用户 ${id} 的${fieldLabel}已${actionLabel} ¥${Math.abs(body.amount).toFixed(2)}，原因：${body.reason}`
     )
 
     if (adjustType === "earnings_void") {
       return successResponse(
         { earningsAvailable: result.updated.earningsAvailable, earningsVoided: result.updated.earningsVoided },
-        `收益作废成功：可用收益减少 ¥${amount.toFixed(2)}，累计作废 ¥${result.updated.earningsVoided.toFixed(2)}`
+        `收益作废成功：可用收益减少 ¥${body.amount.toFixed(2)}，累计作废 ¥${result.updated.earningsVoided.toFixed(2)}`
       )
     }
 
@@ -129,7 +115,7 @@ export async function POST(
       responseData[result.mapping.extra] = (result.updated as Record<string, unknown>)[result.mapping.extra] as number
     }
 
-    return successResponse(responseData, `资金调整成功：${fieldLabel}${actionLabel} ¥${Math.abs(amount).toFixed(2)}`)
+    return successResponse(responseData, `资金调整成功：${fieldLabel}${actionLabel} ¥${Math.abs(body.amount).toFixed(2)}`)
   } catch (error) {
     logger.error("Adjust balance error:", error)
     const message = error instanceof Error ? error.message : "资金调整失败"

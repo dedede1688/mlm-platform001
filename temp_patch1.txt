@@ -1,0 +1,30 @@
+﻿*** Begin Patch
+*** Update File: src/app/api/admin/logs/route.ts
+@@ -1,5 +1,4 @@
+-import { NextRequest, NextResponse } from "next/server"
++import { NextRequest } from "next/server"
+ import { verifyPermission } from "@/lib/utils/admin-auth"
+@@ -36,9 +35,14 @@
+-    return NextResponse.json({
+-      success: true,
+-      data: logs,
+-      message: "获取操作日志成功",
+-      pagination: {
++    return successResponse(
++      {
++        records: logs,
++        pagination: {
+-        page,
+-        pageSize: svcPagination.limit,
+-        total: svcPagination.total,
+-        totalPages: svcPagination.totalPages,
++          page,
++          pageSize: svcPagination.limit,
++          total: svcPagination.total,
++          totalPages: svcPagination.totalPages,
++        },
+       },
+-    })
++      "获取操作日志成功"
++    )
+*** End Patch

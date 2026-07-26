@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { SettingsService } from '@/lib/services/settings.service'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { DEFAULT_ROLE_PERMISSIONS, ACTIONS, Action } from '@/lib/admin-permissions'
+import { parseBody } from '@/lib/validations/helper'
+import { rolePermissionsConfigSchema } from '@/lib/validations/admin/role-permissions'
 
 const STORAGE_KEY = 'role_permissions'
 
@@ -29,21 +31,11 @@ export async function PUT(request: NextRequest) {
   const { user, error } = await verifyPermission(request, ['super_admin'])
   if (error || !user) return error || errorResponse('权限不足', 403)
 
-  let body: { config: Record<string, Action[]> }
-  try {
-    body = await request.json()
-  } catch {
-    return errorResponse('请求体格式错误', 400)
-  }
+  const { data: body, error: parseError } = await parseBody(rolePermissionsConfigSchema, request)
+  if (parseError) return parseError
 
-  if (!body.config || typeof body.config !== 'object') {
-    return errorResponse('config 字段缺失', 400)
-  }
-
+  // 额外业务校验：操作合法性（Zod 无法表达的业务规则）
   for (const [role, actions] of Object.entries(body.config)) {
-    if (!Array.isArray(actions)) {
-      return errorResponse(`角色 ${role} 的权限列表必须是数组`, 400)
-    }
     for (const action of actions) {
       if (!ACTIONS.includes(action as Action)) {
         return errorResponse(`角色 ${role} 包含无效操作: ${action}`, 400)

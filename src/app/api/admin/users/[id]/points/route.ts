@@ -5,24 +5,22 @@ import { PointsService } from "@/lib/services/points.service"
 import { OrderNotificationService } from "@/lib/services/order-notification.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { parseBody } from "@/lib/validations/helper"
+import { userPointsAdjustSchema } from "@/lib/validations/admin/users"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ["super_admin"])
     if (authError || !admin) return authError!
     const { id } = await params
-    const body = await request.json()
-    const { type, amount, reason } = body
-    if (!type || !["totalPoints", "unlockedPoints", "lockedPoints"].includes(type)) {
-      return errorResponse("积分类型无效，必须为 totalPoints、unlockedPoints 或 lockedPoints", 400)
-    }
-    if (typeof amount !== "number" || amount === 0 || isNaN(amount)) {
-      return errorResponse("积分调整量必须为非零数字", 400)
-    }
-    if (!reason || typeof reason !== "string" || reason.trim().length < 5) {
-      return errorResponse("调整原因不少于5字", 400)
-    }
-    const result = await PointsService.adminAdjustPoints({ userId: id, type, amount, reason: reason.trim(), adminId: admin.id })
+
+    const { data: body, error: parseError } = await parseBody(userPointsAdjustSchema, request)
+    if (parseError) return parseError
+
+    const result = await PointsService.adminAdjustPoints({
+      userId: id, type: body.type, amount: body.amount,
+      reason: body.reason.trim(), adminId: admin.id,
+    })
     await logOperation({
       userId: admin.id, action: "UPDATE", module: "user", targetId: id,
       oldValue: result.oldValue,
@@ -34,18 +32,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ip: request.headers.get("x-forwarded-for") || undefined,
       userAgent: request.headers.get("user-agent") || undefined,
     })
-    const actionLabel = amount > 0 ? "增加" : "减少"
-    logger.info(`[PointsAdjust] 用户 ${id} ${result.fieldLabel}${actionLabel} ${Math.abs(amount)}，原因：${reason}`)
+    const actionLabel = body.amount > 0 ? "增加" : "减少"
+    logger.info(`[PointsAdjust] 用户 ${id} ${result.fieldLabel}${actionLabel} ${Math.abs(body.amount)}，原因：${body.reason}`)
     await OrderNotificationService.notifyPointsAdjust({
-      userId: id, fieldLabel: result.fieldLabel, amount,
+      userId: id, fieldLabel: result.fieldLabel, amount: body.amount,
       newTotalPoints: result.updated.totalPoints,
       newUnlockedPoints: result.updated.unlockedPoints,
       newLockedPoints: result.updated.lockedPoints,
-      reason: reason.trim(), operatorId: admin.id,
+      reason: body.reason.trim(), operatorId: admin.id,
     })
     return successResponse(
       { totalPoints: result.updated.totalPoints, unlockedPoints: result.updated.unlockedPoints, lockedPoints: result.updated.lockedPoints },
-      `积分调整成功：${result.fieldLabel}${actionLabel} ${Math.abs(amount)}`
+      `积分调整成功：${result.fieldLabel}${actionLabel} ${Math.abs(body.amount)}`
     )
   } catch (error) {
     logger.error("Adjust points error:", error)

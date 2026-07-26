@@ -2,6 +2,8 @@
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { PointsService } from '@/lib/services/points.service'
+import { parseBody } from '@/lib/validations/helper'
+import { voidPointsSchema } from '@/lib/validations/admin/points'
 
 // POST /api/admin/points/void — 管理员作废用户积分
 export async function POST(request: NextRequest) {
@@ -12,23 +14,10 @@ export async function POST(request: NextRequest) {
     )
     if (authError || !admin) return authError!
 
-    const body = await request.json()
-    const { userId, amount, reason } = body
+    const { data: body, error: parseError } = await parseBody(voidPointsSchema, request)
+    if (parseError) return parseError
 
-    // 参数校验
-    if (!userId || typeof userId !== 'string') {
-      return errorResponse('userId 必填', 400)
-    }
-
-    if (typeof amount !== 'number' || amount <= 0 || !Number.isInteger(amount)) {
-      return errorResponse('amount 必须为正整数', 400)
-    }
-
-    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
-      return errorResponse('作废原因必填', 400)
-    }
-
-    const result = await PointsService.voidPoints(admin.id, userId, amount, reason.trim())
+    const result = await PointsService.voidPoints(admin.id, body.userId, body.amount, body.reason.trim())
 
     return successResponse(result, '积分作废成功')
   } catch (error: unknown) {

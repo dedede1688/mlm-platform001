@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server'
+﻿import { NextRequest } from 'next/server'
 import { SettingsService } from '@/lib/services/settings.service'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { ROLE_MENUS, MENU_ITEMS } from '@/lib/admin-menu'
+import { parseBody } from '@/lib/validations/helper'
+import { roleMenusConfigSchema } from '@/lib/validations/admin/roles'
 
 const STORAGE_KEY = 'role_menus'
 
@@ -33,22 +35,12 @@ export async function PUT(request: NextRequest) {
   const { user, error } = await verifyPermission(request, ['super_admin'])
   if (error || !user) return error || errorResponse('权限不足', 403)
 
-  let body: { config: Record<string, string[]> }
-  try {
-    body = await request.json()
-  } catch {
-    return errorResponse('请求体格式错误', 400)
-  }
+  const { data: body, error: parseError } = await parseBody(roleMenusConfigSchema, request)
+  if (parseError) return parseError
 
-  if (!body.config || typeof body.config !== 'object') {
-    return errorResponse('config 字段缺失或格式错误', 400)
-  }
-
+  // 额外业务校验：菜单 ID 合法性（Zod 无法表达的业务规则）
   const validMenuIds = new Set(MENU_ITEMS.map(m => m.id))
   for (const [role, menuIds] of Object.entries(body.config)) {
-    if (!Array.isArray(menuIds)) {
-      return errorResponse(`角色 ${role} 的菜单列表必须是数组`, 400)
-    }
     for (const menuId of menuIds) {
       if (!validMenuIds.has(menuId)) {
         return errorResponse(`角色 ${role} 包含无效菜单 ID: ${menuId}`, 400)

@@ -4,37 +4,32 @@ import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { parseBody } from '@/lib/validations/helper'
+import { withdrawalsBatchReviewSchema } from '@/lib/validations/admin/withdrawals'
 
 export async function POST(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['finance_admin', 'super_admin'])
     if (authError || !admin) return authError
 
-    const { ids, action, rejectReason, rejectTemplateId, remark } = await request.json()
+    const { data: body, error: parseError } = await parseBody(withdrawalsBatchReviewSchema, request)
+    if (parseError) return parseError
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return errorResponse('缺少提现记录 ID 列表', 400)
-    }
-
-    if (!action || !['approve', 'reject'].includes(action)) {
-      return errorResponse('action 必须为 approve 或 reject', 400)
-    }
-
-    const approved = action === 'approve'
-    const results = await WithdrawalService.batchReview(ids, {
+    const approved = body.action === 'approve'
+    const results = await WithdrawalService.batchReview(body.ids, {
       approved,
       reviewedBy: admin.id,
-      rejectReason,
-      rejectTemplateId,
-      remark,
+      rejectReason: body.rejectReason,
+      rejectTemplateId: body.rejectTemplateId,
+      remark: body.remark,
     })
 
     await logOperation({
       userId: admin.id,
       action: approved ? 'BATCH_APPROVE' : 'BATCH_REJECT',
       module: 'finance',
-      targetId: ids.join(','),
-      oldValue: { count: ids.length },
+      targetId: body.ids.join(','),
+      oldValue: { count: body.ids.length },
       newValue: { success: results.success, failed: results.failed },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,

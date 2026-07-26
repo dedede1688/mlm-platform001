@@ -6,25 +6,18 @@ import { OrderNotificationService } from "@/lib/services/order-notification.serv
 import { UserService } from "@/lib/services/user.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { parseBody } from "@/lib/validations/helper"
+import { rechargeReviewSchema } from "@/lib/validations/admin/recharge"
 
 /**
  * PATCH /api/admin/recharge/[id]/review
  * 审核充值申请（仅 super_admin / finance_admin）
- *
- * body:
- * {
- *   action: "approve" | "reject",
- *   rejectReason?: string,
- *   rejectTemplateId?: string,
- *   remark?: string
- * }
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 鉴权：只允许 super_admin 和 finance_admin
     const { user: admin, error: authError } = await verifyPermission(request, [
       "finance_admin",
       "super_admin",
@@ -32,19 +25,15 @@ export async function PATCH(
     if (authError || !admin) return authError!
 
     const { id } = await params
-    const { action, rejectReason, rejectTemplateId, remark } = await request.json()
-
-    if (!action || !["approve", "reject"].includes(action)) {
-      return errorResponse("action 必须为 approve 或 reject", 400)
-    }
+    const { data: body, error: parseError } = await parseBody(rechargeReviewSchema, request)
+    if (parseError) return parseError
 
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || null
     const userAgent = request.headers.get("user-agent") || null
 
-    if (action === "approve") {
-      const updated = await RechargeService.approveRecharge(id, admin.id, remark)
+    if (body.action === "approve") {
+      const updated = await RechargeService.approveRecharge(id, admin.id, body.remark)
 
-      // 操作日志在 route 层写，失败不影响主流程
       await logOperation({
         userId: admin.id,
         action: "APPROVE",
@@ -54,7 +43,6 @@ export async function PATCH(
         userAgent: userAgent || undefined,
       }).catch(() => {})
 
-      // 通知用户：充值审核通过（非阻塞，失败不影响主流程）
       if (updated) {
         try {
           const userAfterApprove = await UserService.getUserById(updated.userId)
@@ -85,19 +73,17 @@ export async function PATCH(
       return successResponse(updated, "充值审核通过，余额已入账")
     } else {
       // reject 必须有 rejectReason 或 rejectTemplateId
-      if (!rejectReason && !rejectTemplateId) {
+      if (!body.rejectReason && !body.rejectTemplateId) {
         return errorResponse("请填写拒绝原因或选择拒绝模板", 400)
       }
 
       const updated = await RechargeService.rejectRecharge(
-        id,
-        admin.id,
-        rejectReason || "",
-        rejectTemplateId,
-        remark
+        id, admin.id,
+        body.rejectReason || "",
+        body.rejectTemplateId,
+        body.remark
       )
 
-      // 操作日志在 route 层写，失败不影响主流程
       await logOperation({
         userId: admin.id,
         action: "REJECT",
@@ -107,13 +93,12 @@ export async function PATCH(
         userAgent: userAgent || undefined,
       }).catch(() => {})
 
-      // 通知用户：充值审核拒绝（非阻塞，失败不影响主流程）
       if (updated) {
         await OrderNotificationService.notifyRechargeRejected({
           userId: updated.userId,
           rechargeId: id,
           amount: updated.amount,
-          rejectReason: updated.rejectReason || rejectReason || "",
+          rejectReason: updated.rejectReason || body.rejectReason || "",
           operatorId: admin.id,
         }).catch(() => {})
       }

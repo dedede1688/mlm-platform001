@@ -984,4 +984,27 @@ static async getUsersList(params: UserListParams) {
   }
 
 
+
+  /**
+   * D-6.3: 获取支付密码 hash
+   */
+  static async getPaymentPasswordHash(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { paymentPasswordHash: true },
+    })
+    return user?.paymentPasswordHash ?? null
+  }
+
+  /**
+   * D-6.3: 设置支付密码 hash
+   */
+  static async setPaymentPasswordHash(userId: string, hash: string) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { paymentPasswordHash: hash },
+    })
+  }
+
+
 }

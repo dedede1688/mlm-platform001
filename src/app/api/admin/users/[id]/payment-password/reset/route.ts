@@ -5,6 +5,8 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { UserService } from '@/lib/services/user.service'
 import { logger } from '@/lib/logger'
+import { parseBody } from '@/lib/validations/helper'
+import { paymentPasswordResetSchema } from '@/lib/validations/admin/payment-password'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,14 +14,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (authError) return authError
     if (!admin) return errorResponse('权限不足', 403)
     if (admin.role !== 'super_admin') { return errorResponse('权限不足，仅超级管理员可执行此操作', 403) }
-    const body = await request.json()
-    const { reason, phoneSuffix } = body as { reason: string; phoneSuffix: string }
-    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) { return errorResponse('原因不能为空且不少于 5 个字', 400) }
-    if (!phoneSuffix || typeof phoneSuffix !== 'string' || !/^\d{4}$/.test(phoneSuffix)) { return errorResponse('手机号后 4 位必须为 4 位数字', 400) }
+
+    const { data: body, error: parseError } = await parseBody(paymentPasswordResetSchema, request)
+    if (parseError) return parseError
+
     const { id: userId } = await params
     const targetUser = await UserService.getUserById(userId)
     if (!targetUser || targetUser.status === 'deleted') { return errorResponse('用户不存在', 404) }
-    if (targetUser.phone.slice(-4) !== phoneSuffix) { return errorResponse('手机号后 4 位不匹配', 400) }
+    if (targetUser.phone.slice(-4) !== body.phoneSuffix) { return errorResponse('手机号后 4 位不匹配', 400) }
     const hasPwd = await UserService.hasPaymentPassword(userId)
     if (!hasPwd) { return errorResponse('用户未设置支付密码，无需重置', 400) }
     const updated = await UserService.resetPaymentPassword(userId)
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await logOperation({
       userId: admin.id, action: 'UPDATE', module: 'user', targetId: userId,
       oldValue: { paymentPasswordStatus: '已设置' },
-      newValue: { paymentPasswordStatus: '已清除', reason: reason.trim(), phoneSuffix },
+      newValue: { paymentPasswordStatus: '已清除', reason: body.reason.trim(), phoneSuffix: body.phoneSuffix },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
     })

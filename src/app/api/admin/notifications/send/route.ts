@@ -4,21 +4,23 @@ import { NotificationService } from '@/lib/services/notification.service'
 import { UserService } from '@/lib/services/user.service'
 import { logger } from '@/lib/logger'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { parseBody } from '@/lib/validations/helper'
+import { sendNotificationSchema } from '@/lib/validations/admin/notifications'
 
 export async function POST(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ['super_admin'])
     if (authError || !admin) return authError!
-    const body = await request.json()
-    const { type, userIds, content, subject } = body
-    if (!type || !['general', 'announcement'].includes(type)) {
-      return errorResponse('类型必须为 general 或 announcement', 400)
-    }
-    if (!content) return errorResponse('内容不能为空', 400)
-    if (type === 'general' && (!userIds || !Array.isArray(userIds) || userIds.length === 0)) {
+
+    const { data: body, error: parseError } = await parseBody(sendNotificationSchema, request)
+    if (parseError) return parseError
+
+    // 额外业务校验：通用通知必须有收件人
+    if (body.type === 'general' && (!body.userIds || body.userIds.length === 0)) {
       return errorResponse('通用通知必须指定至少一个收件人', 400)
     }
-    const validateIds = type === 'announcement' ? [] : userIds
+
+    const validateIds = body.type === 'announcement' ? [] : (body.userIds || [])
     if (validateIds.length > 0) {
       const { invalidIds } = await UserService.validateUserIds(validateIds)
       if (invalidIds.length > 0) {
@@ -28,10 +30,14 @@ export async function POST(request: NextRequest) {
         )
       }
     }
+
     const result = await NotificationService.sendNotifications({
-      type, senderId: admin.id, content, subject,
-      userIds: type === 'general' ? userIds : undefined,
-      isAnnouncement: type === 'announcement',
+      type: body.type,
+      senderId: admin.id,
+      content: body.content,
+      subject: body.subject,
+      userIds: body.type === 'general' ? body.userIds : undefined,
+      isAnnouncement: body.type === 'announcement',
     })
     return successResponse(result)
   } catch (error) {

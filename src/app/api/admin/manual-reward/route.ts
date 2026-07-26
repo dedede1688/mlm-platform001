@@ -5,32 +5,23 @@ import { logOperation } from "@/lib/utils/operation-log"
 import { OrderNotificationService } from "@/lib/services/order-notification.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { parseBody } from "@/lib/validations/helper"
+import { manualRewardSchema } from "@/lib/validations/admin/manual-reward"
 
 export async function POST(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ["finance_admin", "super_admin"])
     if (authError || !admin) return authError!
 
-    const { userId, amount, type, reason } = await request.json()
-
-    if (!userId || typeof userId !== "string") {
-      return errorResponse("缺少用户ID", 400)
-    }
-
-    if (!amount || typeof amount !== "number" || amount <= 0) {
-      return errorResponse("金额必须大于0", 400)
-    }
-
-    if (!reason || typeof reason !== "string" || !reason.trim()) {
-      return errorResponse("发放原因不能为空", 400)
-    }
+    const { data: body, error: parseError } = await parseBody(manualRewardSchema, request)
+    if (parseError) return parseError
 
     const result = await RewardService.createManualReward({
-      userId,
+      userId: body.userId,
       adminId: admin.id,
-      amount,
-      type: type || undefined,
-      reason: reason.trim(),
+      amount: body.amount,
+      type: body.type || undefined,
+      reason: body.reason.trim(),
     })
 
     await logOperation({
@@ -38,19 +29,19 @@ export async function POST(request: NextRequest) {
       action: "CREATE",
       module: "finance",
       targetId: result.reward.id,
-      newValue: { userId, amount, type: type || "manual", reason: reason.trim() },
+      newValue: { userId: body.userId, amount: body.amount, type: body.type || "manual", reason: body.reason.trim() },
       ip: request.headers.get("x-forwarded-for") || undefined,
       userAgent: request.headers.get("user-agent") || undefined,
     })
 
     await OrderNotificationService.notifyManualReward({
-      userId,
-      amount,
-      reason: reason.trim(),
+      userId: body.userId,
+      amount: body.amount,
+      reason: body.reason.trim(),
       operatorId: admin.id,
     })
 
-    return successResponse(result, `已向用户发放 ¥${amount.toFixed(2)} 奖励`)
+    return successResponse(result, `已向用户发放 ¥${body.amount.toFixed(2)} 奖励`)
   } catch (error) {
     logger.error("Admin manual reward error:", error)
     return errorResponse(

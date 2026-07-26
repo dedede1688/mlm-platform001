@@ -2,6 +2,8 @@
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { BannerService } from "@/lib/services/banner.service"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { parseBody } from "@/lib/validations/helper"
+import { bannerCreateSchema, bannerReplaceSchema } from "@/lib/validations/admin/banners"
 
 // ---- 类型定义 ----
 
@@ -55,17 +57,8 @@ export async function POST(request: NextRequest) {
     const { error: authError } = await verifyPermission(request, ["super_admin"])
     if (authError) return authError
 
-    const body = await request.json() as {
-      imageUrl?: string
-      link?: string
-      title?: string
-      alt?: string
-      order?: number
-    }
-
-    if (!body.imageUrl) {
-      return errorResponse("imageUrl 必填", 400)
-    }
+    const { data: body, error: parseError } = await parseBody(bannerCreateSchema, request)
+    if (parseError) return parseError
 
     const record = await BannerService.create({
       imageUrl: body.imageUrl,
@@ -88,17 +81,10 @@ export async function PUT(request: NextRequest) {
     const { error: authError } = await verifyPermission(request, ["super_admin"])
     if (authError) return authError
 
-    const body = await request.json() as { banners?: BannerItem[] }
-    const newBanners = body.banners || []
+    const { data: body, error: parseError } = await parseBody(bannerReplaceSchema, request)
+    if (parseError) return parseError
 
-    // 基本验证
-    for (const banner of newBanners) {
-      if (!banner.imageUrl) {
-        return errorResponse("每条轮播图必须有 imageUrl", 400)
-      }
-    }
-
-    await BannerService.replaceAll(newBanners)
+    await BannerService.replaceAll(body.banners)
 
     return successResponse([])
   } catch (error) {

@@ -444,4 +444,35 @@ export class RewardService {
     })
   }
 
+
+  /**
+   * D-6.3: 获取用户奖励列表（含订单和来源用户关联）
+   */
+  static async getUserRewards(userId: string, type?: string) {
+    return prisma.reward.findMany({
+      where: {
+        userId,
+        ...(type && { type }),
+        status: { not: 'refunded' },
+      },
+      include: {
+        order: {
+          select: {
+            orderNo: true,
+            payAmount: true,
+          },
+        },
+        fromUser: {
+          select: {
+            id: true,
+            phone: true,
+            nickname: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+
 }

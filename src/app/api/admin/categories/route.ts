@@ -3,6 +3,8 @@ import { verifyPermission } from "@/lib/utils/admin-auth"
 import { CategoryService } from "@/lib/services/category.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { parseBody } from "@/lib/validations/helper"
+import { categoryCreateSchema } from "@/lib/validations/admin/categories"
 
 interface CategoryItem {
   id: string
@@ -42,18 +44,11 @@ export async function POST(request: NextRequest) {
     const { error: authError } = await verifyPermission(request, ["super_admin", "goods_admin"])
     if (authError) return authError
 
-    const body = await request.json() as {
-      name?: string
-      parentId?: string | null
-      sortOrder?: number
-    }
-
-    if (!body.name || !body.name.trim()) {
-      return errorResponse("分类名称必填", 400)
-    }
+    const { data: body, error: parseError } = await parseBody(categoryCreateSchema, request)
+    if (parseError) return parseError
 
     const category = await CategoryService.create({
-      name: body.name.trim(),
+      name: body.name,
       parentId: body.parentId || undefined,
       sortOrder: body.sortOrder,
     })
