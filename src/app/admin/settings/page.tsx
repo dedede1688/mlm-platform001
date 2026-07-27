@@ -1,6 +1,6 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
-
+import dynamic from 'next/dynamic'
 import { useState, useEffect } from 'react'
 import {
   Settings, Save, CheckCircle, AlertCircle,
@@ -9,7 +9,7 @@ import {
 import { getAuthToken } from '@/lib/utils/auth-token'
 import { LogoUploader } from './LogoUploader'
 import { AccordionSection } from './Section'
-import { HtmlEditor } from './HtmlEditor'
+const HtmlEditor = dynamic(() => import('./HtmlEditor').then(mod => mod.HtmlEditor), { ssr: false })
 import {
   SettingsData, defaultSettings,
   getDefaultAboutHtml, getDefaultTermsHtml, getDefaultPrivacyHtml, getDefaultHelpFaq,
