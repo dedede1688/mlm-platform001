@@ -307,21 +307,16 @@ export class RewardCalculationService {
               )
             )
             const dividendRecords = createdDividends.map(d => ({ id: d.id, userId: d.userId, amount: d.amount }))
-
-            await Promise.all(
-              poolMembers.map(member =>
-                tx.reward.create({
-                  data: {
-                    userId: member.userId,
-                    type: 'dividend',
-                    orderId,
-                    amount: perUserAmount,
-                    status: 'paid',
-                    idempotencyKey: `${orderId}:dividend:${member.userId}:${poolType}`,
-                  },
-                })
-              )
-            )
+            await tx.reward.createMany({
+              data: poolMembers.map(member => ({
+                userId: member.userId,
+                type: 'dividend',
+                orderId,
+                amount: perUserAmount,
+                status: 'paid',
+                idempotencyKey: `${orderId}:dividend:${member.userId}:${poolType}`,
+              })),
+            })
 
             for (const member of poolMembers) {
               userEarningsDelta[member.userId] = (userEarningsDelta[member.userId] || 0) + perUserAmount
@@ -361,16 +356,17 @@ export class RewardCalculationService {
           }
         }
 
-        // Use updateMany (atomic) instead of findUnique + update (saves N queries)
-        for (const [userId, delta] of Object.entries(userEarningsDelta)) {
-          if (delta > 0) {
-            const result = await tx.user.updateMany({
-              where: { id: userId },
-              data: { earningsAvailable: { increment: delta } },
-            })
-            if (result.count === 0) throw new Error(`用户 ${userId} 不存在`)
-          }
-        }
+        // Batch update earnings in parallel (saves N-1 round trips vs sequential)
+        await Promise.all(
+          Object.entries(userEarningsDelta)
+            .filter(([, delta]) => delta > 0)
+            .map(([userId, delta]) =>
+              tx.user.updateMany({
+                where: { id: userId },
+                data: { earningsAvailable: { increment: delta } },
+              })
+            )
+        )
 
         await tx.order.update({
           where: { id: orderId },
