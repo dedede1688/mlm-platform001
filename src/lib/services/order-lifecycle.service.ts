@@ -1,5 +1,6 @@
 ﻿import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 import { RewardService } from './reward.service'
 import { PointsService } from './points.service'
 import { UserService } from './user.service'
@@ -510,7 +511,7 @@ export class OrderLifecycleService {
       prisma.refundRequest.count({ where }),
     ])
 
-    return { data: refundRequests, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+    return { data: refundRequests, pagination: paginate(total, page, limit) }
   }
 
 

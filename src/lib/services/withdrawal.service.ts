@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WITHDRAWAL_STATUS } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
@@ -352,7 +353,7 @@ export class WithdrawalService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }
@@ -378,7 +379,7 @@ export class WithdrawalService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }
@@ -445,6 +446,6 @@ export class WithdrawalService {
       completedAt: w.completedAt, paymentProofUrl: w.paymentProofUrl, createdAt: w.createdAt,
     }))
 
-    return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+    return { data, pagination: paginate(total, page, limit) }
   }
 }

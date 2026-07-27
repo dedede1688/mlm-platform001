@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 
 function replaceVariables(template: string, variables: Record<string, string>): string {
   let result = template
@@ -96,7 +97,7 @@ export class NotificationService {
 
     return {
       notifications,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      pagination: paginate(total, page, limit),
       unreadCount,
     }
   }
@@ -186,7 +187,7 @@ export class NotificationService {
       const readCount = await prisma.notification.count({ where: { batchId: batch.id, isRead: true } })
       return { ...batch, readCount }
     }))
-    return { batches: enriched, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+    return { batches: enriched, pagination: paginate(total, page, limit) }
   }
 
   static async getBatch(id: string) {

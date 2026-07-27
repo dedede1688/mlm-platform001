@@ -1,4 +1,5 @@
 ﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 import { ORDER_STATUS } from '@/lib/constants'
 
 /**
@@ -216,7 +217,7 @@ export class OrderService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }

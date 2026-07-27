@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 import { logOperation } from '@/lib/utils/operation-log'
 
 
@@ -101,7 +102,7 @@ export class AdminService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }
@@ -200,7 +201,7 @@ export class AdminService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }
@@ -247,7 +248,7 @@ export class AdminService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }

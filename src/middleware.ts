@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { logger } from '@/lib/logger'
 
+
+// ---- 安全头 ----
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+};
 const COOKIE_NAME = 'auth_token'
 
 // ---- 用户侧需要登录的路径（仅验证 JWT，不校验角色） ----
@@ -124,7 +134,9 @@ export function middleware(request: NextRequest) {
   }
 
   // ---- 分支 3：公开路径 → 直接放行 ----
-  return NextResponse.next()
+  const response = NextResponse.next();
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
+  return response
 }
 
 /**
@@ -135,10 +147,10 @@ function adminAuth(request: NextRequest, traceId: string) {
 
   const authHeader = request.headers.get('authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return NextResponse.json(
-      { success: false, error: '未提供认证令牌' },
-      { status: 401, headers: { 'x-trace-id': traceId } }
-    )
+    const response = NextResponse.json({ success: false, error: '未提供认证令牌' },
+      { status: 401, headers: { 'x-trace-id': traceId } });
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
+      return response
   }
 
   const token = authHeader.replace('Bearer ', '')
@@ -149,27 +161,27 @@ function adminAuth(request: NextRequest, traceId: string) {
     userRole = payload.role || ''
     userId = payload.userId || ''
   } else {
-    return NextResponse.json(
-      { success: false, error: '认证令牌无效或已过期' },
-      { status: 401, headers: { 'x-trace-id': traceId } }
-    )
+    const response = NextResponse.json({ success: false, error: '认证令牌无效或已过期' },
+      { status: 401, headers: { 'x-trace-id': traceId } });
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
+      return response
   }
 
   const matchedPath = matchPath(pathname)
   // Batch 5A-3: 未匹配的 /api/admin/* 路径默认拒绝，防新增路由漏映射
   if (!matchedPath) {
-    return NextResponse.json(
-      { success: false, error: '未授权的管理路径' },
-      { status: 403, headers: { 'x-trace-id': traceId } }
-    )
+    const response = NextResponse.json({ success: false, error: '未授权的管理路径' },
+      { status: 403, headers: { 'x-trace-id': traceId } });
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
+      return response
   }
   if (matchedPath && userRole) {
     const requiredRoles = pathRoleMap[matchedPath]
     if (!requiredRoles.includes(userRole)) {
-      return NextResponse.json(
-        { success: false, error: '无权访问该接口' },
-        { status: 403, headers: { 'x-trace-id': traceId } }
-      )
+      const response = NextResponse.json({ success: false, error: '无权访问该接口' },
+        { status: 403, headers: { 'x-trace-id': traceId } });
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
+      return response
     }
   }
 
@@ -189,19 +201,19 @@ function adminAuth(request: NextRequest, traceId: string) {
 function userAuth(request: NextRequest, traceId: string) {
   const authHeader = request.headers.get('authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return NextResponse.json(
-      { success: false, error: '请先登录' },
-      { status: 401, headers: { 'x-trace-id': traceId } }
-    )
+    const response = NextResponse.json({ success: false, error: '请先登录' },
+      { status: 401, headers: { 'x-trace-id': traceId } });
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
+      return response
   }
 
   const token = authHeader.replace('Bearer ', '')
   const payload = verifyJwtPayload(token)
   if (!payload) {
-    return NextResponse.json(
-      { success: false, error: '登录已过期，请重新登录' },
-      { status: 401, headers: { 'x-trace-id': traceId } }
-    )
+    const response = NextResponse.json({ success: false, error: '登录已过期，请重新登录' },
+      { status: 401, headers: { 'x-trace-id': traceId } });
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) response.headers.set(k, v);
+      return response
   }
 
   const requestHeaders = new Headers(request.headers)

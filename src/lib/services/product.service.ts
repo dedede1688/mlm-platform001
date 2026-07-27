@@ -1,4 +1,5 @@
 ﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 
 // 产品列表查询参数
 export interface ProductListParams {
@@ -42,7 +43,7 @@ export class ProductService {
       total,
       page: params.page,
       pageSize: params.pageSize,
-      totalPages: Math.ceil(total / params.pageSize),
+      totalPages: paginate(total, params.page, params.pageSize).totalPages,
     }
   }
 

@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 import { MEMBER_LEVELS, BALANCE_SELECT } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
 import { getSystemParameter } from '@/lib/config/system-parameters'
@@ -455,7 +456,7 @@ export class DividendService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }

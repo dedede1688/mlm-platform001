@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 import { logger } from '@/lib/logger'
 import { MEMBER_LEVELS } from '@/lib/constants'
 import { PointsService } from './points.service'
@@ -386,7 +387,7 @@ export class UserService {
       prisma.balanceRecord.count({ where }),
     ])
 
-    return { records, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+    return { records, pagination: paginate(total, page, limit) }
   }
 
 
