@@ -76,6 +76,20 @@ const nextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
         ],
       },
+
+      // P-1: 静态资源长期缓存（带内容哈希的文件名天然支持 immutable）
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/:path*.(jpg|jpeg|png|webp|avif|svg|ico|woff2)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400, must-revalidate' },
+        ],
+      },
       // /api/ 路由额外的 X-Permitted-Cross-Domain-Policies
       {
         source: '/api/:path*',
