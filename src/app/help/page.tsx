@@ -1,8 +1,8 @@
-'use client'
+﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, HelpCircle, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 
 interface FaqItem {
   question: string
@@ -11,34 +11,82 @@ interface FaqItem {
 
 function getDefaultHelpFaq(): FaqItem[] {
   return [
-    { question: '如何注册成为会员？', answer: '点击右上角"注册"按钮，填写手机号和验证码即可完成注册。注册成功后即可登录并享受会员权益。' },
-    { question: '什么是推荐奖和品牌管理奖？', answer: '推荐奖：直接推荐用户消费获得的奖励（推荐人需买过 ≥1 件升级品才发放）。品牌管理奖：安置链内经销商按购买单数轮换获得，含层数上限（主任 2 层 / 经理 4 层 / 总监 10 层），无对应经销商时金额沉淀不发放。两种奖励均可提现或抵扣消费。' },
+    { question: '如何注册成为会员？', answer: '点击右上角\"注册\"按钮，填写手机号和验证码即可完成注册。注册成功后即可登录并享受会员权益。' },
+    { question: '什么是推荐奖和品牌管理奖？', answer: '推荐奖：直接推荐用户消费获得的奖励（推荐人需买过 ≥ 1 件升级品才发放）。品牌管理奖：安置链内经销商按购买单数轮换获得，含层数上限（主代 12 层 / 经理 4 层 / 总监 10 层），无对应经销商时金额沉淀不发放。两种奖励均可提现或抵扣消费。' },
     { question: '如何升级为经销商？', answer: '累计推荐满 XX 人且自购消费满 XX 元后，可申请升级为经销商。经销商享受更高的佣金比例和团队管理权限。具体条件请联系客服咨询。' },
     { question: '积分如何使用？', answer: '在购物时可使用积分抵扣，1 积分 = 1 元，每件商品有最高抵扣比例（通常 50%）。积分也可转赠其他会员。积分有效期一般为获得之日起 1 年内有效。' },
-    { question: '如何联系客服？', answer: '客服微信：xxx（请后台设置） | 工作时间：周一至周日 9:00-21:00 | 客服热线：18566793066' },
+    { question: '如何联系客服？', answer: '客服微信：xxx（请后台设置）| 工作时间：周一至周日 9:00-21:00 | 客服热线：18566793066' },
   ]
+}
+
+const FAQ_CACHE_KEY = 'helpFaq'
+const FAQ_CACHE_TTL_MS = 300_000
+
+function readCache(): FaqItem[] | null {
+  try {
+    const raw = sessionStorage.getItem(FAQ_CACHE_KEY)
+    if (!raw) return null
+    const { ts, data } = JSON.parse(raw)
+    if (Date.now() - ts < FAQ_CACHE_TTL_MS && Array.isArray(data) && data.length > 0) {
+      return data as FaqItem[]
+    }
+  } catch { /* ignore corrupt cache */ }
+  return null
+}
+
+function writeCache(items: FaqItem[]) {
+  try { sessionStorage.setItem(FAQ_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: items })) } catch {}
 }
 
 export default function HelpPage() {
   const [faqs, setFaqs] = useState<FaqItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
 
-  useEffect(() => {
-    fetch('/api/settings/public')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data) {
-          setFaqs((Array.isArray(data.data.helpFaq) && data.data.helpFaq.length > 0) ? data.data.helpFaq : getDefaultHelpFaq())
-        }
-      })
-      .catch(() => setFaqs(getDefaultHelpFaq()))
-      .finally(() => setLoading(false))
+  const fetchFaqs = useCallback(async (forceRefresh = false) => {
+    setLoading(true)
+    setError(false)
+
+    if (!forceRefresh) {
+      const cached = readCache()
+      if (cached) {
+        setFaqs(cached)
+        setLoading(false)
+        return
+      }
+    }
+
+    try {
+      const res = await fetch('/api/settings/public')
+      if (!res.ok) throw new Error('fetch failed')
+      const data = await res.json()
+      if (data.success && data.data) {
+        const items = (Array.isArray(data.data.helpFaq) && data.data.helpFaq.length > 0)
+          ? data.data.helpFaq
+          : getDefaultHelpFaq()
+        setFaqs(items)
+        writeCache(items)
+        return
+      }
+      throw new Error('empty payload')
+    } catch {
+      const fallback = getDefaultHelpFaq()
+      setFaqs(fallback)
+      writeCache(fallback)
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { fetchFaqs() }, [fetchFaqs])
 
   const toggleFaq = (index: number) => {
     setOpenIndex(prev => (prev === index ? null : index))
   }
+
+  const handleRetry = () => fetchFaqs(true)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -50,6 +98,19 @@ export default function HelpPage() {
           <HelpCircle className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold text-gray-900">帮助中心</h1>
         </div>
+
+        {error && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between">
+            <span className="text-sm text-amber-700">加载 FAQ 失败，当前显示默认内容</span>
+            <button
+              onClick={handleRetry}
+              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-amber-800 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              重试
+            </button>
+          </div>
+        )}
 
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           {loading ? (

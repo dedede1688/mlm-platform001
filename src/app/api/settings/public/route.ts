@@ -22,40 +22,44 @@ export async function GET() {
       order: record.order ?? 0,
     }))
 
-    if (!config) {
-      return successResponse({
-        siteName: '敏维科技',
-        logoUrl: '',
-        contactPhone: '18566793066',
-        serviceEmail: '381901944@qq.com',
-        serviceTime: '周一至周日 9:00-21:00',
-        companyName: '广州敏维科技有限公司',
-        companyAddress: '广州市花都区金谷南路',
-        icp: '粤ICP备XXXXXX号',
-        copyright: '2026',
-        aboutUs: null,
-        termsHtml: null,
-        privacyHtml: null,
-        helpFaq: [],
-        banners,
-        seoTitle: null,
-        seoDescription: null,
-        seoKeywords: null,
-        paymentProvider: 'mock',
-        pointsTransferFeePercent,
-      })
+    const defaults = {
+      siteName: '敏维科技',
+      logoUrl: '',
+      contactPhone: '18566793066',
+      serviceEmail: '381901944@qq.com',
+      serviceTime: '周一至周日 9:00-21:00',
+      companyName: '广州敏维科技有限公司',
+      companyAddress: '广州市花都区金谷南路',
+      icp: '粤ICP备XXXXXX号',
+      copyright: '2026',
+      aboutUs: null as string | null,
+      termsHtml: null as string | null,
+      privacyHtml: null as string | null,
+      helpFaq: [] as Array<{ question: string; answer: string }>,
+      banners,
+      seoTitle: null as string | null,
+      seoDescription: null as string | null,
+      seoKeywords: null as string | null,
+      paymentProvider: 'mock',
+      pointsTransferFeePercent,
     }
 
-    return successResponse({
-      siteName: config.siteName ?? '敏维科技',
-      logoUrl: config.logoUrl ?? '',
-      contactPhone: config.contactPhone ?? '18566793066',
-      serviceEmail: config.serviceEmail ?? '381901944@qq.com',
-      serviceTime: config.serviceTime ?? '周一至周日 9:00-21:00',
-      companyName: config.companyName ?? '广州敏维科技有限公司',
-      companyAddress: config.companyAddress ?? '广州市花都区金谷南路',
+    if (!config) {
+      const response = successResponse(defaults)
+      response.headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+      return response
+    }
+
+    const payload = {
+      siteName: config.siteName ?? defaults.siteName,
+      logoUrl: config.logoUrl ?? defaults.logoUrl,
+      contactPhone: config.contactPhone ?? defaults.contactPhone,
+      serviceEmail: config.serviceEmail ?? defaults.serviceEmail,
+      serviceTime: config.serviceTime ?? defaults.serviceTime,
+      companyName: config.companyName ?? defaults.companyName,
+      companyAddress: config.companyAddress ?? defaults.companyAddress,
       icp: config.icp ?? '',
-      copyright: config.copyright ?? '2026',
+      copyright: config.copyright ?? defaults.copyright,
       aboutUs: config.aboutUs ? sanitizeHtml(config.aboutUs) : null,
       termsHtml: config.termsHtml ? sanitizeHtml(config.termsHtml) : null,
       privacyHtml: config.privacyHtml ? sanitizeHtml(config.privacyHtml) : null,
@@ -66,7 +70,11 @@ export async function GET() {
       seoKeywords: config.seoKeywords ?? null,
       paymentProvider: config.paymentProvider ?? 'mock',
       pointsTransferFeePercent,
-    })
+    }
+
+    const response = successResponse(payload)
+    response.headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+    return response
   } catch (error) {
     logger.error('获取公开配置失败:', error)
     return errorResponse('获取配置失败', 500)
