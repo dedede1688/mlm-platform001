@@ -4,6 +4,7 @@ import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { parseBody } from '@/lib/validations/helper'
 import { withdrawalsBatchReviewSchema } from '@/lib/validations/admin/withdrawals'
 
