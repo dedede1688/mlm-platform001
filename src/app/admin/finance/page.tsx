@@ -1,6 +1,7 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 
+import dynamic from 'next/dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Wallet, Search, Loader2, ChevronLeft, ChevronRight,
@@ -10,11 +11,11 @@ import {
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
-import RechargeSettingsPanel from '@/components/admin/RechargeSettingsPanel'
-import RewardsTab from './_components/RewardsTab'
-import WithdrawalsTab from './_components/WithdrawalsTab'
-import RechargeTab from './_components/RechargeTab'
-import FinanceModals from './_components/FinanceModals'
+const RechargeSettingsPanel = dynamic(() => import('@/components/admin/RechargeSettingsPanel'), { ssr: false })
+const RewardsTab = dynamic(() => import('./_components/RewardsTab'), { ssr: false })
+const WithdrawalsTab = dynamic(() => import('./_components/WithdrawalsTab'), { ssr: false })
+const RechargeTab = dynamic(() => import('./_components/RechargeTab'), { ssr: false })
+const FinanceModals = dynamic(() => import('./_components/FinanceModals'), { ssr: false })
 import { getAuthToken } from '@/lib/utils/auth-token'
 import { LARGE_WITHDRAWAL_THRESHOLD, RECHARGE_PAYMENT_METHOD_MAP, RECHARGE_AUDIT_ACTION_MAP, RECHARGE_AUDIT_STATUS_MAP } from './_components/financeConstants'
 
