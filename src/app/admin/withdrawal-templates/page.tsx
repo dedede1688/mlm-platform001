@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { FileText, Plus, Pencil, Trash2, X, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 interface Template {
   id: string
@@ -20,6 +21,7 @@ export default function WithdrawalTemplatesPage() {
   const [createModal, setCreateModal] = useState(false)
   const [form, setForm] = useState({ title: '', content: '', sortOrder: 0, isEnabled: true })
   const [submitting, setSubmitting] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
@@ -67,8 +69,10 @@ export default function WithdrawalTemplatesPage() {
     finally { setSubmitting(false) }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!token || !confirm('确认删除此模板？')) return
+  const handleDelete = async () => {
+    if (!token || !deleteTarget) return
+    const id = deleteTarget
+    setDeleteTarget(null)
     try {
       const res = await fetch(`/api/admin/withdrawal-templates/${id}`, {
         method: 'DELETE',
@@ -136,7 +140,7 @@ export default function WithdrawalTemplatesPage() {
                       <button onClick={() => openEdit(t)} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
                         <Pencil className="w-3.5 h-3.5" /> 编辑
                       </button>
-                      <button onClick={() => handleDelete(t.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
+                      <button onClick={() => setDeleteTarget(t.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
                         <Trash2 className="w-3.5 h-3.5" /> 删除
                       </button>
                     </div>
@@ -189,6 +193,16 @@ export default function WithdrawalTemplatesPage() {
           </div>
         </div>
       )}
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="确认删除"
+        message="确认删除此模板？此操作不可恢复。"
+        mode="emphasize"
+        confirmText="确认删除"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </>
   )
 }
