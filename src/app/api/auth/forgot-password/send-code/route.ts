@@ -2,6 +2,12 @@ import { NextRequest } from 'next/server'
 import { AuthService } from '@/lib/services/auth.service'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
+
+const sendCodeSchema = z.object({
+  phone: z.string().min(1, '???????').regex(/^1[3-9]\d{9}$/, '????????'),
+})
 
 // POST /api/auth/forgot-password/send-code — 发送找回密码验证码
 export async function POST(request: NextRequest) {

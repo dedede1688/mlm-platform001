@@ -2,6 +2,14 @@ import { NextRequest } from 'next/server'
 import { AuthService } from '@/lib/services/auth.service'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
+
+const resetPasswordSchema = z.object({
+  phone: z.string().min(1, '???????').regex(/^1[3-9]\d{9}$/, '????????'),
+  code: z.string().min(1, '???????'),
+  newPassword: z.string().min(8, '?????8?').regex(/[a-zA-Z]/, '????????').regex(/[0-9]/, '????????'),
+})
 
 // POST /api/auth/forgot-password/reset — 重置密码（手机号 + 验证码 + 新密码）
 export async function POST(request: NextRequest) {

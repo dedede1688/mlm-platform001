@@ -5,6 +5,13 @@ import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
 import { UserService } from '@/lib/services/user.service'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
+
+const loginSchema = z.object({
+  phone: z.string().min(1, '???????').regex(/^1[3-9]\d{9}$/, '????????'),
+  password: z.string().min(1, '??????'),
+})
 
 const COOKIE_NAME = 'auth_token'
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60
@@ -21,7 +28,9 @@ function setAuthCookie(response: NextResponse, token: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { phone, password } = await request.json()
+    const { data, error } = await parseBody(loginSchema, request)
+    if (error) return error
+    const { phone, password } = data
 
     const clientIP = getClientIP(request)
     const ipLimitResult = await checkRateLimit(`login:ip:${clientIP}`, 5, 60 * 1000)
