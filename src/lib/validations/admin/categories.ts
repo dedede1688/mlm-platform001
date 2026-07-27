@@ -6,4 +6,13 @@ export const categoryCreateSchema = z.object({
   sortOrder: z.number().optional(),
 })
 
+
+export const categoryUpdateSchema = z.object({
+  name: z.string().min(1, "分类名称必填"),
+  parentId: z.string().optional().nullable(),
+  sortOrder: z.number().optional(),
+})
+
+export type CategoryUpdateInput = z.infer<typeof categoryUpdateSchema>
+
 export type CategoryCreateInput = z.infer<typeof categoryCreateSchema>

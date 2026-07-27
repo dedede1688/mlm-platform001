@@ -2,6 +2,9 @@
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { NotificationService } from '@/lib/services/notification.service'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+import { parseBody } from "@/lib/validations/helper"
+import { notificationTemplateCreateSchema } from "@/lib/validations/admin/notifications"
 import { errorResponse, successResponse } from '@/lib/api-response'
 
 export async function GET(request: NextRequest) {

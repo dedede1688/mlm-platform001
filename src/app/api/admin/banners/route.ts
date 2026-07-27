@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { BannerService } from "@/lib/services/banner.service"
 import { errorResponse, successResponse } from "@/lib/api-response"
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { parseBody } from "@/lib/validations/helper"
 import { bannerCreateSchema, bannerReplaceSchema } from "@/lib/validations/admin/banners"
 

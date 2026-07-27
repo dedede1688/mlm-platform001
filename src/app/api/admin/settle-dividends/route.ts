@@ -2,6 +2,7 @@
 import { DividendService } from '@/lib/services/dividend.service'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
 
 // POST: 手动触发分红操作

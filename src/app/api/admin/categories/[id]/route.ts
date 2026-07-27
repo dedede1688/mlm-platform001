@@ -2,6 +2,9 @@
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { CategoryService } from '@/lib/services/category.service'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+import { parseBody } from "@/lib/validations/helper"
+import { categoryUpdateSchema } from "@/lib/validations/admin/categories"
 import { errorResponse, successResponse } from '@/lib/api-response'
 
 /** PUT：更新分类 */

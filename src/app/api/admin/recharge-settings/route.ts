@@ -3,6 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { RechargeSettingsService, UpdateRechargeSettingsInput, RechargeSettingsValidationError } from '@/lib/services/recharge-settings.service'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
 
 const ALLOWED_ROLES = ['super_admin', 'finance_admin']
