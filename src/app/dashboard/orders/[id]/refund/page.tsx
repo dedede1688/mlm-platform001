@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
@@ -7,7 +7,18 @@ import Image from 'next/image'
 import {
   ArrowLeft, Loader2, AlertCircle, Upload, X
 } from 'lucide-react'
-import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
+let _supabaseClient: any = null
+let _supabaseChecked = false
+const getSupabaseClient = async () => {
+  if (!_supabaseChecked) {
+    try {
+      const mod = await import('@/lib/supabase/client')
+      if (mod.isSupabaseAvailable()) _supabaseClient = mod.supabaseBrowserClient
+    } catch {}
+    _supabaseChecked = true
+  }
+  return _supabaseClient
+}
 import {
   refundReasonRequiresDescription,
   refundReasonRequiresImages,
@@ -85,8 +96,9 @@ export default function RefundApplyPage() {
     const fileName = generateFileName(file)
     const filePath = `refunds/${fileName}`
 
-    if (isSupabaseAvailable() && supabaseBrowserClient) {
-      const { error: uploadError } = await supabaseBrowserClient.storage
+    const supabase = await getSupabaseClient()
+    if (supabase) {
+      const { error: uploadError } = await supabase.storage
         .from('images')
         .upload(filePath, file, { cacheControl: '3600', upsert: false })
 
@@ -94,7 +106,7 @@ export default function RefundApplyPage() {
         throw new Error(`上传失败: ${uploadError.message}`)
       }
 
-      const { data } = supabaseBrowserClient.storage.from('images').getPublicUrl(filePath)
+      const { data } = supabase.storage.from('images').getPublicUrl(filePath)
       return data.publicUrl
     }
 

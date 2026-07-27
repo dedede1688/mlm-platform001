@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -7,7 +7,9 @@ import {
   ImageIcon, Loader2, AlertCircle, Plus, Edit2, Trash2,
   ArrowUp, ArrowDown, X, Save
 } from 'lucide-react'
-import ImageUpload from '@/components/ImageUpload'
+import dynamic from 'next/dynamic'
+
+const ImageUpload = dynamic(() => import('@/components/ImageUpload'), { ssr: false, loading: () => <div className='border-2 border-dashed border-gray-300 rounded-xl p-8 text-center animate-pulse'>...</div> })
 import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----

@@ -1,6 +1,7 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 
+import dynamic from 'next/dynamic'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -9,8 +10,11 @@ import {
   AlertCircle, Info, Phone, Clock,
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
-import ImageUpload from '@/components/ImageUpload'
-import ProofViewerModal from '@/components/ProofViewerModal'
+const ImageUpload = dynamic(() => import('@/components/ImageUpload'), {
+  ssr: false,
+  loading: () => <div className='border-2 border-dashed border-gray-300 rounded-xl p-8 text-center animate-pulse'><div className='h-4 w-32 bg-gray-200 rounded mx-auto mb-2' /><div className='h-3 w-48 bg-gray-200 rounded mx-auto' /></div>,
+})
+const ProofViewerModal = dynamic(() => import('@/components/ProofViewerModal'), { ssr: false })
 import RechargeQrPanel from '@/components/recharge/RechargeQrPanel'
 import { formatMoney } from '@/lib/utils/format'
 import { getAuthToken } from '@/lib/utils/auth-token'

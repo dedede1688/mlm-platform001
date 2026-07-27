@@ -1,9 +1,23 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 // v7.0-fix: 修复构建错误 - 调试日志语法优化
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { supabaseBrowserClient, isSupabaseAvailable } from '@/lib/supabase/client'
+// Supabase client is lazy-loaded in uploadBase64ToSupabase to reduce initial bundle
+let _supabaseClient: any = null
+let _supabaseChecked = false
+const getSupabaseClient = async () => {
+  if (!_supabaseChecked) {
+    try {
+      const mod = await import('@/lib/supabase/client')
+      if (mod.isSupabaseAvailable()) {
+        _supabaseClient = mod.supabaseBrowserClient
+      }
+    } catch {}
+    _supabaseChecked = true
+  }
+  return _supabaseClient
+}
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
 import { getAuthToken } from '@/lib/utils/auth-token'
@@ -269,7 +283,8 @@ export default function AdminProductsPage() {
       return base64Data
     }
 
-    if (!isSupabaseAvailable() || !supabaseBrowserClient) {
+    const client = await getSupabaseClient()
+    if (!client) {
       throw new Error(`图片 ${index + 1} 是 Base64 格式但 Supabase 不可用，无法保存`)
     }
 
@@ -292,7 +307,7 @@ export default function AdminProductsPage() {
     const blob = new Blob([byteArray], { type: `image/${ext}` })
     const file = new File([blob], fileName, { type: `image/${ext}` })
 
-    const { error: uploadError } = await supabaseBrowserClient.storage
+    const { error: uploadError } = await client.storage
       .from('products')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -303,7 +318,7 @@ export default function AdminProductsPage() {
       throw new Error(`图片 ${index + 1} 上传失败: ${uploadError.message}`)
     }
 
-    const { data: urlData } = supabaseBrowserClient.storage.from('products').getPublicUrl(filePath)
+    const { data: urlData } = client.storage.from('products').getPublicUrl(filePath)
     return urlData.publicUrl
   }, [])
 
