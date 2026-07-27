@@ -1,4 +1,5 @@
 ﻿import { NextRequest } from "next/server"
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { logOperation } from "@/lib/utils/operation-log"
 import { WITHDRAWAL_STATUS } from "@/lib/constants"
@@ -38,6 +39,13 @@ export async function PUT(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ["finance_admin", "super_admin"])
     if (authError || !admin) return authError!
+
+    // rate-limit
+    const clientIP = getClientIP(request)
+    const ipLimitResult = await checkRateLimit(`withdrawals-review:ip:${clientIP}`, 10, 60 * 1000)
+    if (!ipLimitResult.allowed) {
+      return rateLimitResponse("请求过于频繁，请稍后再试", ipLimitResult.resetIn)
+    }
 
     const { data: body, error: parseError } = await parseBody(withdrawalReviewSchema, request)
     if (parseError) return parseError
