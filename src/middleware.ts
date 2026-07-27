@@ -7,9 +7,9 @@ import { logger } from '@/lib/logger'
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
-  'X-XSS-Protection': '1; mode=block',
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Permitted-Cross-Domain-Policies': 'none',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 const COOKIE_NAME = 'auth_token'
