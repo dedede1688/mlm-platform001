@@ -6,6 +6,12 @@ import { OrderLifecycleService } from "@/lib/services/order-lifecycle.service"
 import { invalidateCache } from "@/lib/utils/stats-cache"
 import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { logger } from "@/lib/logger"
+import { z } from "zod"
+import { parseBody } from "@/lib/validations/helper"
+
+const verifyPaymentSchema = z.object({
+  password: z.string().min(1, "???????"),
+})
 
 export async function POST(
   request: NextRequest,

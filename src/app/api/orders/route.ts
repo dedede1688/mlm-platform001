@@ -4,6 +4,25 @@ import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { parseBody, parseQuery } from '@/lib/validations/helper'
+
+const createOrderSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string().min(1, '??ID????'),
+    quantity: z.number().int().min(1, '?????1'),
+  })).min(1, '??????'),
+  pointsUsed: z.number().int().min(0).optional().default(0),
+  recipientName: z.string().min(1, '?????????'),
+  recipientPhone: z.string().min(1, '?????????').regex(/^1[3-9]\d{9}$/, '????????'),
+  shippingAddress: z.string().min(1, '????????'),
+})
+
+const listOrdersQuerySchema = z.object({
+  status: z.string().optional(),
+  page: z.string().optional().default('1'),
+  limit: z.string().optional().default('20'),
+})
 
 // 获取订单列表
 export async function GET(request: NextRequest) {
@@ -14,9 +33,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status') || undefined
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const { data: q } = parseQuery(listOrdersQuerySchema, searchParams)
+    // parseQuery never errors for optional fields; fallback to defaults
+    const status = (q as any)?.status || undefined
+    const page = parseInt((q as any)?.page || '1')
+    const limit = parseInt((q as any)?.limit || '20')
 
     const result = await OrderService.getUserOrders(user.userId, status, page, limit)
 
