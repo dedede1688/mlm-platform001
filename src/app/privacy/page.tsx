@@ -1,9 +1,8 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Shield } from 'lucide-react'
-import { sanitizeHtml } from '@/lib/utils/sanitize-html'
 
 function getDefaultPrivacyHtml(): string {
   return `
@@ -117,7 +116,7 @@ export default function PrivacyPage() {
                 prose-headings:text-gray-900 prose-headings:font-semibold
                 prose-p:text-gray-600 prose-p:leading-relaxed
                 prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(privacyHtml || getDefaultPrivacyHtml()) }}
+              dangerouslySetInnerHTML={{ __html: (privacyHtml || getDefaultPrivacyHtml()) }}
             />
           )}
         </div>

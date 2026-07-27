@@ -1,9 +1,8 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Info } from 'lucide-react'
-import { sanitizeHtml } from '@/lib/utils/sanitize-html'
 
 function getDefaultAboutHtml(): string {
   return `
@@ -80,7 +79,7 @@ export default function AboutPage() {
                 prose-p:text-gray-600 prose-p:leading-relaxed
                 prose-a:text-primary prose-a:no-underline hover:prose-a:underline
                 prose-img:rounded-lg prose-img:shadow-sm"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(aboutUs) }}
+              dangerouslySetInnerHTML={{ __html: aboutUs || '' }}
             />
           ) : (
             <div
@@ -89,7 +88,7 @@ export default function AboutPage() {
                 prose-p:text-gray-600 prose-p:leading-relaxed
                 prose-a:text-primary prose-a:no-underline hover:prose-a:underline
                 prose-img:rounded-lg prose-img:shadow-sm"
-              dangerouslySetInnerHTML={{ __html: sanitizeHtml(getDefaultAboutHtml()) }}
+              dangerouslySetInnerHTML={{ __html: getDefaultAboutHtml() }}
             />
           )}
         </div>

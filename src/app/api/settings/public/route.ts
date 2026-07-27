@@ -1,3 +1,4 @@
+﻿import { sanitizeHtml } from '@/lib/utils/sanitize-html'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { SettingsService } from '@/lib/services/settings.service'
@@ -55,9 +56,9 @@ export async function GET() {
       companyAddress: config.companyAddress ?? '广州市花都区金谷南路',
       icp: config.icp ?? '',
       copyright: config.copyright ?? '2026',
-      aboutUs: config.aboutUs ?? null,
-      termsHtml: config.termsHtml ?? null,
-      privacyHtml: config.privacyHtml ?? null,
+      aboutUs: config.aboutUs ? sanitizeHtml(config.aboutUs) : null,
+      termsHtml: config.termsHtml ? sanitizeHtml(config.termsHtml) : null,
+      privacyHtml: config.privacyHtml ? sanitizeHtml(config.privacyHtml) : null,
       helpFaq: (config.helpFaq as Array<{ question: string; answer: string }>) ?? [],
       banners,
       seoTitle: config.seoTitle ?? null,
