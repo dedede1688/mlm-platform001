@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Pagination } from '@/components/ui/Pagination'
 import Link from 'next/link'
 import {
   ArrowLeft, Wallet,
@@ -288,26 +289,7 @@ export default function BalancePage() {
             })}
           </div>
         )}
-
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-4 py-2 bg-white rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 shadow-sm"
-            >
-              上一页
-            </button>
-            <span className="text-sm text-gray-500">第 {page} / {totalPages} 页</span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-4 py-2 bg-white rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 shadow-sm"
-            >
-              下一页
-            </button>
-          </div>
-        )}
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </main>
 
       <EarningsTransferModal
