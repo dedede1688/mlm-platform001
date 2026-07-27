@@ -9,6 +9,7 @@ import {
 import { toast } from '@/components/ToastProvider'
 import { AddressForm, AddressFormData } from '@/components/address/AddressForm'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 interface Address {
   id: string
@@ -32,6 +33,7 @@ export default function AddressesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null)
   const [userPhone, setUserPhone] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState<string | null>(null)
 
   const fetchAddresses = useCallback(async (token: string) => {
     try {
@@ -125,7 +127,13 @@ export default function AddressesPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除该地址吗？此操作不可恢复。')) return
+    setDeleteDialogOpen(id)
+  }
+
+  const handleDeleteConfirm = async () => {
+    const id = deleteDialogOpen
+    if (!id) return
+    setDeleteDialogOpen(null)
     const token = getAuthToken()
     if (!token) return
     setDeletingId(id)
@@ -175,86 +183,62 @@ export default function AddressesPage() {
     }
   }
 
-  const editingAddress = editingId ? addresses.find((a) => a.id === editingId) : null
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-primary-50 via-white to-gray-50">
-        <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="space-y-4">
-            <div className="h-8 w-48 bg-white rounded animate-pulse" />
-            <div className="h-32 bg-white rounded-xl animate-pulse" />
-            <div className="h-32 bg-white rounded-xl animate-pulse" />
-          </div>
-        </main>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-50 via-white to-gray-50">
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* 顶部导航 */}
-        <div className="flex items-center justify-between mb-5 sm:mb-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
-              aria-label="返回"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">收货地址</h1>
-          </div>
-          {!creatingNew && !editingId && (
-            <button
-              onClick={() => setCreatingNew(true)}
-              disabled={addresses.length >= 20}
-              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">新增地址</span>
-              <span className="sm:hidden">新增</span>
-            </button>
-          )}
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <h1 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-primary" />
+            收货地址
+          </h1>
         </div>
+      </header>
 
-        {/* 提示：地址数量上限 */}
-        {addresses.length >= 20 && !creatingNew && !editingId && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700">
-              已达地址数量上限（20 个），请删除部分地址后再添加
-            </p>
-          </div>
-        )}
-
-        {/* 新增表单 */}
+      <main className="max-w-5xl mx-auto px-4 py-6">
+        {/* 新增地址表单 */}
         {creatingNew && (
-          <div className="bg-white rounded-xl shadow-md p-5 sm:p-6 mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">新增地址</h2>
+          <div className="mb-6">
             <AddressForm
-              defaultPhone={userPhone}
               submitting={submitting}
-              submitText="保存地址"
+              defaultPhone={userPhone}
+              submitText="保存新地址"
               onSubmit={handleCreate}
               onCancel={() => setCreatingNew(false)}
             />
           </div>
         )}
 
-        {/* 编辑表单 */}
-        {editingAddress && (
-          <div className="bg-white rounded-xl shadow-md p-5 sm:p-6 mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">编辑地址</h2>
-            <AddressForm
-              initial={editingAddress}
-              defaultPhone={userPhone}
-              submitting={submitting}
-              submitText="保存修改"
-              onSubmit={(data) => handleUpdate(editingAddress.id, data)}
-              onCancel={() => setEditingId(null)}
-            />
+        {/* 编辑地址表单 */}
+        {editingId && (
+          <div className="mb-6">
+            {(() => {
+              const editingAddress = addresses.find((a) => a.id === editingId)
+              if (!editingAddress) return null
+              return (
+                <AddressForm
+                  submitting={submitting}
+                  defaultPhone={userPhone}
+                  initial={{
+                    recipientName: editingAddress.recipientName,
+                    phone: editingAddress.phone,
+                    province: editingAddress.province,
+                    city: editingAddress.city,
+                    district: editingAddress.district,
+                    detailAddress: editingAddress.detailAddress,
+                    isDefault: editingAddress.isDefault,
+                  }}
+                  submitText="保存修改"
+                  onSubmit={(data) => handleUpdate(editingAddress.id, data)}
+                  onCancel={() => setEditingId(null)}
+                />
+              )
+            })()}
           </div>
         )}
 
@@ -294,6 +278,16 @@ export default function AddressesPage() {
           </>
         )}
       </main>
+
+      <ConfirmDialog
+        open={deleteDialogOpen !== null}
+        title="删除地址"
+        message="确定删除该地址吗？此操作不可恢复。"
+        mode="emphasize"
+        confirmText="确认删除"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteDialogOpen(null)}
+      />
     </div>
   )
 }

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft, Loader2, Wallet, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 interface TodaySummary {
   totalAmount: number
@@ -25,6 +26,7 @@ export default function AdminDividendsPage() {
   const [loading, setLoading] = useState(false)
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [settleLoading, setSettleLoading] = useState(false)
+  const [settleDialogOpen, setSettleDialogOpen] = useState(false)
 
   useEffect(() => {
     const storedToken = getAuthToken()
@@ -56,11 +58,10 @@ export default function AdminDividendsPage() {
   const handleAction = async (action: 'snapshot' | 'settle') => {
     if (!token) return
     if (action === 'settle') {
-      if (!confirm('确认执行周结？此操作将把本周所有未结算分红统一入账。')) return
-      setSettleLoading(true)
-    } else {
-      setSnapshotLoading(true)
+      setSettleDialogOpen(true)
+      return
     }
+    setSnapshotLoading(true)
     try {
       const res = await fetch('/api/admin/settle-dividends', {
         method: 'POST',
@@ -72,19 +73,41 @@ export default function AdminDividendsPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.success) {
-        if (action === 'snapshot') {
-          toast.success('日快照执行成功')
-        } else {
-          toast.success(`周结入账成功：¥${data.data?.totalAmount?.toFixed(2) ?? '0.00'}`)
-        }
+        toast.success('日快照执行成功')
         await fetchSummary(token)
       } else {
-        toast.error(data.error || `操作失败（${res.status}）`)
+        toast.error(data.error || `操作失败：${res.status}`)
       }
     } catch (_err) {
       toast.error('请求失败')
     } finally {
       setSnapshotLoading(false)
+    }
+  }
+
+  const handleSettleConfirm = async () => {
+    if (!token) return
+    setSettleDialogOpen(false)
+    setSettleLoading(true)
+    try {
+      const res = await fetch('/api/admin/settle-dividends', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'settle' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        toast.success(`周结入账成功，共楼${data.data?.totalAmount?.toFixed(2) ?? '0.00'}`)
+        await fetchSummary(token)
+      } else {
+        toast.error(data.error || `操作失败：${res.status}`)
+      }
+    } catch (_err) {
+      toast.error('请求失败')
+    } finally {
       setSettleLoading(false)
     }
   }
@@ -118,7 +141,7 @@ export default function AdminDividendsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <p className="text-xs text-gray-500 mb-1">今日总金额</p>
-                <p className="text-lg font-bold text-green-700">¥{summary.totalAmount?.toFixed(2) ?? '0.00'}</p>
+                <p className="text-lg font-bold text-green-700">楼{summary.totalAmount?.toFixed(2) ?? '0.00'}</p>
               </div>
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <p className="text-xs text-gray-500 mb-1">已生成条数</p>
@@ -196,6 +219,15 @@ export default function AdminDividendsPage() {
           提示：分红规则详见 PRD §2.4.3（每日快照 + 周日统一发放）
         </p>
       </main>
+
+      <ConfirmDialog
+        open={settleDialogOpen}
+        title="确认执行周结"
+        message="此操作将把本周所有未结算分红统一入账（幂等，重复执行不会重复入账）。确认执行？"
+        confirmText="确认执行"
+        onConfirm={handleSettleConfirm}
+        onCancel={() => setSettleDialogOpen(false)}
+      />
     </div>
   )
 }

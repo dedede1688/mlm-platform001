@@ -15,6 +15,7 @@ import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
 import PaymentPasswordModal from '@/components/dashboard/PaymentPasswordModal'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 
 // ---- 类型 ----
 
@@ -74,6 +75,7 @@ export default function OrdersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [payModalOpen, setPayModalOpen] = useState(false)
   const [payOrderId, setPayOrderId] = useState<string | null>(null)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState<string | null>(null)
   const pageSize = 8
 
   useEffect(() => {
@@ -139,6 +141,30 @@ export default function OrdersPage() {
     }
   }
 
+  const handleCancelConfirm = async () => {
+    const orderId = cancelDialogOpen
+    if (!token || !orderId) return
+    setCancelDialogOpen(null)
+    setActionLoading(orderId)
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        toast.success('订单已取消，如需购买请重新下单')
+        await fetchOrders(token!)
+      } else {
+        const err = await res.json()
+        toast.error(err.error || '取消订单失败')
+      }
+    } catch {
+      toast.error('取消订单请求失败')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   // 确认收货
   const handleConfirm = async (orderId: string) => {
     if (!token) return
@@ -165,25 +191,8 @@ export default function OrdersPage() {
   const handleCancel = async (orderId: string) => {
     if (!token) return
     // 二次确认
-    if (!window.confirm('确定要取消该订单吗？')) return
-    setActionLoading(orderId)
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.ok) {
-        toast.success('订单已取消，如需购买请重新下单')
-        await fetchOrders(token)
-      } else {
-        const err = await res.json()
-        toast.error(err.error || '取消订单失败')
-      }
-    } catch {
-      toast.error('取消订单请求失败')
-    } finally {
-      setActionLoading(null)
-    }
+    setCancelDialogOpen(orderId)
+    return
   }
 
   // 筛选 + 分页
@@ -292,6 +301,16 @@ export default function OrdersPage() {
 
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} numbers />
       </main>
+
+      <ConfirmDialog
+        open={cancelDialogOpen !== null}
+        title="取消订单"
+        message="确定要取消该订单吗？取消后不可恢复。"
+        mode="emphasize"
+        confirmText="确认取消"
+        onConfirm={handleCancelConfirm}
+        onCancel={() => setCancelDialogOpen(null)}
+      />
 
       <PaymentPasswordModal
         open={payModalOpen}
