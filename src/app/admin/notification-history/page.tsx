@@ -1,10 +1,10 @@
-'use client'
-import { logger } from '@/lib/logger'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { Inbox, Eye, Loader2, User } from 'lucide-react'
 import Link from 'next/link'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import { Pagination } from '@/components/ui/Pagination'
 
 interface NotificationBatch {
   id: string
@@ -52,7 +52,7 @@ export default function NotificationHistoryPage() {
         setTotalPages(data.data.pagination.totalPages)
       }
     } catch (err) {
-      logger.error('获取发件箱失败:', err)
+      console.error('获取发件箱失败', err)
     } finally {
       setLoading(false)
     }
@@ -153,25 +153,7 @@ export default function NotificationHistoryPage() {
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
-          <button
-            onClick={() => setPage(Math.max(1, page - 1))}
-            disabled={page === 1}
-            className="px-3 py-1.5 text-sm rounded-lg border dark:border-gray-600 disabled:opacity-50 dark:text-white"
-          >
-            上一页
-          </button>
-          <span className="text-sm text-gray-600 dark:text-gray-300">{page} / {totalPages}</span>
-          <button
-            onClick={() => setPage(Math.min(totalPages, page + 1))}
-            disabled={page === totalPages}
-            className="px-3 py-1.5 text-sm rounded-lg border dark:border-gray-600 disabled:opacity-50 dark:text-white"
-          >
-            下一页
-          </button>
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   )
 }
