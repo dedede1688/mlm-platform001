@@ -16,7 +16,6 @@ import {
   LockOpen,
   Download,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 import { getAuthToken } from "@/lib/utils/auth-token";
 
 // ---- 类型定义 ----
@@ -156,8 +155,9 @@ export default function UserTable({
   onViewDetail,
   onOpenTree,
 }: UserTableProps) {
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (users.length === 0) return;
+    const XLSX = await import("xlsx");
     const data = users.map((u) => ({
       "\u624b\u673a\u53f7": u.phone,
       "\u6635\u79f0": u.nickname || "-",
