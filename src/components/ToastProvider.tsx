@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { Check, X, Info, AlertTriangle } from 'lucide-react'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
 
@@ -20,11 +21,11 @@ export const toast = {
   warning: (message: string) => globalAddToast?.('warning', message),
 }
 
-const ICONS: Record<ToastType, string> = {
-  success: '✓',
-  error: '✕',
-  info: 'ℹ',
-  warning: '⚠',
+const ICONS: Record<ToastType, React.ReactNode> = {
+  success: <Check className="w-3 h-3" />,
+  error: <X className="w-3 h-3" />,
+  info: <Info className="w-3 h-3" />,
+  warning: <AlertTriangle className="w-3 h-3" />,
 }
 
 const COLORS: Record<ToastType, string> = {
@@ -70,7 +71,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             className={`flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg pointer-events-auto
-              animate-[slideIn_0.2s_ease-out] ${COLORS[t.type]}`}
+              animate-slide-in-right ${COLORS[t.type]}`}
           >
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${ICON_COLORS[t.type]}`}>
               {ICONS[t.type]}
@@ -85,12 +86,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           </div>
         ))}
       </div>
-      <style jsx global>{`
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateX(100%); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-      `}</style>
     </>
   )
 }
