@@ -1,6 +1,6 @@
 ﻿import { logger } from '@/lib/logger'
 import type { Metadata } from "next";
-import { safeJsonLd } from '@/lib/utils/sanitize-html';
+import { safeJsonLd } from '@/lib/utils/safe-jsonld';
 import { Geist, Geist_Mono } from "next/font/google";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
