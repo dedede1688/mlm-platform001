@@ -16,5 +16,13 @@ export const withdrawalsBatchReviewSchema = z.object({
   remark: z.string().optional(),
 })
 
+
+export const completeWithdrawalSchema = z.object({
+  paymentProofUrl: z.string().url("打款凭证必须为有效的 URL"),
+  remark: z.string().optional(),
+})
+
+export type CompleteWithdrawalInput = z.infer<typeof completeWithdrawalSchema>
+
 export type WithdrawalReviewInput = z.infer<typeof withdrawalReviewSchema>
 export type WithdrawalsBatchReviewInput = z.infer<typeof withdrawalsBatchReviewSchema>
