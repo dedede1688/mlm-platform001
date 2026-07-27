@@ -1,4 +1,5 @@
 ﻿import { prisma } from "@/lib/prisma"
+import { paginate } from "@/lib/utils/pagination"
 
 export interface OperationLogFilters {
   module?: string
@@ -40,6 +41,6 @@ export class LogService {
       prisma.operationLog.count({ where }),
     ])
 
-    return { data: logs, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }
+    return { data: logs, pagination: paginate(total, page, limit) }
   }
 }

@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/prisma'
+﻿import { prisma } from '@/lib/prisma'
+import { paginate } from '@/lib/utils/pagination'
 import { RECHARGE_STATUS, RECHARGE_PAYMENT_METHOD, RECHARGE_AUDIT_ACTION } from '@/lib/constants'
 import { RechargeSettingsService, RechargeSettings } from '@/lib/services/recharge-settings.service'
 import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
@@ -106,7 +107,7 @@ export class RechargeService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: paginate(total, page, limit).totalPages,
       },
     }
   }
@@ -396,7 +397,7 @@ export class RechargeService {
         page,
         pageSize,
         total,
-        totalPages: Math.ceil(total / pageSize),
+        totalPages: paginate(total, page, pageSize).totalPages,
       },
     }
   }
