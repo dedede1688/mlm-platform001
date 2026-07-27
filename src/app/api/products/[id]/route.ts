@@ -1,5 +1,6 @@
 ﻿import { NextRequest } from 'next/server'
 import { ProductService } from '@/lib/services/product.service'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { sanitizeHtml } from '@/lib/utils/sanitize-html'
 import { logger } from '@/lib/logger'

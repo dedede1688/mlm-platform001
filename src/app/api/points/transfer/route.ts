@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { PointsService } from '@/lib/services/points.service'
 import { verifyToken } from '@/lib/utils/auth'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'

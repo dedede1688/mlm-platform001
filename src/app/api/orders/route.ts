@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { OrderService } from '@/lib/services/order.service'
 import { verifyToken } from '@/lib/utils/auth'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { logger } from '@/lib/logger'

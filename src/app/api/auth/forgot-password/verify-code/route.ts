@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { AuthService } from '@/lib/services/auth.service'
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { z } from 'zod'
 import { parseBody } from '@/lib/validations/helper'

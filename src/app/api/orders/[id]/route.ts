@@ -2,6 +2,7 @@
 import { OrderService } from "@/lib/services/order.service"
 import { OrderLifecycleService } from "@/lib/services/order-lifecycle.service"
 import { verifyToken } from "@/lib/utils/auth"
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { AppErrorCode } from "@/lib/utils/error-codes"
 import { logger } from "@/lib/logger"
