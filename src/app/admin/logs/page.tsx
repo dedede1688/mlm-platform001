@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  FileText, Loader2, ChevronLeft, ChevronRight, Filter
+  FileText, Loader2, Filter
 } from 'lucide-react'
+import { Pagination } from '@/components/ui/Pagination'
 import { getAuthToken } from '@/lib/utils/auth-token'
 
 // ---- 类型定义 ----
@@ -283,30 +284,7 @@ export default function OperationLogsPage() {
             </div>
           </div>
 
-          {/* 分页 */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <span className="text-sm text-gray-500">
-                第 {page} / {totalPages} 页
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
 
