@@ -7,9 +7,10 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   ShoppingBag, Package, CreditCard, Truck, CheckCircle2,
-  XCircle, RotateCcw, ChevronLeft, ChevronRight, ArrowLeft,
+  XCircle, RotateCcw, ArrowLeft,
   ImageOff
 } from 'lucide-react'
+import { Pagination } from '@/components/ui/Pagination'
 import { toast } from '@/components/ToastProvider'
 import { formatMoney } from '@/lib/utils/format'
 import PaymentPasswordModal from '@/components/dashboard/PaymentPasswordModal'
@@ -289,38 +290,7 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {/* 分页 */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center text-gray-500 hover:text-primary hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
-                  p === page
-                    ? 'bg-primary text-white shadow-md shadow-primary/25'
-                    : 'bg-white text-gray-600 hover:text-primary shadow-sm'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center text-gray-500 hover:text-primary hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        )}
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} numbers />
       </main>
 
       <PaymentPasswordModal

@@ -6,9 +6,10 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  Users, ArrowLeft, ChevronLeft, ChevronRight,
+  Users, ArrowLeft,
   Search, UserPlus, Copy, Check, List, Network
 } from 'lucide-react'
+import { Pagination } from '@/components/ui/Pagination'
 import type { TreeNode } from '@/components/ReferralTreeView'
 import { getAuthToken } from '@/lib/utils/auth-token'
 
@@ -310,38 +311,7 @@ export default function TeamPage() {
           </div>
         )}
 
-        {/* 分页 */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center text-gray-500 hover:text-primary hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
-                  p === page
-                    ? 'bg-primary text-white shadow-md shadow-primary/25'
-                    : 'bg-white text-gray-600 hover:text-primary shadow-sm'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center text-gray-500 hover:text-primary hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        )}
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} numbers />
         </>)}
       </main>
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, CheckCircle, Loader2, ChevronRight } from 'lucide-react'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import { Pagination } from '@/components/ui/Pagination'
 
 interface Notification {
   id: string
@@ -134,13 +135,7 @@ export default function NotificationsPage() {
             )
           })}
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 py-4">
-              <button onClick={() => fetchNotifications(token!, page - 1)} disabled={page <= 1} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors">上一页</button>
-              <span className="text-sm text-gray-500">{page} / {totalPages}</span>
-              <button onClick={() => fetchNotifications(token!, page + 1)} disabled={page >= totalPages} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors">下一页</button>
-            </div>
-          )}
+          <Pagination page={page} totalPages={totalPages} onPageChange={(newPage) => fetchNotifications(token!, newPage)} />
         </div>
       )}
     </>
