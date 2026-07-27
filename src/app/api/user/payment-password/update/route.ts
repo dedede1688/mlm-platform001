@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
 import {
   hashPaymentPassword,
   verifyPaymentPassword,
@@ -12,6 +14,14 @@ import {
   resetPaymentPasswordLock,
   PAYMENT_LOCK_THRESHOLD,
 } from '@/lib/auth/payment-password'
+
+const updatePaymentPasswordSchema = z.object({
+  oldPassword: z.string().min(1, '??????'),
+  newPassword: z.string().min(1, '??????').refine(
+    (val) => isValidPaymentPassword(val),
+    '??????6?????????????'
+  ),
+})
 
 // PUT /api/user/payment-password/update — 修改支付密码
 export async function PUT(request: NextRequest) {

@@ -4,86 +4,19 @@ import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
 
-// 字段校验（部分字段可选更新）
-function validatePartialAddressInput(body: Record<string, unknown>): { ok: true; data: Partial<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
-  const data: Record<string, unknown> = {}
+const addressPartialSchema = z.object({
+  recipientName: z.string().min(2, '?????????? 2-20 ?').max(20, '?????????? 2-20 ?').optional(),
+  phone: z.string().regex(/^1\d{10}$/, '???????').optional(),
+  province: z.string().min(1, '?????').optional(),
+  city: z.string().min(1, '?????').optional(),
+  district: z.string().min(1, '?????').optional(),
+  detailAddress: z.string().min(5, '????????? 5-100 ?').max(100, '????????? 5-100 ?').optional(),
+  isDefault: z.boolean().optional(),
+})
 
-  if (body.recipientName !== undefined) {
-    if (typeof body.recipientName !== 'string' || body.recipientName.trim().length < 2 || body.recipientName.length > 20) {
-      return { ok: false, error: '收件人姓名长度必须为 2-20 字' }
-    }
-    data.recipientName = body.recipientName.trim()
-  }
-  if (body.phone !== undefined) {
-    if (typeof body.phone !== 'string' || !/^1\d{10}$/.test(body.phone)) {
-      return { ok: false, error: '手机号格式错误' }
-    }
-    data.phone = body.phone
-  }
-  if (body.province !== undefined) {
-    if (!body.province) return { ok: false, error: '省不能为空' }
-    data.province = body.province
-  }
-  if (body.city !== undefined) {
-    if (!body.city) return { ok: false, error: '市不能为空' }
-    data.city = body.city
-  }
-  if (body.district !== undefined) {
-    if (!body.district) return { ok: false, error: '区不能为空' }
-    data.district = body.district
-  }
-  if (body.detailAddress !== undefined) {
-    if (typeof body.detailAddress !== 'string' || body.detailAddress.trim().length < 5 || body.detailAddress.length > 100) {
-      return { ok: false, error: '详细地址长度必须为 5-100 字' }
-    }
-    data.detailAddress = body.detailAddress.trim()
-  }
-  if (body.isDefault !== undefined) {
-    data.isDefault = body.isDefault === true
-  }
-
-  return { ok: true, data }
-}
-
-// PUT /api/user/addresses/[id] — 更新地址
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await verifyToken(request)
-    if (!user) {
-      return errorResponse('未登录', 401)
-    }
-
-    const { id } = await params
-    const body = await request.json()
-    const validation = validatePartialAddressInput(body)
-    if (!validation.ok) {
-      return errorResponse(validation.error, 400)
-    }
-
-    const address = await AddressService.updateAddress(user.userId, id, validation.data as Record<string, unknown>)
-
-    await logOperation({
-      userId: user.userId,
-      action: 'UPDATE',
-      module: 'user',
-      targetId: address.id,
-      newValue: { recipientName: address.recipientName, phone: address.phone, isDefault: address.isDefault },
-      ip: request.headers.get('x-forwarded-for') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
-    })
-
-    return successResponse(address, '地址更新成功')
-  } catch (error) {
-    logger.error('更新地址失败:', error)
-    const message = error instanceof Error ? error.message : '更新地址失败'
-    const statusCode = (error as Record<string, unknown>)?.statusCode as number || 500
-    return errorResponse(message, statusCode)
-  }
-}
 
 // DELETE /api/user/addresses/[id] — 删除地址
 // 如果删除的是默认地址，自动把最早创建的非默认地址提升为默认

@@ -5,6 +5,12 @@ import { logOperation } from '@/lib/utils/operation-log'
 import { EarningsTransferService } from '@/lib/services/earnings-transfer.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
+
+const transferSchema = z.object({
+  amount: z.number().positive('??????????????0'),
+})
 
 /**
  * POST /api/user/earnings-transfer
@@ -22,7 +28,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. 解析 amount
-    const { amount } = await request.json()
+    const { data, error } = await parseBody(transferSchema, request)
+    if (error) return error
+    const { amount } = data
 
     // 3. 调用 service
     const result = await EarningsTransferService.transferToBalance(auth.userId, amount)

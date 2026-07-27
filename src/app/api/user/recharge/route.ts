@@ -4,6 +4,19 @@ import { RechargeService } from '@/lib/services/recharge.service'
 import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { parseBody, parseQuery } from '@/lib/validations/helper'
+
+const rechargeQuerySchema = z.object({
+  page: z.string().optional().default('1'),
+  limit: z.string().optional().default('20'),
+})
+
+const createRechargeSchema = z.object({
+  amount: z.number().positive('????????0'),
+  paymentProofUrl: z.string().min(1, '???????'),
+  remark: z.string().optional().default(''),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,8 +26,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const qresult = parseQuery(rechargeQuerySchema, searchParams)
+    const params = ('error' in qresult ? { page: '1', limit: '20' } : qresult.data) as Record<string, string | undefined>
+    const page = parseInt(params.page || '1')
+    const limit = parseInt(params.limit || '20')
 
     const result = await RechargeService.getUserRechargeRequests(auth.userId, page, limit)
 
@@ -49,12 +64,14 @@ export async function POST(request: NextRequest) {
       return errorResponse('未登录', 401)
     }
 
-    const { amount, paymentProofUrl, remark } = await request.json()
+    const { data, error } = await parseBody(createRechargeSchema, request)
+    if (error) return error
+    const { amount, paymentProofUrl, remark } = data
 
     const recharge = await RechargeService.createRechargeRequest(auth.userId, {
       amount,
       paymentProofUrl,
-      remark,
+      remark: remark ?? '',
     })
 
     // 字段白名单：与 GET 一致，不暴露后台管理字段

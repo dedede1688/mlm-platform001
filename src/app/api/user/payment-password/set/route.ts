@@ -3,10 +3,19 @@ import { NextRequest } from 'next/server'
 import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
 import {
   hashPaymentPassword,
   isValidPaymentPassword,
 } from '@/lib/auth/payment-password'
+
+const setPaymentPasswordSchema = z.object({
+  password: z.string().min(1, '????????').refine(
+    (val) => isValidPaymentPassword(val),
+    '??????6?????????????'
+  ),
+})
 
 // POST /api/user/payment-password/set — 设置支付密码
 export async function POST(request: NextRequest) {

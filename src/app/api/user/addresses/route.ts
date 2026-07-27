@@ -4,36 +4,19 @@ import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
 
-// 字段校验
-function validateAddressInput(body: Record<string, unknown>): { ok: true; data: Required<{ recipientName: string; phone: string; province: string; city: string; district: string; detailAddress: string; isDefault: boolean }> } | { ok: false; error: string } {
-  const { recipientName, phone, province, city, district, detailAddress, isDefault } = body || {}
+const addressSchema = z.object({
+  recipientName: z.string().min(2, '?????????? 2-20 ?').max(20, '?????????? 2-20 ?'),
+  phone: z.string().regex(/^1\d{10}$/, '???????'),
+  province: z.string().min(1, '?????'),
+  city: z.string().min(1, '?????'),
+  district: z.string().min(1, '?????'),
+  detailAddress: z.string().min(5, '????????? 5-100 ?').max(100, '????????? 5-100 ?'),
+  isDefault: z.boolean().optional().default(false),
+})
 
-  if (!recipientName || typeof recipientName !== 'string' || recipientName.trim().length < 2 || recipientName.length > 20) {
-    return { ok: false, error: '收件人姓名长度必须为 2-20 字' }
-  }
-  if (typeof phone !== 'string' || !/^1\d{10}$/.test(phone)) {
-    return { ok: false, error: '手机号格式错误' }
-  }
-  if (typeof province !== 'string' || !province || typeof city !== 'string' || !city || typeof district !== 'string' || !district) {
-    return { ok: false, error: '省/市/区不能为空' }
-  }
-  if (typeof detailAddress !== 'string' || detailAddress.trim().length < 5 || detailAddress.length > 100) {
-    return { ok: false, error: '详细地址长度必须为 5-100 字' }
-  }
-  return {
-    ok: true,
-    data: {
-      recipientName: recipientName.trim(),
-      phone,
-      province: province.trim(),
-      city: city.trim(),
-      district: district.trim(),
-      detailAddress: detailAddress.trim(),
-      isDefault: isDefault === true,
-    },
-  }
-}
 
 // GET /api/user/addresses — 列出当前用户所有地址
 export async function GET(request: NextRequest) {
@@ -61,14 +44,18 @@ export async function POST(request: NextRequest) {
       return errorResponse('未登录', 401)
     }
 
-    const body = await request.json()
-    const validation = validateAddressInput(body)
-    if (!validation.ok) {
-      return errorResponse(validation.error, 400)
-    }
-    const data = validation.data
+    const { data, error } = await parseBody(addressSchema, request)
+    if (error) return error
 
-    const address = await AddressService.createAddress(user.userId, data)
+    const address = await AddressService.createAddress(user.userId, {
+      recipientName: data.recipientName,
+      phone: data.phone,
+      province: data.province,
+      city: data.city,
+      district: data.district,
+      detailAddress: data.detailAddress,
+      isDefault: data.isDefault,
+    })
 
     await logOperation({
       userId: user.userId,
