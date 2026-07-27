@@ -275,7 +275,7 @@ export class DividendService {
       return result
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const settleResult = await prisma.$transaction(async (tx) => {
       // 1. 获取所有未结算的分红明细
       const unsettledDividends = await tx.dividend.findMany({
         where: { settled: false },
@@ -421,6 +421,18 @@ export class DividendService {
         message: `周结分红入账成功（批次 ${batchId}），共 ${unsettledDividends.length} 条明细，${details.length} 位用户`,
       }
     })
+
+    // 铁律12：通知所有收到分红的用户
+    if (!settleResult.paused && settleResult.details.length > 0) {
+      const { OrderNotificationService } = await import('@/lib/services/order-notification.service')
+      for (const detail of settleResult.details) {
+        OrderNotificationService.notifyDividendSettled({
+          userId: detail.userId,
+          amount: detail.amount,
+        }).catch(err => logger.error('[dividend notify]', { userId: detail.userId, error: String(err) }))
+      }
+    }
+    return settleResult as DividendSettlementResult
   }
 
   // 获取用户的分红记录

@@ -306,6 +306,19 @@ export class OrderNotificationService {
     })
   }
 
+  static async notifyDividendSettled(params: {
+    userId: string; amount: number;
+  }) {
+    const user = await prisma.user.findUnique({ where: { id: params.userId }, select: { nickname: true, phone: true } })
+    const userName = user?.nickname || user?.phone || '用户'
+    await this.sendTemplate({
+      userId: params.userId, templateType: 'dividend_settled', title: '分红到账通知',
+      content: `您的分红 ¥${params.amount.toFixed(2)} 已到账，已加入可提现收益`,
+      variables: { userName, amount: params.amount.toFixed(2) },
+      notifyName: 'notifyDividendSettled', errorLabel: '分红通知失败', sourceType: 'dividend', sourceId: params.userId,
+    })
+  }
+
   // ─── 私有方法 ───
 
   private static async sendTemplate(params: {
