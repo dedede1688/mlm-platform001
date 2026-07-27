@@ -1,6 +1,7 @@
-'use client'
+﻿'use client'
 import { logger } from '@/lib/logger'
 
+import dynamic from 'next/dynamic'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -8,8 +9,13 @@ import {
   Users, ArrowLeft, ChevronLeft, ChevronRight,
   Search, UserPlus, Copy, Check, List, Network
 } from 'lucide-react'
-import ReferralTreeView, { TreeNode } from '@/components/ReferralTreeView'
+import type { TreeNode } from '@/components/ReferralTreeView'
 import { getAuthToken } from '@/lib/utils/auth-token'
+
+const ReferralTreeView = dynamic(() => import('@/components/ReferralTreeView'), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-64 text-gray-400"><Network className="w-5 h-5 mr-2 animate-pulse" />加载树形视图...</div>,
+})
 
 // ---- 类型 ----
 
