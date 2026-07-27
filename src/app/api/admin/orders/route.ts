@@ -1,4 +1,5 @@
 ﻿import { NextRequest } from "next/server"
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { OrderService } from "@/lib/services/order.service"
@@ -9,6 +10,12 @@ export async function GET(request: NextRequest) {
   try {
     const { user: admin, error: authError } = await verifyPermission(request, ["goods_admin", "super_admin"])
     if (authError || !admin) return authError!
+
+    const clientIP = getClientIP(request)
+    const ipLimitResult = await checkRateLimit(`orders:ip:${clientIP}`, 30, 60 * 1000)
+    if (!ipLimitResult.allowed) {
+      return rateLimitResponse("请求过于频繁，请稍后再试", ipLimitResult.resetIn)
+    }
 
     const { searchParams } = new URL(request.url)
     const result = await OrderService.getAdminOrders({

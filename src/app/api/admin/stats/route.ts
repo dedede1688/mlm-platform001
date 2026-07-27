@@ -3,6 +3,7 @@ import { verifyPermission } from "@/lib/utils/admin-auth"
 import { cached } from "@/lib/utils/stats-cache"
 import { logger } from "@/lib/logger"
 import { StatsService } from "@/lib/services/stats.service"
+import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
 
 // ---- GET /api/admin/stats ----
