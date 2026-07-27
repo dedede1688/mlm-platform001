@@ -2,12 +2,21 @@ import { NextRequest } from 'next/server'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { ProductService } from '@/lib/services/product.service'
+import { z } from 'zod'
+import { parseQuery } from '@/lib/validations/helper'
+
+const productsQuerySchema = z.object({
+  status: z.string().optional(),
+  isUpgrade: z.string().optional(),
+})
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status') || 'active'
-    const isUpgrade = searchParams.get('isUpgrade')
+    const qresult = parseQuery(productsQuerySchema, searchParams)
+    const params = ('error' in qresult ? { status: 'active' } : qresult.data) as Record<string, string | undefined>
+    const status = params.status || 'active'
+    const isUpgrade = params.isUpgrade || undefined
 
     const result = await ProductService.getAllProducts({
       page: 1,

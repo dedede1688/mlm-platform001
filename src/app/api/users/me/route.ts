@@ -4,6 +4,14 @@ import { getBusinessConfig } from "@/lib/config/business"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { logger } from "@/lib/logger"
 import { UserService } from "@/lib/services/user.service"
+import { z } from "zod"
+import { parseBody } from "@/lib/validations/helper"
+
+const updateProfileSchema = z.object({
+  nickname: z.string().optional(),
+  avatarUrl: z.string().optional(),
+  email: z.string().optional(),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,7 +70,9 @@ export async function PUT(request: NextRequest) {
       return errorResponse("未登录", 401)
     }
 
-    const { nickname, avatarUrl, email } = await request.json()
+    const { data, error } = await parseBody(updateProfileSchema, request)
+    if (error) return error
+    const { nickname, avatarUrl, email } = data
 
     const user = await UserService.updateProfile(auth.userId, { nickname, avatarUrl, email })
 

@@ -3,6 +3,12 @@ import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { CartService } from '@/lib/services/cart.service'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
+
+const addCartSchema = z.object({
+  productId: z.string().min(1, '??ID????'),
+})
 
 export async function GET(request: NextRequest) {
   try {

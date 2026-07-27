@@ -6,6 +6,22 @@ import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { AppErrorCode } from "@/lib/utils/error-codes"
 import { logger } from "@/lib/logger"
+import { z } from "zod"
+import { parseBody, parseQuery } from "@/lib/validations/helper"
+
+const withdrawalsQuerySchema = z.object({
+  page: z.string().optional().default("1"),
+  limit: z.string().optional().default("20"),
+})
+
+const createWithdrawalSchema = z.object({
+  amount: z.number().positive("????????0"),
+  paymentMethod: z.string().optional(),
+  accountNumber: z.string().optional(),
+  accountName: z.string().optional(),
+  bankName: z.string().optional(),
+  paymentPassword: z.string().min(1, "???????"),
+})
 
 
 export async function GET(request: NextRequest) {
@@ -16,8 +32,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get("page") || "1")
-    const limit = parseInt(searchParams.get("limit") || "20")
+    const qresult = parseQuery(withdrawalsQuerySchema, searchParams)
+    const params = ('error' in qresult ? { page: "1", limit: "20" } : qresult.data) as Record<string, string | undefined>
+    const page = parseInt(params.page || "1")
+    const limit = parseInt(params.limit || "20")
 
     const result = await WithdrawalService.getUserWithdrawals(auth.userId, page, limit)
 

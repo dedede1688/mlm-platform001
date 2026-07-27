@@ -3,6 +3,13 @@ import { verifyToken } from '@/lib/utils/auth'
 import { NotificationService } from '@/lib/services/notification.service'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { parseQuery } from '@/lib/validations/helper'
+
+const notificationsQuerySchema = z.object({
+  page: z.string().optional().default('1'),
+  limit: z.string().optional().default('20'),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,8 +20,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20')))
+    const qresult = parseQuery(notificationsQuerySchema, searchParams)
+    const params = ('error' in qresult ? { page: '1', limit: '20' } : qresult.data) as Record<string, string | undefined>
+    const page = Math.max(1, parseInt(params.page || '1'))
+    const limit = Math.min(50, Math.max(1, parseInt(params.limit || '20')))
 
     const result = await NotificationService.listMyNotifications(authUser.userId, page, limit)
 

@@ -4,6 +4,12 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { logger } from "@/lib/logger"
 import { UserService } from "@/lib/services/user.service"
+import { z } from "zod"
+import { parseQuery } from "@/lib/validations/helper"
+
+const lookupQuerySchema = z.object({
+  phone: z.string().min(1, "???????").regex(/^1[3-9]\d{9}$/, "????????"),
+})
 
 export async function GET(request: NextRequest) {
   try {

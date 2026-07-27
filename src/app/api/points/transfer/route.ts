@@ -3,6 +3,13 @@ import { PointsService } from '@/lib/services/points.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { parseBody } from '@/lib/validations/helper'
+
+const transferPointsSchema = z.object({
+  toUserPhone: z.string().min(1, '???????????').regex(/^1[3-9]\d{9}$/, '????????'),
+  points: z.number().positive('????????0'),
+})
 
 export async function POST(request: NextRequest) {
   try {

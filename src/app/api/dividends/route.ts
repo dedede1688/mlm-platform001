@@ -3,6 +3,13 @@ import { verifyToken } from "@/lib/utils/auth"
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { logger } from "@/lib/logger"
 import { DividendService } from "@/lib/services/dividend.service"
+import { z } from "zod"
+import { parseQuery } from "@/lib/validations/helper"
+
+const dividendsQuerySchema = z.object({
+  page: z.string().optional().default("1"),
+  limit: z.string().optional().default("50"),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,8 +19,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get("page") || "1")
-    const limit = parseInt(searchParams.get("limit") || "50")
+    const qresult = parseQuery(dividendsQuerySchema, searchParams)
+    const params = ('error' in qresult ? { page: "1", limit: "50" } : qresult.data) as Record<string, string | undefined>
+    const page = parseInt(params.page || "1")
+    const limit = parseInt(params.limit || "50")
     const dividends = await DividendService.getUserDividends(auth.userId, page, limit)
 
     return successResponse(dividends)
