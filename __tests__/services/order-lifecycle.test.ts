@@ -459,6 +459,127 @@ describe('OrderLifecycleService', () => {
     })
   })
 
+  // ============ completeApprovedRefund ============
+  describe('completeApprovedRefund', () => {
+    const makeRefundOrder = (status: string) => ({
+      id: 'order-1',
+      status,
+      userId: 'user-1',
+      orderNo: 'ORD001',
+      payAmount: 0,
+      pointsUsed: 0,
+      user: { referrerId: null },
+      items: [],
+    })
+
+    it('throws when refund request does not exist', async () => {
+      mocks.refundRequest.findUnique.mockResolvedValueOnce(null)
+
+      await expect(OrderLifecycleService.completeApprovedRefund('missing'))
+        .rejects.toThrow('退款申请不存在')
+    })
+
+    it('throws when refund request is not approved', async () => {
+      mocks.refundRequest.findUnique.mockResolvedValueOnce({
+        id: 'refund-1',
+        orderId: 'order-1',
+        status: 'pending',
+        order: makeRefundOrder('paid'),
+      })
+
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
+        .rejects.toThrow('退款状态不是已审批')
+      expect(mocks.order.updateMany).not.toHaveBeenCalled()
+    })
+
+    it.each(['paid', 'shipped', 'completed'])(
+      'atomically refunds an approved %s order',
+      async orderStatus => {
+        mocks.refundRequest.findUnique.mockResolvedValueOnce({
+          id: 'refund-1',
+          orderId: 'order-1',
+          status: 'approved',
+          order: makeRefundOrder(orderStatus),
+        })
+        mocks.order.updateMany.mockResolvedValueOnce({ count: 1 })
+        mocks.refundRequest.update.mockResolvedValueOnce({
+          id: 'refund-1',
+          status: 'completed',
+        })
+        vi.mocked(PointsService.voidUpgradePointsForRefund).mockResolvedValueOnce(undefined)
+        vi.mocked(RewardService.processRefund).mockResolvedValueOnce({} as any)
+
+        const result = await OrderLifecycleService.completeApprovedRefund('refund-1')
+
+        expect(result).toEqual({ id: 'refund-1', status: 'completed' })
+        expect(mocks.order.updateMany).toHaveBeenCalledWith({
+          where: {
+            id: 'order-1',
+            status: { in: ['paid', 'shipped', 'completed'] },
+          },
+          data: { status: 'refunded' },
+        })
+        expect(mocks.refundRequest.update).toHaveBeenCalledWith({
+          where: { id: 'refund-1' },
+          data: { status: 'completed' },
+        })
+        expect(PointsService.voidUpgradePointsForRefund)
+          .toHaveBeenCalledWith('order-1', expect.anything())
+        expect(RewardService.processRefund)
+          .toHaveBeenCalledWith('order-1', expect.anything())
+      }
+    )
+
+    it.each(['pending', 'cancelled', 'refunded'])(
+      'rejects an approved refund when order status is %s',
+      async orderStatus => {
+        mocks.refundRequest.findUnique.mockResolvedValueOnce({
+          id: 'refund-1',
+          orderId: 'order-1',
+          status: 'approved',
+          order: makeRefundOrder(orderStatus),
+        })
+
+        await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
+          .rejects.toThrow('当前订单状态不允许退款')
+        expect(mocks.order.updateMany).not.toHaveBeenCalled()
+        expect(mocks.refundRequest.update).not.toHaveBeenCalled()
+      }
+    )
+
+    it('fails when the order changes state before the guarded update', async () => {
+      mocks.refundRequest.findUnique.mockResolvedValueOnce({
+        id: 'refund-1',
+        orderId: 'order-1',
+        status: 'approved',
+        order: makeRefundOrder('paid'),
+      })
+      mocks.order.updateMany.mockResolvedValueOnce({ count: 0 })
+      vi.mocked(PointsService.voidUpgradePointsForRefund).mockResolvedValueOnce(undefined)
+      vi.mocked(RewardService.processRefund).mockResolvedValueOnce({} as any)
+
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
+        .rejects.toThrow('订单状态已变更，请刷新后重试')
+      expect(mocks.refundRequest.update).not.toHaveBeenCalled()
+    })
+
+    it('propagates refund-request update failure from the transaction', async () => {
+      mocks.refundRequest.findUnique.mockResolvedValueOnce({
+        id: 'refund-1',
+        orderId: 'order-1',
+        status: 'approved',
+        order: makeRefundOrder('completed'),
+      })
+      mocks.order.updateMany.mockResolvedValueOnce({ count: 1 })
+      mocks.refundRequest.update.mockRejectedValueOnce(new Error('退款申请更新失败'))
+      vi.mocked(PointsService.voidUpgradePointsForRefund).mockResolvedValueOnce(undefined)
+      vi.mocked(RewardService.processRefund).mockResolvedValueOnce({} as any)
+
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
+        .rejects.toThrow('退款申请更新失败')
+    })
+  })
+
   // ============ requestRefund ============
   describe('requestRefund', () => {
     it('throws when order not found', async () => {

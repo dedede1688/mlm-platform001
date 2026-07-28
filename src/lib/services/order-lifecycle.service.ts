@@ -310,6 +310,133 @@ export class OrderLifecycleService {
       orderBy: { createdAt: 'desc' },
     })
   }
+
+  static async completeApprovedRefund(refundId: string) {
+    return prisma.$transaction(async tx => {
+      const refund = await tx.refundRequest.findUnique({
+        where: { id: refundId },
+        include: {
+          order: {
+            include: {
+              user: { select: { referrerId: true } },
+              items: { include: { product: { select: { isUpgradeProduct: true } } } },
+            },
+          },
+        },
+      })
+
+      if (!refund) throw new Error('退款申请不存在')
+      if (refund.status !== 'approved') throw new Error('退款状态不是已审批')
+
+      const order = refund.order
+      const refundableStatuses: string[] = [
+        ORDER_STATUS.PAID,
+        ORDER_STATUS.SHIPPED,
+        ORDER_STATUS.COMPLETED,
+      ]
+      if (!refundableStatuses.includes(order.status)) {
+        throw new Error('当前订单状态不允许退款')
+      }
+
+      await Promise.all(order.items.map(item =>
+        tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: {
+              increment: item.quantity,
+            },
+          },
+        })
+      ))
+
+      if (order.pointsUsed > 0) {
+        const user = await tx.user.findUnique({ where: { id: order.userId } })
+        if (user) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: {
+              unlockedPoints: {
+                increment: order.pointsUsed,
+              },
+            },
+          })
+
+          await tx.pointsRecord.create({
+            data: {
+              userId: order.userId,
+              type: 'earn',
+              amount: order.pointsUsed,
+              totalPoints: user.totalPoints,
+              unlockedPoints: user.unlockedPoints + order.pointsUsed,
+              lockedPoints: user.lockedPoints,
+              sourceId: order.id,
+              description: `订单 ${order.orderNo} 退款积分退回`,
+            },
+          })
+        }
+      }
+
+      if (order.payAmount > 0) {
+        const refundUser = await tx.user.findUnique({
+          where: { id: order.userId },
+          select: BALANCE_SELECT,
+        })
+        if (refundUser) {
+          const refundUpdated = await tx.user.updateMany({
+            where: { id: order.userId, consumeBalance: { gte: order.payAmount } },
+            data: { balance: { increment: order.payAmount }, consumeBalance: { decrement: order.payAmount } },
+          })
+          if (refundUpdated.count === 0) throw new Error('消费余额不足')
+          const newBalance = refundUser.balance + order.payAmount
+          const afterRefund = {
+            consumeBalance: refundUser.consumeBalance - order.payAmount,
+            earningsAvailable: refundUser.earningsAvailable,
+            earningsPending: refundUser.earningsPending,
+            earningsVoided: refundUser.earningsVoided,
+          }
+          await tx.balanceRecord.create({
+            data: {
+              userId: order.userId,
+              type: 'refund',
+              amount: order.payAmount,
+              balance: newBalance,
+              frozenBalance: refundUser.frozenBalance,
+              sourceType: 'order',
+              sourceId: order.id,
+              description: '订单 ' + order.orderNo + ' 退款' + format4FieldDelta(refundUser, afterRefund),
+            },
+          })
+        }
+      }
+
+      await PointsService.voidUpgradePointsForRefund(order.id, tx)
+      await RewardService.processRefund(order.id, tx)
+
+      const changed = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          status: { in: refundableStatuses },
+        },
+        data: {
+          status: ORDER_STATUS.REFUNDED,
+        },
+      })
+      if (changed.count === 0) {
+        throw new Error('订单状态已变更，请刷新后重试')
+      }
+
+      await UserService.recomputeQualificationStatsForUsers(
+        [order.userId, order.user?.referrerId].filter((id): id is string => Boolean(id)),
+        tx
+      )
+
+      return tx.refundRequest.update({
+        where: { id: refundId },
+        data: { status: 'completed' },
+      })
+    })
+  }
+
   static async requestRefund(orderId: string, _reason?: string) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
