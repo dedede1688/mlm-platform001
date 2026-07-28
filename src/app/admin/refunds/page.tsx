@@ -10,7 +10,7 @@ import {
 import { formatMoney } from '@/lib/utils/format'
 import { hasPermission } from '@/lib/admin-permissions'
 import ImageLightbox from '@/components/admin/ImageLightbox'
-import { getAuthToken } from '@/lib/utils/auth-token'
+import { getAuthToken, getAuthUserRole } from '@/lib/utils/auth-token'
 import { getClientApiError } from '@/lib/utils/client-api-error'
 import RefundReviewModal from './_components/RefundReviewModal'
 
@@ -102,10 +102,7 @@ export default function AdminRefundsPage() {
       fetchRefunds(storedToken, 1)
     }
     // v68:解析当前用户角色
-    try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}')
-      setUserRole(u.role || '')
-    } catch {}
+    setUserRole(getAuthUserRole())
   }, [])
 
   const showMessage = (type: 'success' | 'error', text: string) => {

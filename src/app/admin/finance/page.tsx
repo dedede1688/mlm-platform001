@@ -16,7 +16,7 @@ const RewardsTab = dynamic(() => import('./_components/RewardsTab'), { ssr: fals
 const WithdrawalsTab = dynamic(() => import('./_components/WithdrawalsTab'), { ssr: false })
 const RechargeTab = dynamic(() => import('./_components/RechargeTab'), { ssr: false })
 const FinanceModals = dynamic(() => import('./_components/FinanceModals'), { ssr: false })
-import { getAuthToken } from '@/lib/utils/auth-token'
+import { getAuthToken, getAuthUserRole } from '@/lib/utils/auth-token'
 import { LARGE_WITHDRAWAL_THRESHOLD, RECHARGE_PAYMENT_METHOD_MAP, RECHARGE_AUDIT_ACTION_MAP, RECHARGE_AUDIT_STATUS_MAP } from './_components/financeConstants'
 
 // v68:大额提现阈值
@@ -293,10 +293,7 @@ const [stats, setStats] = useState<{
   useEffect(() => {
     const storedToken = getAuthToken()
     // v68.13:解析当前用户角色(canApprove 需要)
-    try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}')
-      setUserRole(u.role || '')
-    } catch {}
+    setUserRole(getAuthUserRole())
     if (storedToken) {
       setToken(storedToken)
       fetchRewards(storedToken, 1)

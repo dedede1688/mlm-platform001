@@ -66,6 +66,7 @@
 **修改文件**
 
 - `src/app/dashboard/page.tsx`
+- `src/app/cart/page.tsx`
 
 **验证**
 

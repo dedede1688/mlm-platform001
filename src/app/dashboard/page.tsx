@@ -23,7 +23,11 @@ const ChartsSection = dynamic(() => import('@/components/dashboard/ChartsSection
     </div>
   ),
 })
-import { getAuthToken } from '@/lib/utils/auth-token'
+import {
+  getAuthToken,
+  removeAuthToken,
+  removeAuthUser,
+} from '@/lib/utils/auth-token'
 
 // ---- 类型 ----
 
@@ -121,17 +125,21 @@ export default function DashboardPage() {
       ])
 
       // 用户信息
-      if (userRes.status === 'fulfilled' && userRes.value.ok) {
-        const data = await userRes.value.json()
-        if (data.success) {
-          setUser(data.data)
-          // v50 G: 动态百分比
-          if (data.data.referralRate !== undefined) setReferralRate(data.data.referralRate)
-          if (data.data.brandBonusRate !== undefined) setBrandBonusRate(data.data.brandBonusRate)
-        } else {
-          localStorage.removeItem('token')
+      if (userRes.status === 'fulfilled') {
+        if (userRes.value.status === 401) {
+          removeAuthToken()
+          removeAuthUser()
           router.push('/login')
           return
+        }
+        if (userRes.value.ok) {
+          const data = await userRes.value.json()
+          if (data.success) {
+            setUser(data.data)
+            // v50 G: 动态百分比
+            if (data.data.referralRate !== undefined) setReferralRate(data.data.referralRate)
+            if (data.data.brandBonusRate !== undefined) setBrandBonusRate(data.data.brandBonusRate)
+          }
         }
       }
 
@@ -202,8 +210,8 @@ export default function DashboardPage() {
   }
 
   const _handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    removeAuthToken()
+    removeAuthUser()
     router.push('/')
   }
 

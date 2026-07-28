@@ -15,7 +15,7 @@ import {
   getAdminOrderActions,
   requiresOrderActionConfirmation,
 } from './order-actions'
-import { getAuthToken } from '@/lib/utils/auth-token'
+import { getAuthToken, getAuthUserRole } from '@/lib/utils/auth-token'
 import { getClientApiError } from '@/lib/utils/client-api-error'
 
 // ---- 类型定义 ----
@@ -148,10 +148,7 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     const storedToken = getAuthToken()
     // v68:解析当前用户角色
-    try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}')
-      setUserRole(u.role || '')
-    } catch {}
+    setUserRole(getAuthUserRole())
     if (storedToken) {
       setToken(storedToken)
       fetchOrders(storedToken, 1)

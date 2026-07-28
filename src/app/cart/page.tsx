@@ -9,7 +9,11 @@ import { ShoppingCart, Trash2, ShoppingBag, ArrowRight, Loader2, Coins } from 'l
 import { toast } from '@/components/ToastProvider'
 import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress } from '@/components/checkout/CheckoutDialog'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
-import { getAuthToken } from '@/lib/utils/auth-token'
+import {
+  getAuthToken,
+  removeAuthToken,
+  removeAuthUser,
+} from '@/lib/utils/auth-token'
 
 interface CartProduct {
   id: string
@@ -135,7 +139,8 @@ export default function CartPage() {
         headers: { Authorization: `Bearer ${authToken}` },
       })
       if (res.status === 401) {
-        localStorage.removeItem('token')
+        removeAuthToken()
+        removeAuthUser()
         router.push('/login')
         return
       }

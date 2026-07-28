@@ -20,7 +20,7 @@ const getSupabaseClient = async () => {
 }
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
-import { getAuthToken } from '@/lib/utils/auth-token'
+import { getAuthToken, getAuthUserRole } from '@/lib/utils/auth-token'
 import dynamic from 'next/dynamic'
 import type { ProductFormData } from './_components/ProductForm'
 import ProductTable, { type Product, type Pagination } from './_components/ProductTable'
@@ -116,10 +116,7 @@ export default function AdminProductsPage() {
       fetchProducts(storedToken, 1)
       fetchCategories(storedToken)
     }
-    try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}')
-      setUserRole(u.role || '')
-    } catch { /* ignore */ }
+    setUserRole(getAuthUserRole())
     if (storedToken) {
       fetch('/api/admin/role-permissions', {
         headers: { Authorization: `Bearer ${storedToken}` },

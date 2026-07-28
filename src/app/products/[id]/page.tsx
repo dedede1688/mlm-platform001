@@ -9,7 +9,11 @@ import {
   ChevronLeft, ChevronRight, Package, ShoppingCart, Zap, Tag, Shield,
   X, Loader2, FlaskConical, CheckCircle2, AlertCircle, RefreshCw
 } from 'lucide-react'
-import { getAuthToken } from '@/lib/utils/auth-token'
+import {
+  getAuthToken,
+  removeAuthToken,
+  removeAuthUser,
+} from '@/lib/utils/auth-token'
 import { toast } from '@/components/ToastProvider'
 import { CheckoutDialog, CheckoutInput, CheckoutProduct, SavedAddress, CheckoutLockedShipping } from '@/components/checkout/CheckoutDialog'
 import { EarningsTransferModal } from '@/components/EarningsTransferModal'
@@ -19,6 +23,11 @@ import {
   loadProductPendingPayment,
   saveProductPendingPayment,
 } from '@/lib/utils/pending-payment-session'
+import {
+  getProductPurchaseAuthDecision,
+  getProductUserResponseOutcome,
+} from './product-auth-state'
+import type { ProductUserLoadStatus } from './product-auth-state'
 
 // ---- 类型 ----
 
@@ -125,6 +134,8 @@ export default function ProductDetailPage() {
   const [error, setError] = useState('')
   const [user, setUser] = useState<ProductPageUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
+  const [userLoadStatus, setUserLoadStatus] = useState<ProductUserLoadStatus>('anonymous')
+  const [userLoadError, setUserLoadError] = useState('')
   const [addingToCart, setAddingToCart] = useState(false)
   const [buying, setBuying] = useState(false)
   const [pointsToUse, setPointsToUse] = useState(0)
@@ -143,8 +154,11 @@ export default function ProductDetailPage() {
     const storedToken = getAuthToken()
     if (storedToken) {
       setToken(storedToken)
+      setUserLoadStatus('loading')
       fetchUser(storedToken)
       fetchAddresses(storedToken)
+    } else {
+      setUserLoadStatus('anonymous')
     }
     // 无论是否登录都获取商品信息
     fetchProduct(storedToken)
@@ -170,16 +184,35 @@ export default function ProductDetailPage() {
       const res = await fetch('/api/users/me', {
         headers: { Authorization: `Bearer ${authToken}` },
       })
-      if (res.ok) {
+      const outcome = getProductUserResponseOutcome(res.status)
+      if (outcome === 'authenticated') {
         const data = await res.json()
+        if (!data?.data) {
+          setUserLoadStatus('error')
+          setUserLoadError('登录信息读取失败，请重新验证')
+          return null
+        }
         setUser(data.data)
+        setUserLoadStatus('ready')
+        setUserLoadError('')
         return data.data
-      } else {
+      }
+      if (outcome === 'unauthorized') {
+        removeAuthToken()
+        removeAuthUser()
+        setToken(null)
         setUser(null)
+        setUserLoadStatus('anonymous')
+        router.push('/login')
         return null
       }
+      setUserLoadStatus('error')
+      setUserLoadError('登录状态验证失败，请重试')
+      return null
     } catch (err) {
       logger.error('获取用户信息失败:', err)
+      setUserLoadStatus('error')
+      setUserLoadError('网络异常，登录状态暂时无法验证')
       return null
     }
   }
@@ -362,8 +395,18 @@ export default function ProductDetailPage() {
 
   // 立即购买：v43-4-修复改为打开 checkout 弹窗
   const handleBuyNow = () => {
-    if (!token || !user) {
+    const authDecision = getProductPurchaseAuthDecision({
+      hasToken: Boolean(token),
+      userReady: Boolean(user),
+      userLoadStatus,
+    })
+    if (authDecision === 'redirect-login') {
       router.push('/login')
+      return
+    }
+    if (authDecision === 'wait') return
+    if (authDecision === 'retryable-error' || !user) {
+      toast.error(userLoadError || '登录状态验证失败，请重试')
       return
     }
     if (!product || product.stock <= 0) return
@@ -883,6 +926,26 @@ export default function ProductDetailPage() {
               {/* 商品规格 */}
               <ProductSpecsDisplay specs={product.specs} />
 
+              {token && userLoadStatus === 'error' && (
+                <div className="mb-3 sm:mb-5 flex items-start gap-2 bg-red-50 text-red-700 rounded-xl p-3 sm:p-4 text-xs sm:text-sm">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p>{userLoadError || '登录状态验证失败，请重试'}</p>
+                    <button
+                      onClick={() => {
+                        setUserLoadStatus('loading')
+                        setUserLoadError('')
+                        void fetchUser(token)
+                      }}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-800"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      重新验证登录状态
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {restoreStatus === 'validating' && (
                 <div className="mb-3 sm:mb-5 flex items-center gap-2 bg-blue-50 text-blue-700 rounded-xl p-3 sm:p-4 text-xs sm:text-sm">
                   <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
@@ -923,7 +986,13 @@ export default function ProductDetailPage() {
                 </button>
                 <button
                   onClick={handleBuyNow}
-                  disabled={product.stock === 0 || buying || restoreStatus === 'validating' || restoreStatus === 'validation_error'}
+                  disabled={
+                    product.stock === 0
+                    || buying
+                    || userLoadStatus === 'loading'
+                    || restoreStatus === 'validating'
+                    || restoreStatus === 'validation_error'
+                  }
                   className="flex-1 py-3 px-3 sm:px-4 rounded-xl font-medium text-white bg-primary hover:bg-primary-600 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                 >
                   {buying ? (
@@ -931,7 +1000,13 @@ export default function ProductDetailPage() {
                   ) : (
                     <Zap className="w-4 h-4" />
                   )}
-                  {product.stock === 0 ? '已售罄' : buying ? '提交中...' : '立即购买'}
+                  {product.stock === 0
+                    ? '已售罄'
+                    : buying
+                      ? '提交中...'
+                      : userLoadStatus === 'loading'
+                        ? '登录校验中...'
+                        : '立即购买'}
                 </button>
               </div>
             </div>

@@ -35,6 +35,11 @@ export function getAuthUser(): Record<string, unknown> | null {
   }
 }
 
+export function getAuthUserRole(): string {
+  const user = getAuthUser()
+  return typeof user?.role === 'string' ? user.role : ''
+}
+
 export function setAuthUser(user: Record<string, unknown>): void {
   if (typeof window === 'undefined') return
   sessionStorage.setItem(USER_KEY, JSON.stringify(user))

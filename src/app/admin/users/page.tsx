@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
-import { getAuthToken } from '@/lib/utils/auth-token'
+import { getAuthToken, getAuthUserRole } from '@/lib/utils/auth-token'
 import dynamic from 'next/dynamic'
 
 import UserTable from './_components/UserTable'
@@ -284,10 +284,7 @@ const [treeUserName, setTreeUserName] = useState<string>('')
       fetchUsers(storedToken, 1)
     }
     // v68.7:解析当前用户角色
-    try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}')
-      setUserRole(u.role || '')
-    } catch {}
+    setUserRole(getAuthUserRole())
     // v68.8:Page 自己也 fetch role-permissions(避免 layout 不重 mount 导致 window 过期)
     if (storedToken) {
       fetch('/api/admin/role-permissions', {
@@ -834,4 +831,3 @@ onCancel={() => setBalanceConfirm(null)}
     </>
   )
 }
-
