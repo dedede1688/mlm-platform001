@@ -11,6 +11,7 @@ import { formatMoney } from '@/lib/utils/format'
 import { hasPermission } from '@/lib/admin-permissions'
 import ImageLightbox from '@/components/admin/ImageLightbox'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import { getClientApiError } from '@/lib/utils/client-api-error'
 import RefundReviewModal from './_components/RefundReviewModal'
 
 // ---- 类型定义 ----
@@ -172,7 +173,7 @@ export default function AdminRefundsPage() {
         setCompleteModal(null)
         fetchRefunds(token, pagination.page)
       } else {
-        showMessage('error', data.message || '操作失败')
+        showMessage('error', getClientApiError(data, '操作失败'))
       }
     } catch {
       showMessage('error', '网络错误，请重试')

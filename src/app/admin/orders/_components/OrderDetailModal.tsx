@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Package, Truck, CreditCard, Ban, RefreshCw, CheckCircle, Clock, Loader2 } from 'lucide-react'
+import { X, Package, Loader2 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 import Image from 'next/image'
 
@@ -15,11 +15,14 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 }
 
 export default function OrderDetailModal({
-  detailOrder, detailLoading, canApprove, userRole,
-  STATUS_ACTIONS, handleStatusAction,
-  showMessage, formatTime, closeDetail,
-  setShipOrderId, updateOrderStatus, handleViewDetail,
-  fetchOrders, token, pagination,
+  detailOrder,
+  detailLoading,
+  actions,
+  actionIcons,
+  handleStatusAction,
+  formatTime,
+  closeDetail,
+  updatingStatus,
 }: any) {
   return (
     <>
@@ -190,32 +193,24 @@ export default function OrderDetailModal({
 
             {/* 底部操作 */}
             <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200 flex justify-end gap-3 rounded-b-2xl">
-              {(STATUS_ACTIONS[detailOrder.status] || []).map((act: any) => (
-                <button
-                  key={act.status}
-                  onClick={() => {
-                    if (act.status === 'shipped') {
-                      setShipOrderId(detailOrder.id)
-                    } else {
-                      updateOrderStatus(detailOrder.id, act.status).then((ok: any) => {
-                        if (ok) {
-                          showMessage('success', `${act.label}成功`)
-                          handleViewDetail(detailOrder.id)
-                          fetchOrders(token!, pagination.page)
-                        }
-                      })
-                    }
-                  }}
-                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium shadow-sm text-white ${
-                    act.status === 'cancelled'
-                      ? 'bg-red-600 hover:bg-red-700'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  } transition-colors`}
-                >
-                  <act.icon className="w-4 h-4" />
-                  {act.label}
-                </button>
-              ))}
+              {actions.map((act: any) => {
+                const ActionIcon = actionIcons[act.status]
+                return (
+                  <button
+                    key={act.status}
+                    onClick={() => handleStatusAction(detailOrder.id, act)}
+                    disabled={updatingStatus}
+                    className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium shadow-sm text-white ${
+                      act.status === 'cancelled'
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    } transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <ActionIcon className="w-4 h-4" />
+                    {act.label}
+                  </button>
+                )
+              })}
               <button
                 onClick={() => closeDetail()}
                 className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg

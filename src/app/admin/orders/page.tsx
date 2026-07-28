@@ -8,8 +8,15 @@ import {
   X, Eye, Truck, Package, CheckCircle, XCircle, CreditCard
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
 import OrderDetailModal from './_components/OrderDetailModal'
+import type { AdminOrderAction } from './order-actions'
+import {
+  getAdminOrderActions,
+  requiresOrderActionConfirmation,
+} from './order-actions'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import { getClientApiError } from '@/lib/utils/client-api-error'
 
 // ---- 类型定义 ----
 
@@ -95,6 +102,13 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: '已取消' },
 ]
 
+const ACTION_ICONS: Record<AdminOrderAction['status'], typeof CreditCard> = {
+  paid: CreditCard,
+  cancelled: XCircle,
+  shipped: Truck,
+  completed: CheckCircle,
+}
+
 // ---- 主组件 ----
 
 export default function AdminOrdersPage() {
@@ -119,6 +133,13 @@ export default function AdminOrdersPage() {
   const [shipOrderId, setShipOrderId] = useState<string | null>(null)
   const [trackingNumber, setTrackingNumber] = useState('')
   const [shipping, setShipping] = useState(false)
+
+  // 高风险状态变更确认
+  const [pendingStatusAction, setPendingStatusAction] = useState<{
+    orderId: string
+    action: AdminOrderAction
+  } | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
 
   // 消息提示
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -220,7 +241,7 @@ export default function AdminOrdersPage() {
       if (data.success) {
         return true
       } else {
-        showMessage('error', data.error || '操作失败')
+        showMessage('error', getClientApiError(data, '操作失败'))
         return false
       }
     } catch {
@@ -229,23 +250,23 @@ export default function AdminOrdersPage() {
     }
   }
 
-  // 状态操作按钮配置
-  const STATUS_ACTIONS: Record<string, { label: string; status: string; icon: typeof CreditCard; color: string }[]> = {
-    pending: [
-      { label: '标记已支付', status: 'paid', icon: CreditCard, color: 'text-green-600 hover:bg-green-50' },
-      { label: '取消订单', status: 'cancelled', icon: XCircle, color: 'text-red-600 hover:bg-red-50' },
-    ],
-    paid: [
-      { label: '发货', status: 'shipped', icon: Truck, color: 'text-blue-600 hover:bg-blue-50' },
-      { label: '取消订单', status: 'cancelled', icon: XCircle, color: 'text-red-600 hover:bg-red-50' },
-    ],
-    shipped: [
-      { label: '完成订单', status: 'completed', icon: CheckCircle, color: 'text-green-600 hover:bg-green-50' },
-    ],
+  const executeStatusAction = async (orderId: string, action: AdminOrderAction) => {
+    if (!token || updatingStatus) return
+    setUpdatingStatus(true)
+    const ok = await updateOrderStatus(orderId, action.status)
+    if (ok) {
+      showMessage('success', `${action.label}成功`)
+      await fetchOrders(token, pagination.page)
+      if (detailOrder?.id === orderId) {
+        await handleViewDetail(orderId)
+      }
+    }
+    setUpdatingStatus(false)
+    return ok
   }
 
   // 点击操作按钮
-  const handleStatusAction = async (orderId: string, action: { status: string; label: string }) => {
+  const handleStatusAction = async (orderId: string, action: AdminOrderAction) => {
     // v68:发货属于审批类操作,需要 approve 权限
     if (action.status === 'shipped') {
       if (!canApprove) { showMessage('error', '您没有发货权限,请联系超级管理员'); return }
@@ -253,11 +274,20 @@ export default function AdminOrdersPage() {
       setShipOrderId(orderId)
       return
     }
-    const ok = await updateOrderStatus(orderId, action.status)
-    if (ok) {
-      showMessage('success', `${action.label}成功`)
-      fetchOrders(token!, pagination.page)
+    if (requiresOrderActionConfirmation(action)) {
+      setPendingStatusAction({ orderId, action })
+      return
     }
+    await executeStatusAction(orderId, action)
+  }
+
+  const confirmStatusAction = async () => {
+    if (!pendingStatusAction) return
+    await executeStatusAction(
+      pendingStatusAction.orderId,
+      pendingStatusAction.action
+    )
+    setPendingStatusAction(null)
   }
 
   // 发货
@@ -271,9 +301,12 @@ export default function AdminOrdersPage() {
     const ok = await updateOrderStatus(shipOrderId, 'shipped', { trackingNumber: trackingNumber.trim() })
     if (ok) {
       showMessage('success', '发货成功')
+      if (detailOrder?.id === shipOrderId) {
+        await handleViewDetail(shipOrderId)
+      }
       setShipOrderId(null)
       setTrackingNumber('')
-      fetchOrders(token, pagination.page)
+      await fetchOrders(token, pagination.page)
     }
     setShipping(false)
   }
@@ -425,17 +458,22 @@ export default function AdminOrdersPage() {
                               <Eye className="w-3.5 h-3.5" />
                               详情
                             </button>
-                            {(STATUS_ACTIONS[order.status] || []).map(act => (
-                              <button
-                                key={act.status}
-                                onClick={() => handleStatusAction(order.id, act)}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm
-                                  rounded-lg transition-colors font-medium ${act.color}`}
-                              >
-                                <act.icon className="w-3.5 h-3.5" />
-                                {act.label}
-                              </button>
-                            ))}
+                            {getAdminOrderActions(order.status).map(act => {
+                              const ActionIcon = ACTION_ICONS[act.status]
+                              return (
+                                <button
+                                  key={act.status}
+                                  onClick={() => handleStatusAction(order.id, act)}
+                                  disabled={updatingStatus}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm
+                                    rounded-lg transition-colors font-medium disabled:opacity-50
+                                    disabled:cursor-not-allowed ${act.color}`}
+                                >
+                                  <ActionIcon className="w-3.5 h-3.5" />
+                                  {act.label}
+                                </button>
+                              )
+                            })}
                           </div>
                         </td>
                       </tr>
@@ -506,19 +544,12 @@ export default function AdminOrdersPage() {
         <OrderDetailModal
           detailOrder={detailOrder}
           detailLoading={detailLoading}
-          canApprove={canApprove}
-          userRole={userRole}
-          STATUS_ACTIONS={STATUS_ACTIONS}
+          actions={getAdminOrderActions(detailOrder.status)}
+          actionIcons={ACTION_ICONS}
           handleStatusAction={handleStatusAction}
-          showMessage={showMessage}
           formatTime={formatTime}
           closeDetail={() => setDetailOrder(null)}
-          setShipOrderId={setShipOrderId}
-          updateOrderStatus={updateOrderStatus}
-          handleViewDetail={handleViewDetail}
-          fetchOrders={fetchOrders}
-          token={token}
-          pagination={pagination}
+          updatingStatus={updatingStatus}
         />
       )}
 
@@ -570,6 +601,19 @@ export default function AdminOrdersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingStatusAction)}
+        title="确认取消订单"
+        message="仅待付款订单可以直接取消。确认后将释放该订单占用的库存和积分，操作不可撤销。"
+        confirmText="确认取消"
+        mode="emphasize"
+        loading={updatingStatus}
+        onConfirm={confirmStatusAction}
+        onCancel={() => {
+          if (!updatingStatus) setPendingStatusAction(null)
+        }}
+      />
     </>
   )
 }
