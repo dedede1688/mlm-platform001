@@ -122,7 +122,7 @@ import { logger } from '@/lib/logger'
 
 describe('OrderLifecycleService', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     // 默认 $transaction 直接调用 callback,传入 tx
     mocks.$transaction.mockImplementation(async (cb: any) => {
       return cb({
@@ -137,6 +137,8 @@ describe('OrderLifecycleService', () => {
     // v57.11: 支付密码锁定函数默认 mock
     ;(checkPaymentPasswordLock as any).mockResolvedValue({ locked: false })
     ;(resetPaymentPasswordLock as any).mockResolvedValue(undefined)
+    vi.mocked(sendEmail).mockResolvedValue(undefined)
+    vi.mocked(sendSms).mockResolvedValue(undefined)
     vi.mocked(UserService.recomputeQualificationStatsForUsers).mockResolvedValue(undefined)
     mocks.refundRequest.findFirst.mockResolvedValue(null)
   })
@@ -580,24 +582,32 @@ describe('OrderLifecycleService', () => {
     })
   })
 
-  // ============ requestRefund ============
-  describe('requestRefund', () => {
+  // ============ completeApprovedRefund financial rollback ============
+  describe('completeApprovedRefund financial rollback', () => {
+    beforeEach(() => {
+      mocks.refundRequest.findUnique.mockImplementation(async () => {
+        const order = await mocks.order.findUnique()
+        return order
+          ? { id: 'refund-1', orderId: order.id, status: 'approved', order }
+          : null
+      })
+      mocks.order.updateMany.mockResolvedValue({ count: 1 })
+      mocks.refundRequest.update.mockResolvedValue({
+        id: 'refund-1',
+        status: 'completed',
+      })
+    })
+
     it('throws when order not found', async () => {
       mocks.order.findUnique.mockResolvedValueOnce(null)
-      await expect(OrderLifecycleService.requestRefund('order-1'))
-        .rejects.toThrow('订单不存在')
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
+        .rejects.toThrow('退款申请不存在')
     })
 
     it('throws when status not paid/shipped', async () => {
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-1', status: 'pending', items: [] } as any)
-      await expect(OrderLifecycleService.requestRefund('order-1'))
-        .rejects.toThrow('订单状态不允许退款')
-    })
-
-    it('throws when status is completed', async () => {
-      mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-1', status: 'completed', items: [] } as any)
-      await expect(OrderLifecycleService.requestRefund('order-1'))
-        .rejects.toThrow('订单状态不允许退款')
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
+        .rejects.toThrow('当前订单状态不允许退款')
     })
 
     it('happy path: full refund with stock, points, balance, rewards', async () => {
@@ -633,7 +643,7 @@ describe('OrderLifecycleService', () => {
       mocks.order.update.mockResolvedValueOnce({} as any)
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-1', status: 'refunded' } as any)
 
-      const result = await OrderLifecycleService.requestRefund('order-1', '质量问题')
+      const result = await OrderLifecycleService.completeApprovedRefund('refund-1')
       expect(result).toBeDefined()
       // 2 个 product 回库
       expect(mocks.product.update).toHaveBeenCalledTimes(2)
@@ -661,7 +671,7 @@ describe('OrderLifecycleService', () => {
       mocks.order.update.mockResolvedValueOnce({} as any)
       mocks.order.findUnique.mockResolvedValueOnce({} as any)
 
-      await OrderLifecycleService.requestRefund('order-1')
+      await OrderLifecycleService.completeApprovedRefund('refund-1')
       expect(mocks.pointsRecord.create).not.toHaveBeenCalled()
     })
 
@@ -679,11 +689,19 @@ describe('OrderLifecycleService', () => {
       mocks.order.update.mockResolvedValueOnce({} as any)
       mocks.order.findUnique.mockResolvedValueOnce({} as any)
 
-      await OrderLifecycleService.requestRefund('order-1')
+      await OrderLifecycleService.completeApprovedRefund('refund-1')
       expect(mocks.balanceRecord.create).not.toHaveBeenCalled()
     })
 
     it('throws when consumeBalance insufficient', async () => {
+      mocks.user.findUnique.mockResolvedValueOnce({
+        balance: 1000,
+        consumeBalance: 100,
+        earningsAvailable: 0,
+        earningsPending: 0,
+        earningsVoided: 0,
+        frozenBalance: 0,
+      } as any)
       mocks.order.findUnique.mockResolvedValueOnce({
         id: 'order-1',
         status: 'paid',
@@ -695,7 +713,7 @@ describe('OrderLifecycleService', () => {
       } as any)
       mocks.user.updateMany.mockResolvedValueOnce({ count: 0 } as any) // 余额不足
 
-      await expect(OrderLifecycleService.requestRefund('order-1'))
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
         .rejects.toThrow('消费余额不足')
     })
 
@@ -721,7 +739,7 @@ describe('OrderLifecycleService', () => {
       mocks.order.update.mockResolvedValueOnce({} as any)
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-void', status: 'refunded' } as any)
 
-      await OrderLifecycleService.requestRefund('order-void')
+      await OrderLifecycleService.completeApprovedRefund('refund-1')
 
       // v4A-1: 新签名 voidUpgradePointsForRefund(orderId, tx) — 按 orderId 查所有用户
       expect(PointsService.voidUpgradePointsForRefund).toHaveBeenCalledWith('order-void', expect.anything())
@@ -746,11 +764,11 @@ describe('OrderLifecycleService', () => {
       mocks.balanceRecord.create.mockResolvedValueOnce({} as any)
       vi.mocked(PointsService.voidUpgradePointsForRefund).mockRejectedValueOnce(new Error('升级积分已被使用，不能自动完成退款，请先人工处理积分'))
 
-      await expect(OrderLifecycleService.requestRefund('order-void-fail'))
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
         .rejects.toThrow('升级积分已被使用，不能自动完成退款，请先人工处理积分')
 
       expect(RewardService.processRefund).not.toHaveBeenCalled()
-      expect(mocks.order.update).not.toHaveBeenCalled()
+      expect(mocks.order.updateMany).not.toHaveBeenCalled()
     })
 
     it('退款完成时在同一事务内重算买家和当前推荐人的资格累计值', async () => {
@@ -777,7 +795,7 @@ describe('OrderLifecycleService', () => {
       mocks.order.update.mockResolvedValueOnce({} as any)
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-recompute', status: 'refunded' } as any)
 
-      await OrderLifecycleService.requestRefund('order-recompute')
+      await OrderLifecycleService.completeApprovedRefund('refund-1')
 
       expect(UserService.recomputeQualificationStatsForUsers).toHaveBeenCalledWith(
         ['buyer-1', 'ref-1'],
@@ -801,7 +819,7 @@ describe('OrderLifecycleService', () => {
       mocks.order.update.mockResolvedValueOnce({} as any)
       mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-buyer-only', status: 'refunded' } as any)
 
-      await OrderLifecycleService.requestRefund('order-buyer-only')
+      await OrderLifecycleService.completeApprovedRefund('refund-1')
 
       expect(UserService.recomputeQualificationStatsForUsers).toHaveBeenCalledWith(
         ['buyer-only'],
@@ -832,7 +850,7 @@ describe('OrderLifecycleService', () => {
       vi.mocked(UserService.recomputeQualificationStatsForUsers)
         .mockRejectedValueOnce(new Error('资格累计值重算失败'))
 
-      await expect(OrderLifecycleService.requestRefund('order-recompute-fail'))
+      await expect(OrderLifecycleService.completeApprovedRefund('refund-1'))
         .rejects.toThrow('资格累计值重算失败')
 
       expect(mocks.order.findUnique).toHaveBeenCalledTimes(1)
@@ -883,6 +901,25 @@ describe('OrderLifecycleService', () => {
       const result = await OrderLifecycleService.cancelOrder('order-1')
       expect(result).toBeDefined()
       expect(OrderNotificationService.notifyOrderCancelled).not.toHaveBeenCalled()
+    })
+
+    it('uses the caller-provided cancellation reason for admin actions', async () => {
+      mocks.order.findUnique
+        .mockResolvedValueOnce({
+          id: 'order-1', status: 'pending', userId: 'user-1',
+          orderNo: 'ORD001', payAmount: 0, pointsUsed: 0, items: [],
+        } as any)
+        .mockResolvedValueOnce({ id: 'order-1', status: 'cancelled' } as any)
+        .mockResolvedValueOnce({ id: 'order-1', status: 'cancelled' } as any)
+      mocks.order.update.mockResolvedValueOnce({} as any)
+      vi.mocked(OrderNotificationService.notifyOrderCancelled).mockResolvedValueOnce({} as any)
+
+      await OrderLifecycleService.cancelOrder('order-1', '管理员取消')
+
+      expect(OrderNotificationService.notifyOrderCancelled).toHaveBeenCalledWith({
+        orderId: 'order-1',
+        reason: '管理员取消',
+      })
     })
 
     it('skips points refund when pointsUsed=0', async () => {

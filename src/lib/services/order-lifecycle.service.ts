@@ -437,117 +437,8 @@ export class OrderLifecycleService {
     })
   }
 
-  static async requestRefund(orderId: string, _reason?: string) {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        user: { select: { referrerId: true } },
-        items: { include: { product: { select: { isUpgradeProduct: true } } } },
-      },
-    })
-
-    if (!order) throw new Error('订单不存在')
-    // cancelOrder: userId check done by caller
-    if (order.status !== ORDER_STATUS.PAID && order.status !== ORDER_STATUS.SHIPPED) {
-      throw new Error('订单状态不允许退款')
-    }
-
-    // 使用事务保证原子性
-    await prisma.$transaction(async (tx) => {
-      // 退回库存
-      await Promise.all(order.items.map(item =>
-        tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: {
-              increment: item.quantity,
-            },
-          },
-        })
-      ))
-
-      // 如果使用了积分，退回积分
-      if (order.pointsUsed > 0) {
-        const user = await tx.user.findUnique({ where: { id: order.userId } })
-        if (user) {
-          await tx.user.update({
-            where: { id: order.userId },
-            data: {
-              unlockedPoints: {
-                increment: order.pointsUsed,
-              },
-            },
-          })
-
-          await tx.pointsRecord.create({
-            data: {
-              userId: order.userId,
-              type: 'earn',
-              amount: order.pointsUsed,
-              totalPoints: user.totalPoints,
-              unlockedPoints: user.unlockedPoints + order.pointsUsed,
-              lockedPoints: user.lockedPoints,
-              sourceId: order.id,
-              description: `订单 ${order.orderNo} 退款积分退回`,
-            },
-          })
-        }
-      }
-
-      // v43-6 Batch 4: 退回余额 + 写 balance_record
-      if (order.payAmount > 0) {
-        const refundUser = await tx.user.findUnique({
-          where: { id: order.userId },
-          select: BALANCE_SELECT,
-        })
-        if (refundUser) {
-          const refundUpdated = await tx.user.updateMany({
-            where: { id: order.userId, consumeBalance: { gte: order.payAmount } },
-            data: { balance: { increment: order.payAmount }, consumeBalance: { decrement: order.payAmount } },
-          })
-          if (refundUpdated.count === 0) throw new Error('消费余额不足')
-          const newBalance = refundUser.balance + order.payAmount
-          const afterRefund = { consumeBalance: refundUser.consumeBalance - order.payAmount, earningsAvailable: refundUser.earningsAvailable, earningsPending: refundUser.earningsPending, earningsVoided: refundUser.earningsVoided }
-          await tx.balanceRecord.create({
-            data: {
-              userId: order.userId,
-              type: 'refund',
-              amount: order.payAmount,
-              balance: newBalance,
-              frozenBalance: refundUser.frozenBalance,
-              sourceType: 'order',
-              sourceId: orderId,
-              description: '订单 ' + order.orderNo + ' 退款' + format4FieldDelta(refundUser, afterRefund),
-            },
-          })
-        }
-      }
-
-      // 冲销升级积分和解锁计划（按 orderId 查所有用户，包括推荐人因升级而创建的 schedule）
-      await PointsService.voidUpgradePointsForRefund(orderId, tx)
-
-      // 扣除已发放的奖励
-      await RewardService.processRefund(orderId, tx)
-
-      // 更新订单状态
-      await tx.order.update({
-        where: { id: orderId },
-        data: {
-          status: ORDER_STATUS.REFUNDED,
-        },
-      })
-
-      await UserService.recomputeQualificationStatsForUsers(
-        [order.userId, order.user?.referrerId].filter((id): id is string => Boolean(id)),
-        tx
-      )
-    })
-
-    return prisma.order.findUnique({ where: { id: orderId } })
-  }
-
   // 取消订单
-  static async cancelOrder(orderId: string) {
+  static async cancelOrder(orderId: string, notificationReason = '您主动取消') {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true },
@@ -615,7 +506,7 @@ export class OrderLifecycleService {
     if (cancelledOrder) {
       await OrderNotificationService.notifyOrderCancelled({
         orderId,
-        reason: '您主动取消',
+        reason: notificationReason,
       })
     }
 
@@ -672,16 +563,6 @@ export class OrderLifecycleService {
     }
     if (data.adminComment !== undefined) updateData.adminComment = data.adminComment || null
     return prisma.refundRequest.update({ where: { id }, data: updateData })
-  }
-
-  static async completeRefund(id: string) {
-    const refund = await prisma.refundRequest.findUnique({ where: { id } })
-    if (!refund) throw new Error('???????')
-    if (refund.status !== 'approved') throw new Error('???????????')
-    return prisma.refundRequest.update({
-      where: { id },
-      data: { status: 'completed' },
-    })
   }
 
 }

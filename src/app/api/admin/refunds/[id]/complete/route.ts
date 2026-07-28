@@ -19,26 +19,43 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!refundRequest) return errorResponse('退款申请不存在', 404)
     if (refundRequest.status !== 'approved') return errorResponse('退款状态不是已审批', 400)
 
-    await OrderLifecycleService.requestRefund(refundRequest.orderId)
-    const updated = await OrderLifecycleService.completeRefund(id)
+    const updated = await OrderLifecycleService.completeApprovedRefund(id)
 
-    await logOperation({
-      userId: admin.id, action: 'COMPLETE_REFUND', module: 'refund', targetId: id,
-      newValue: { status: 'completed' },
-      ip: request.headers.get('x-forwarded-for') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
-    })
+    try {
+      await logOperation({
+        userId: admin.id, action: 'COMPLETE_REFUND', module: 'refund', targetId: id,
+        newValue: { status: 'completed' },
+        ip: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      })
+    } catch (logError) {
+      logger.error('Admin complete refund operation log error:', logError)
+    }
 
     if (refundRequest.order) {
       const { orderNo, userId, payAmount } = refundRequest.order
-      await OrderNotificationService.notifyRefundCompleted({
-        userId, orderId: refundRequest.orderId, orderNo, amount: payAmount || 0, operatorId: admin.id,
-      })
+      try {
+        await OrderNotificationService.notifyRefundCompleted({
+          userId, orderId: refundRequest.orderId, orderNo, amount: payAmount || 0, operatorId: admin.id,
+        })
+      } catch (notificationError) {
+        logger.error('Admin complete refund notification error:', notificationError)
+      }
     }
 
     return successResponse(updated, '退款完成')
   } catch (error) {
     logger.error('Admin complete refund error:', error)
+    const message = error instanceof Error ? error.message : ''
+    if (
+      message === '当前订单状态不允许退款'
+      || message === '订单状态已变更，请刷新后重试'
+      || message === '消费余额不足'
+    ) {
+      return errorResponse(message, 409)
+    }
+    if (message === '退款申请不存在') return errorResponse(message, 404)
+    if (message === '退款状态不是已审批') return errorResponse(message, 400)
     return errorResponse('退款完成失败', 500)
   }
 }

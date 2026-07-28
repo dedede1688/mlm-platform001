@@ -1,8 +1,8 @@
 ﻿import { NextRequest } from 'next/server'
 import { verifyPermission } from '@/lib/utils/admin-auth'
 import { OrderService } from '@/lib/services/order.service'
+import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
 import { logOperation } from '@/lib/utils/operation-log'
-import { OrderNotificationService } from '@/lib/services/order-notification.service'
 import { logger } from '@/lib/logger'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
@@ -11,7 +11,7 @@ import { orderStatusTransitionSchema } from '@/lib/validations/admin/orders'
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   pending: ['paid', 'cancelled'],
-  paid: ['shipped', 'cancelled'],
+  paid: ['shipped'],
   shipped: ['completed'],
 }
 
@@ -34,34 +34,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return errorResponse(`不允许从 ${order.status} 变更为 ${body.status}`, 400)
     }
 
-    const data: Record<string, unknown> = { status: body.status }
-
-    if (body.status === 'paid' && !order.paidAt) data.paidAt = new Date()
-    if (body.status === 'shipped') {
-      if (!order.shippedAt) data.shippedAt = new Date()
-      if (body.trackingNumber && typeof body.trackingNumber === 'string') data.trackingNumber = body.trackingNumber.trim()
+    let updated
+    if (body.status === 'cancelled') {
+      updated = await OrderLifecycleService.cancelOrder(id, '管理员取消')
+    } else if (body.status === 'shipped') {
+      updated = await OrderLifecycleService.shipOrder(id, body.trackingNumber?.trim())
+    } else if (body.status === 'completed') {
+      updated = await OrderLifecycleService.completeOrder(id)
+    } else {
+      const data: Record<string, unknown> = {
+        status: body.status,
+        ...(!order.paidAt ? { paidAt: new Date() } : {}),
+      }
+      updated = await OrderService.updateOrder(id, data)
     }
-    if (body.status === 'completed') data.completedAt = new Date()
-    if (body.status === 'cancelled') data.cancelledAt = new Date()
-
-    const updated = await OrderService.updateOrder(id, data)
 
     await logOperation({
       userId: admin.id, action: 'UPDATE', module: 'order', targetId: id,
-      oldValue: { status: order.status }, newValue: data,
+      oldValue: { status: order.status }, newValue: { status: body.status },
       ip: request.headers.get('x-forwarded-for') || undefined,
       userAgent: request.headers.get('user-agent') || undefined,
-    })
-
-    if (body.status === 'shipped') await OrderNotificationService.notifyOrderShipped(id)
-    else if (body.status === 'completed') await OrderNotificationService.notifyOrderCompleted(id)
-    else if (body.status === 'cancelled') await OrderNotificationService.notifyOrderCancelled({
-      orderId: id, reason: typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : '管理员取消',
     })
 
     return successResponse(updated)
   } catch (error) {
     logger.error('Admin update order status error:', error)
+    const message = error instanceof Error ? error.message : ''
+    if (message === '订单状态已变更，请刷新后重试' || message === '订单存在进行中的退款申请，不能完成') {
+      return errorResponse(message, 409)
+    }
+    if (message === '订单状态不允许取消' || message === '订单不存在或状态已变更') {
+      return errorResponse(message, 400)
+    }
     return errorResponse('更新订单状态失败', 500)
   }
 }
