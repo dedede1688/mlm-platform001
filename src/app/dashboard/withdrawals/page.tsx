@@ -143,10 +143,7 @@ export default function WithdrawalsPage() {
       toast.error('请输入支付密码')
       return
     }
-    if (!/^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(paymentPassword)) {
-      toast.error('支付密码至少6位，需含字母和数字')
-      return
-    }
+
 
     setSubmitting(true)
     try {
@@ -368,7 +365,7 @@ export default function WithdrawalsPage() {
                 type={showPwd ? 'text' : 'password'}
                 value={paymentPassword}
                 onChange={(e) => setPaymentPassword(e.target.value.slice(0, 20))}
-                placeholder="至少6位，需含字母和数字"
+                placeholder="请输入支付密码"
                 maxLength={20}
                 className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                   text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500

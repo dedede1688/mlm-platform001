@@ -14,7 +14,7 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import {
-  isValidPaymentPassword,
+
   checkPaymentPasswordLock,
   incrementFailedAttempt,
   resetPaymentPasswordLock,
@@ -24,32 +24,6 @@ import {
 
 import { prisma } from '@/lib/prisma'
 
-describe('isValidPaymentPassword', () => {
-  it('accepts 6+ chars with letters and digits', () => {
-    expect(isValidPaymentPassword('abc123')).toBe(true)
-    expect(isValidPaymentPassword('Abc123xyz')).toBe(true)
-    expect(isValidPaymentPassword('a1b2c3')).toBe(true)
-    expect(isValidPaymentPassword('Test12')).toBe(true)
-  })
-
-  it('rejects pure digits', () => {
-    expect(isValidPaymentPassword('123456')).toBe(false)
-  })
-
-  it('rejects pure letters', () => {
-    expect(isValidPaymentPassword('abcdef')).toBe(false)
-    expect(isValidPaymentPassword('ABCDEF')).toBe(false)
-  })
-
-  it('rejects too short', () => {
-    expect(isValidPaymentPassword('ab12')).toBe(false)
-    expect(isValidPaymentPassword('a1b2c')).toBe(false)
-  })
-
-  it('rejects empty', () => {
-    expect(isValidPaymentPassword('')).toBe(false)
-  })
-})
 
 describe('checkPaymentPasswordLock', () => {
   beforeEach(() => {

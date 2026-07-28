@@ -113,7 +113,7 @@ export default function PaymentPage() {
   const handleMockPay = async () => {
     const token = getAuthToken()
     if (!token || !order) return
-    const password = window.prompt('请输入 6 位支付密码')
+    const password = window.prompt('请输入支付密码')
     if (!password) return
 
     setPaying(true)

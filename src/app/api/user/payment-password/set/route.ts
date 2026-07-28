@@ -4,19 +4,8 @@ import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
-import { z } from 'zod'
-import { parseBody } from '@/lib/validations/helper'
-import {
-  hashPaymentPassword,
-  isValidPaymentPassword,
-} from '@/lib/auth/payment-password'
-
-const setPaymentPasswordSchema = z.object({
-  password: z.string().min(1, '????????').refine(
-    (val) => isValidPaymentPassword(val),
-    '??????6?????????????'
-  ),
-})
+import { hashPaymentPassword } from '@/lib/auth/payment-password'
+import { isValidNewPaymentPassword } from '@/lib/validations/payment-password-policy'
 
 // POST /api/user/payment-password/set — 设置支付密码
 export async function POST(request: NextRequest) {
@@ -29,9 +18,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { password } = body as { password: string }
 
-    // 校验密码格式
-    if (!password || !isValidPaymentPassword(password)) {
-      return errorResponse('支付密码至少6位，必须同时包含字母和数字', 400)
+    // 运行时类型守卫：password 必须是字符串
+    if (typeof password !== 'string' || !password || !isValidNewPaymentPassword(password)) {
+      return errorResponse('支付密码必须为6位数字', 400)
     }
 
     // 检查用户是否已设置支付密码

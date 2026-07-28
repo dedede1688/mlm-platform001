@@ -222,6 +222,22 @@ describe('OrderLifecycleService', () => {
       await expect(OrderLifecycleService.verifyPayment('order-1', 'user-1', '123456'))
         .rejects.toThrow('订单不存在或状态已变更')
     })
+
+    it('legacyA1 存量字母数字密码原样传给 verifyPaymentPassword（运行时兼容）', async () => {
+      const existingHash = '$2b$10$legacy-hash-for-a1'
+      mocks.order.findUnique
+        .mockResolvedValueOnce({ id: 'order-1', status: 'pending', userId: 'user-1', payAmount: 0, orderNo: 'ORD001' } as any)
+      mocks.user.findUnique.mockResolvedValueOnce({ paymentPasswordHash: existingHash } as any)
+      vi.mocked(verifyPaymentPassword).mockResolvedValueOnce(true)
+      mocks.order.updateMany.mockResolvedValueOnce({ count: 1 } as any)
+      mocks.order.findUnique.mockResolvedValueOnce({ id: 'order-1', status: 'paid' } as any)
+      vi.mocked(RewardService.processOrderRewards).mockResolvedValueOnce({} as any)
+      vi.mocked(OrderNotificationService.notifyOrderPaid).mockResolvedValueOnce({} as any)
+
+      const result = await OrderLifecycleService.verifyPayment('order-1', 'user-1', 'legacyA1')
+      expect(result).toBeDefined()
+      expect(verifyPaymentPassword).toHaveBeenCalledWith('legacyA1', existingHash)
+    })
   })
 
   // ============ shipOrder ============

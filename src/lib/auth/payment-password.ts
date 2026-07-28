@@ -15,9 +15,6 @@ export async function verifyPaymentPassword(password: string, hash: string): Pro
   return bcrypt.compare(password, hash)
 }
 
-export function isValidPaymentPassword(password: string): boolean {
-  return /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(password)
-}
 
 export async function checkPaymentPasswordLock(userId: string): Promise<{ locked: boolean; remainingMinutes?: number }> {
   const user = await prisma.user.findUnique({

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, Loader2, ShieldCheck } from 'lucide-react'
+import { hasPaymentPasswordInput } from '@/lib/validations/payment-password-policy'
 
 interface PaymentPasswordModalProps {
   open: boolean
@@ -32,7 +33,7 @@ export default function PaymentPasswordModal({
     onCancel()
   }
 
-  const isValid = /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(password)
+  const isValid = hasPaymentPasswordInput(password)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleCancel}>
@@ -60,7 +61,7 @@ export default function PaymentPasswordModal({
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value.slice(0, 20))}
-          placeholder="至少6位，需含字母和数字"
+          placeholder="请输入支付密码"
           maxLength={20}
           autoFocus
           className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-center text-lg font-mono

@@ -5,6 +5,7 @@ import { X, User, Phone, MapPin, Lock, Loader2, ShoppingBag, ChevronDown, BookMa
 import { toast } from '@/components/ToastProvider'
 import { AddressPicker, AddressPickerValue } from '@/components/address/AddressPicker'
 import Link from 'next/link'
+import { hasPaymentPasswordInput } from '@/lib/validations/payment-password-policy'
 
 export interface CheckoutProduct {
   id: string
@@ -215,8 +216,8 @@ export function CheckoutDialog({
       }
     }
 
-    if (!/^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(payPassword)) {
-      toast.error('支付密码至少6位，需含字母和数字')
+    if (!hasPaymentPasswordInput(payPassword)) {
+      toast.error('请输入支付密码')
       return
     }
 
@@ -466,7 +467,7 @@ export function CheckoutDialog({
                 type={showPayPwd ? 'text' : 'password'}
                 value={payPassword}
                 onChange={(e) => setPayPassword(e.target.value.slice(0, 20))}
-                placeholder="至少6位，需含字母和数字"
+                placeholder="请输入支付密码"
                 maxLength={20}
                 className="w-full px-3.5 py-2.5 pr-11 border border-gray-300 rounded-lg text-center font-mono text-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
               />

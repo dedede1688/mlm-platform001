@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { getAuthToken } from '@/lib/utils/auth-token'
+import { isValidNewPaymentPassword, PAYMENT_PASSWORD_LENGTH } from '@/lib/validations/payment-password-policy'
 
 // ---- 类型 ----
 
@@ -60,16 +61,13 @@ export default function PaymentPasswordPage() {
     }
   }
 
-  // 前端校验：6 位数字
-  const isValidPwd = (v: string) => /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/.test(v)
-
   const handleSubmit = async () => {
     if (!token) return
 
     // 设置模式校验
     if (!hasPassword) {
-      if (!isValidPwd(newPassword)) {
-        toast.error('支付密码至少6位，需含字母和数字')
+      if (!isValidNewPaymentPassword(newPassword)) {
+        toast.error('支付密码必须为6位数字')
         return
       }
       if (newPassword !== confirmPassword) {
@@ -83,8 +81,8 @@ export default function PaymentPasswordPage() {
         toast.error('请输入当前密码')
         return
       }
-      if (!isValidPwd(newPassword)) {
-        toast.error('支付密码至少6位，需含字母和数字')
+      if (!isValidNewPaymentPassword(newPassword)) {
+        toast.error('支付密码必须为6位数字')
         return
       }
       if (newPassword !== confirmPassword) {
@@ -180,9 +178,9 @@ export default function PaymentPasswordPage() {
           <div className="text-sm text-orange-800 leading-relaxed">
             <p className="font-medium mb-1">安全提示</p>
             <p className="text-xs text-orange-700">
-               支付密码用于确认订单支付，请勿与他人分享。
-               密码为 <strong>至少6位，需含字母和数字</strong>，请牢记。
-            </p>
+                支付密码用于确认订单支付，请勿与他人分享。
+                密码为 <strong>6位数字</strong>，请牢记。
+             </p>
           </div>
         </div>
 
@@ -199,7 +197,7 @@ export default function PaymentPasswordPage() {
                   type={showOld ? 'text' : 'password'}
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value.slice(0, 20))}
-                  placeholder="请输入当前支付密码"
+                  placeholder="请输入支付密码"
                   maxLength={20}
                   className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                     text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
@@ -225,9 +223,10 @@ export default function PaymentPasswordPage() {
               <input
                 type={showNew ? 'text' : 'password'}
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value.slice(0, 20))}
-                placeholder="至少6位，需含字母和数字"
-                maxLength={20}
+                onChange={(e) => setNewPassword(e.target.value.replace(/\D/g, '').slice(0, PAYMENT_PASSWORD_LENGTH))}
+                placeholder="请输入6位数字支付密码"
+                maxLength={PAYMENT_PASSWORD_LENGTH}
+                inputMode="numeric"
                 className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                   text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
                   transition-colors"
@@ -251,9 +250,10 @@ export default function PaymentPasswordPage() {
               <input
                 type={showConfirm ? 'text' : 'password'}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value.slice(0, 20))}
-                placeholder="再次输入密码"
-                maxLength={20}
+                onChange={(e) => setConfirmPassword(e.target.value.replace(/\D/g, '').slice(0, PAYMENT_PASSWORD_LENGTH))}
+                placeholder="再次输入6位数字支付密码"
+                maxLength={PAYMENT_PASSWORD_LENGTH}
+                inputMode="numeric"
                 className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-lg text-center
                   text-lg font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500
                   transition-colors"

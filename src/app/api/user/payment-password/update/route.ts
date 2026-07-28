@@ -4,25 +4,15 @@ import { UserService } from '@/lib/services/user.service'
 import { verifyToken } from '@/lib/utils/auth'
 import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { errorResponse, successResponse } from '@/lib/api-response'
-import { z } from 'zod'
-import { parseBody } from '@/lib/validations/helper'
 import {
   hashPaymentPassword,
   verifyPaymentPassword,
-  isValidPaymentPassword,
   checkPaymentPasswordLock,
   incrementFailedAttempt,
   resetPaymentPasswordLock,
   PAYMENT_LOCK_THRESHOLD,
 } from '@/lib/auth/payment-password'
-
-const updatePaymentPasswordSchema = z.object({
-  oldPassword: z.string().min(1, '??????'),
-  newPassword: z.string().min(1, '??????').refine(
-    (val) => isValidPaymentPassword(val),
-    '??????6?????????????'
-  ),
-})
+import { isValidNewPaymentPassword } from '@/lib/validations/payment-password-policy'
 
 // PUT /api/user/payment-password/update — 修改支付密码
 export async function PUT(request: NextRequest) {
@@ -38,13 +28,14 @@ export async function PUT(request: NextRequest) {
       newPassword: string
     }
 
-    if (!oldPassword || !newPassword) {
+    // 运行时类型守卫：oldPassword 和 newPassword 必须是字符串
+    if (typeof oldPassword !== 'string' || typeof newPassword !== 'string' || !oldPassword || !newPassword) {
       return errorResponse('请提供旧密码和新密码', 400)
     }
 
     // 校验新密码格式
-    if (!isValidPaymentPassword(newPassword)) {
-      return errorResponse('支付密码至少6位，必须同时包含字母和数字', 400)
+    if (!isValidNewPaymentPassword(newPassword)) {
+      return errorResponse('支付密码必须为6位数字', 400)
     }
 
     // 获取用户当前 hash

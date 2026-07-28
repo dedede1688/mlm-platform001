@@ -92,4 +92,18 @@ describe('POST /api/orders/[id]/verify-payment', () => {
     expect(data.success).toBe(true)
     expect(data.data.orderId).toBe(orderId)
   })
+
+  it('存量字母数字密码 legacyA1 原样传入 OrderLifecycleService.verifyPayment', async () => {
+    mocks.verifyToken.mockResolvedValue({ userId, phone: '138' })
+    mocks.verifyPayment.mockResolvedValue({
+      id: orderId, orderNo: 'ORD-1', status: 'paid',
+      userId, payAmount: 500, unlockRequired: false,
+    })
+
+    const { POST } = await import('@/app/api/orders/[id]/verify-payment/route')
+    const res = await POST(makePostRequest({ password: 'legacyA1' }), makeParams(orderId))
+
+    expect(res.status).toBe(200)
+    expect(mocks.verifyPayment).toHaveBeenCalledWith(orderId, userId, 'legacyA1')
+  })
 })
