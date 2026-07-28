@@ -174,31 +174,40 @@ export class OrderLifecycleService {
 
   // 确认收货
 
+  private static async assertNoActiveRefund(orderId: string) {
+    const activeRefund = await prisma.refundRequest.findFirst({
+      where: {
+        orderId,
+        status: { in: ['pending', 'approved'] },
+      },
+      select: { id: true },
+    })
+    if (activeRefund) {
+      throw new Error('订单存在进行中的退款申请，不能完成')
+    }
+  }
+
   // 用户确认收货（含归属校验）
   static async confirmOrder(orderId: string, userId: string) {
     const order = await prisma.order.findUnique({ where: { id: orderId } })
     if (!order) throw new Error('订单不存在')
     if (order.userId !== userId) throw new Error('无权操作此订单')
-    if (order.userId !== userId) throw new Error('无权操作')
     if (order.status !== ORDER_STATUS.SHIPPED) throw new Error('订单状态不允许确认收货')
 
-    const updated = await prisma.order.updateMany({
-      where: { id: orderId, status: ORDER_STATUS.SHIPPED },
-      data: {
-        status: ORDER_STATUS.COMPLETED,
-        completedAt: new Date(),
-      },
-    })
-    if (updated.count === 0) throw new Error('订单不存在或状态已变更')
-
-    // 触发通知
-    await OrderNotificationService.notifyOrderCompleted(orderId)
-
-    return prisma.order.findUnique({ where: { id: orderId } })
+    return this.completeOrder(orderId)
   }
+
   static async completeOrder(orderId: string) {
+    await this.assertNoActiveRefund(orderId)
+
     const updated = await prisma.order.updateMany({
-      where: { id: orderId, status: ORDER_STATUS.SHIPPED },
+      where: {
+        id: orderId,
+        status: ORDER_STATUS.SHIPPED,
+        refundRequests: {
+          none: { status: { in: ['pending', 'approved'] } },
+        },
+      },
       data: {
         status: ORDER_STATUS.COMPLETED,
         completedAt: new Date(),
@@ -227,6 +236,9 @@ export class OrderLifecycleService {
         status: ORDER_STATUS.SHIPPED,
         shippedAt: {
           lte: cutoffDate,
+        },
+        refundRequests: {
+          none: { status: { in: ['pending', 'approved'] } },
         },
       },
     })

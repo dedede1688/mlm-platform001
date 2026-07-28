@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mocks = vi.hoisted(() => ({
   verifyToken: vi.fn(),
   getOrderDetail: vi.fn(),
+  completeOrder: vi.fn(),
 }))
 
 vi.mock('@/lib/utils/auth', () => ({
@@ -14,8 +15,13 @@ vi.mock('@/lib/services/order.service', () => ({
     getOrderDetail: mocks.getOrderDetail,
   },
 }))
+vi.mock('@/lib/services/order-lifecycle.service', () => ({
+  OrderLifecycleService: {
+    completeOrder: mocks.completeOrder,
+  },
+}))
 
-import { GET } from '@/app/api/orders/[id]/route'
+import { GET, PUT } from '@/app/api/orders/[id]/route'
 
 function makeRequest(url: string) {
   return new Request(url, { method: 'GET' })
@@ -65,6 +71,7 @@ describe('GET /api/orders/[id] - security whitelist', () => {
   beforeEach(() => {
     mocks.verifyToken.mockReset()
     mocks.getOrderDetail.mockReset()
+    mocks.completeOrder.mockReset()
   })
 
   it('does not leak passwordHash or paymentPasswordHash in response', async () => {
@@ -170,5 +177,31 @@ describe('GET /api/orders/[id] - security whitelist', () => {
 
     expect(response.status).toBe(200)
     expect(body.data).toHaveProperty('paymentVerified', false)
+  })
+})
+
+describe('PUT /api/orders/[id] - completion conflicts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.verifyToken.mockResolvedValue({ userId: 'user-1', role: 'user' })
+    mocks.getOrderDetail.mockResolvedValue({
+      ...unsafeOrder,
+      status: 'shipped',
+    })
+  })
+
+  it('returns the active-refund conflict instead of a generic 500', async () => {
+    mocks.completeOrder.mockRejectedValue(
+      new Error('订单存在进行中的退款申请，不能完成')
+    )
+
+    const response = await PUT(
+      new Request('http://localhost/api/orders/order-1', { method: 'PUT' }) as any,
+      makeParams('order-1')
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(409)
+    expect(body.error).toBe('订单存在进行中的退款申请，不能完成')
   })
 })

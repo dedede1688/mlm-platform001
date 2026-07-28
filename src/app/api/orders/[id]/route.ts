@@ -142,6 +142,10 @@ export async function PUT(
     return successResponse(updatedOrder)
   } catch (error: unknown) {
     logger.error("Complete order error:", error)
+    const message = error instanceof Error ? error.message : "确认收货失败"
+    if (message === "订单存在进行中的退款申请，不能完成") {
+      return errorResponse(message, 409)
+    }
     return errorResponse("确认收货失败", 500, { code: AppErrorCode.INTERNAL_ERROR })
   }
 }

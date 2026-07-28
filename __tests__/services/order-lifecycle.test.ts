@@ -26,6 +26,11 @@ const mocks = vi.hoisted(() => ({
   pointsRecord: {
     create: vi.fn(),
   },
+  refundRequest: {
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  },
   $transaction: vi.fn(),
 }))
 
@@ -36,6 +41,7 @@ vi.mock('@/lib/prisma', () => ({
     product: mocks.product,
     balanceRecord: mocks.balanceRecord,
     pointsRecord: mocks.pointsRecord,
+    refundRequest: mocks.refundRequest,
     $transaction: mocks.$transaction,
   },
 }))
@@ -125,12 +131,14 @@ describe('OrderLifecycleService', () => {
         product: mocks.product,
         balanceRecord: mocks.balanceRecord,
         pointsRecord: mocks.pointsRecord,
+        refundRequest: mocks.refundRequest,
       })
     })
     // v57.11: 支付密码锁定函数默认 mock
     ;(checkPaymentPasswordLock as any).mockResolvedValue({ locked: false })
     ;(resetPaymentPasswordLock as any).mockResolvedValue(undefined)
     vi.mocked(UserService.recomputeQualificationStatsForUsers).mockResolvedValue(undefined)
+    mocks.refundRequest.findFirst.mockResolvedValue(null)
   })
 
   // ============ verifyPayment ============
@@ -358,6 +366,17 @@ describe('OrderLifecycleService', () => {
 
   // ============ completeOrder ============
   describe('completeOrder', () => {
+    it.each(['pending', 'approved'])(
+      'blocks completion when a %s refund exists',
+      async status => {
+        mocks.refundRequest.findFirst.mockResolvedValueOnce({ id: 'refund-1', status })
+
+        await expect(OrderLifecycleService.completeOrder('order-1'))
+          .rejects.toThrow('订单存在进行中的退款申请，不能完成')
+        expect(mocks.order.updateMany).not.toHaveBeenCalled()
+      }
+    )
+
     it('throws when status not shipped', async () => {
       mocks.order.updateMany.mockResolvedValueOnce({ count: 0 } as any)
       await expect(OrderLifecycleService.completeOrder('order-1'))
@@ -379,6 +398,28 @@ describe('OrderLifecycleService', () => {
       const result = await OrderLifecycleService.completeOrder('order-1')
       expect(result).toBeDefined()
       expect(OrderNotificationService.notifyOrderCompleted).toHaveBeenCalledWith('order-1')
+      expect(mocks.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          id: 'order-1',
+          status: 'shipped',
+          refundRequests: {
+            none: { status: { in: ['pending', 'approved'] } },
+          },
+        },
+      }))
+    })
+  })
+
+  describe('confirmOrder refund guard', () => {
+    it('keeps ownership checks before applying the shared completion guard', async () => {
+      mocks.order.findUnique.mockResolvedValueOnce({
+        id: 'order-1', userId: 'user-1', status: 'shipped',
+      } as any)
+      mocks.refundRequest.findFirst.mockResolvedValueOnce({ id: 'refund-1', status: 'approved' })
+
+      await expect(OrderLifecycleService.confirmOrder('order-1', 'user-1'))
+        .rejects.toThrow('订单存在进行中的退款申请，不能完成')
+      expect(mocks.order.updateMany).not.toHaveBeenCalled()
     })
   })
 
@@ -390,6 +431,15 @@ describe('OrderLifecycleService', () => {
       const count = await OrderLifecycleService.autoCompleteOrders()
       expect(count).toBe(0)
       expect(getSystemParameter).toHaveBeenCalledWith('auto_confirm_days')
+      expect(mocks.order.findMany).toHaveBeenCalledWith({
+        where: {
+          status: 'shipped',
+          shippedAt: { lte: expect.any(Date) },
+          refundRequests: {
+            none: { status: { in: ['pending', 'approved'] } },
+          },
+        },
+      })
     })
 
     it('completes all overdue orders', async () => {
