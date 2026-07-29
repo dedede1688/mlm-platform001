@@ -54,7 +54,7 @@ export default function ProductsLayout({ children }: { children: React.ReactNode
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: breadcrumbLdJson }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLdJson) }}
       />
       {children}
     </>

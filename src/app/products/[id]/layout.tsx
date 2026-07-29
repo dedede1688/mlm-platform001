@@ -147,13 +147,13 @@ export default async function ProductLayout(
       {productLdJson && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: productLdJson }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(productLdJson) }}
         />
       )}
       {breadcrumbLdJson && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: breadcrumbLdJson }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLdJson) }}
         />
       )}
       {children}
