@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { paginate } from '@/lib/utils/pagination'
 import { logger } from '@/lib/logger'
 import { MEMBER_LEVELS } from '@/lib/constants'
@@ -419,15 +419,33 @@ static async getUsersList(params: UserListParams) {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where, orderBy, skip, take: pageSize,
-        select: { id: true, phone: true, nickname: true, email: true, level: true, status: true, role: true, balance: true, createdAt: true, frozenBalance: true, consumeBalance: true, earningsPending: true, earningsAvailable: true, earningsFrozen: true, earningsVoided: true, totalPoints: true, unlockedPoints: true, lockedPoints: true, referrerId: true, parentId: true, position: true, upgradeProductCount: true, directSalesAmount: true, directDistributorCount: true, paymentPasswordHash: true, updatedAt: true },
+        select: {
+          id: true, phone: true, nickname: true, email: true,
+          level: true, status: true, role: true, balance: true,
+          createdAt: true, updatedAt: true,
+          frozenBalance: true, consumeBalance: true,
+          earningsPending: true, earningsAvailable: true,
+          earningsFrozen: true, earningsVoided: true,
+          totalPoints: true, unlockedPoints: true, lockedPoints: true,
+          parentId: true, position: true,
+          upgradeProductCount: true,
+          directSalesAmount: true, directDistributorCount: true,
+          paymentPasswordHash: true,
+          referrer: { select: { id: true, phone: true, nickname: true } },
+          _count: { select: { referrals: true } },
+        },
       }),
       prisma.user.count({ where }),
     ])
 
-    // Transform: add hasPaymentPassword, remove sensitive paymentPasswordHash
+    // Transform: add hasPaymentPassword + directReferralCount, remove sensitive paymentPasswordHash
     const safeUsers = users.map(u => {
-      const { paymentPasswordHash, ...rest } = u as any
-      return { ...rest, hasPaymentPassword: !!paymentPasswordHash }
+      const { paymentPasswordHash, _count, ...rest } = u as any
+      return {
+        ...rest,
+        hasPaymentPassword: !!paymentPasswordHash,
+        directReferralCount: (_count?.referrals as number) ?? 0,
+      }
     })
     return { users: safeUsers, page, pageSize, total }
   }
@@ -1020,6 +1038,3 @@ static async getUsersList(params: UserListParams) {
 
 
 }
-
-
-
