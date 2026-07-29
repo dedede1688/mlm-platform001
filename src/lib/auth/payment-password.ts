@@ -1,10 +1,10 @@
-import bcrypt from 'bcryptjs'
+﻿import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 const SALT_ROUNDS = 10
 
-export const PAYMENT_LOCK_THRESHOLD = 5
+export const PAYMENT_LOCK_THRESHOLD = 10
 export const PAYMENT_LOCK_DURATION_MS = 15 * 60 * 1000
 
 export async function hashPaymentPassword(password: string): Promise<string> {

@@ -419,19 +419,30 @@ static async getUsersList(params: UserListParams) {
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where, orderBy, skip, take: pageSize,
-        select: { id: true, phone: true, nickname: true, email: true, level: true, status: true, role: true, balance: true, createdAt: true },
+        select: { id: true, phone: true, nickname: true, email: true, level: true, status: true, role: true, balance: true, createdAt: true, frozenBalance: true, consumeBalance: true, earningsPending: true, earningsAvailable: true, earningsFrozen: true, earningsVoided: true, totalPoints: true, unlockedPoints: true, lockedPoints: true, referrerId: true, parentId: true, position: true, upgradeProductCount: true, directSalesAmount: true, directDistributorCount: true, paymentPasswordHash: true, updatedAt: true },
       }),
       prisma.user.count({ where }),
     ])
 
-    return { users, page, pageSize, total }
+    // Transform: add hasPaymentPassword, remove sensitive paymentPasswordHash
+    const safeUsers = users.map(u => {
+      const { paymentPasswordHash, ...rest } = u as any
+      return { ...rest, hasPaymentPassword: !!paymentPasswordHash }
+    })
+    return { users: safeUsers, page, pageSize, total }
   }
 
   static async getUserDetail(id: string) {
     const [user, orderStats] = await Promise.all([
       prisma.user.findUnique({
         where: { id },
-        include: { _count: { select: { orders: true } } },
+        include: {
+        _count: { select: { orders: true } },
+        referrer: { select: { id: true, phone: true, nickname: true, level: true } },
+        parent: { select: { id: true, phone: true, nickname: true, level: true } },
+        children: { select: { id: true, phone: true, nickname: true, level: true, position: true } },
+        referrals: { select: { id: true, phone: true, nickname: true, level: true, createdAt: true } },
+      },
       }),
       prisma.order.aggregate({
         where: { userId: id, status: 'paid' },
@@ -1009,3 +1020,6 @@ static async getUsersList(params: UserListParams) {
 
 
 }
+
+
+
