@@ -423,8 +423,11 @@ rg -n "verifyPermission|requireAdmin|adminComment" src/app/api/admin/
 
 ### 入职与任务入口
 
-- 小M完整入职提示词：`docs/roles/onboarding/xiaom-copy-prompt.md`
-- 小猫完整入职提示词：`docs/roles/onboarding/xiaomao-copy-prompt.md`
+- AI 智能体角色自识别入口（一级）：[`docs/roles/README.md`](docs/roles/README.md)
+- 小酷完整入职提示词：[`docs/roles/onboarding/xiaoku-onboarding.md`](docs/roles/onboarding/xiaoku-onboarding.md)
+- 小M完整入职提示词：[`docs/roles/onboarding/xiaom-onboarding.md`](docs/roles/onboarding/xiaom-onboarding.md)
+- 小猫完整入职提示词：[`docs/roles/onboarding/xiaomao-onboarding.md`](docs/roles/onboarding/xiaomao-onboarding.md)
+- 身份测试评分表（胡子老师逐题打分用）：[`docs/roles/onboarding/identity-test-rubric.md`](docs/roles/onboarding/identity-test-rubric.md)
 - 小M任务：`docs/roles/tasks/xiaom/`
 - 小猫任务：`docs/roles/tasks/xiaomao/`
 - 任务、结果和复审模板：`docs/roles/templates/`
@@ -432,9 +435,47 @@ rg -n "verifyPermission|requireAdmin|adminComment" src/app/api/admin/
 
 独立AI上岗必须经过：小酷准备完整提示词 → 胡子老师复制给目标AI → 目标AI提交只读入职报告 → 小酷核对 → 胡子老师明确批准。未获批准前不得接正式任务。
 
+### AI 智能体角色自识别指引（2026-07-29 胡子老师拍板）
+
+**任何 AI 智能体进入本项目的第一步**：
+
+1. **必读** [`docs/roles/README.md`](docs/roles/README.md) — 角色自识别入口（含 4 步入门流程）
+2. **加载** 对应角色的入职提示词（见上"入职与任务入口"段）
+3. **自检** 4 个能力自检问题（核心职责 / 禁止项 / 输出格式 / 协作链）
+4. **提交** "入职报告"给胡子老师
+5. **等待** 胡子老师按 [`docs/roles/onboarding/identity-test-rubric.md`](docs/roles/onboarding/identity-test-rubric.md) 逐题打分（0 / 1 / 2 分）
+6. **通过**（7-8 分）后批准上岗，可接正式任务
+
+**关键约束**：
+
+- 任何 AI 智能体**不得**跳过入职流程直接接任务
+- 胡子老师**未明确批准**前不得接正式任务
+- verifier / Verifier 已退役，任何 AI 智能体**不得**使用此身份
+- 上岗铁律沿用本节"身份铁律"（v71）
+
+**为什么需要自识别入口**：
+
+- 让任何 AI 智能体（不论是 WorkBuddy / mavis / coder / 其他外部 AI 系统）进项目后立即知道自己的角色
+- 通过 4 题能力自检 + 胡子老师评分（0/1/2 分）确保 AI 真正理解自己的定位
+- 避免"角色错位"问题（如报告里写"执行者：小酷"实际是小猫做的这种错位）
+
 ---
 
 ## 📅 变更日志
+
+### 2026-07-29 — 角色自识别 + 身份测试体系（胡子老师拍板）
+
+| commit | 内容 |
+|--------|------|
+| `8e81109` | 升级 `docs/roles/README.md` 为 AI 智能体角色自识别入口（4 步入门流程 + 4 个能力自检 + 角色协作链图 + 4 阶段工作流 + 派单协议 6/5 要素） |
+| `6c1b3d5` | 新建 onboarding 身份测试体系（3 份入职提示词 `xiaoku-onboarding` / `xiaom-onboarding` / `xiaomao-onboarding` + 1 份身份测试评分表 `identity-test-rubric`） |
+| 本 commit | `AGENTS.md` 加 "AI 智能体角色自识别指引" 段（6 步流程 + 4 条关键约束 + 设立原因）；修正 onboarding 文件名引用（`xiaom-copy-prompt` → `xiaom-onboarding` / `xiaomao-copy-prompt` → `xiaomao-onboarding`）；新增 `xiaoku-onboarding` 和 `identity-test-rubric` 引用 |
+
+**目的**：胡子老师要求"把角色分工写到本项目规则里，只给一份角色的工作岗位和职责给它，它就知道如何工作"。本套体系实现 AI 智能体上岗前 4 步身份验证闭环（粘贴 onboarding → 读 job-description → 输出 4 题能力自检 → 胡子老师按评分表 0/1/2 打分通过后批准上岗）。
+
+**新铁律**：commit message 必须含中文字解释（2026-07-29 胡子老师拍板）。
+
+---
 
 ### 2026-06-14 — v3 到 v7 完整 10 单
 
