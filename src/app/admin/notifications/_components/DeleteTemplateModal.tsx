@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { X, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 
 interface DeleteTemplateModalProps {
   onCancel: () => void

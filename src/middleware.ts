@@ -12,7 +12,6 @@ const SECURITY_HEADERS: Record<string, string> = {
   'X-Permitted-Cross-Domain-Policies': 'none',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
-const COOKIE_NAME = 'auth_token'
 
 // ---- 用户侧需要登录的路径（仅验证 JWT，不校验角色） ----
 //

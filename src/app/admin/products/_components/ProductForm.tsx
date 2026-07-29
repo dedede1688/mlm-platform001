@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import {
-  X, Loader2, Image as ImageIcon, PlusCircle, MinusCircle, Lightbulb
+  X, Loader2, PlusCircle, MinusCircle, Lightbulb
 } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'

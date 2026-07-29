@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logger } from '@/lib/logger'
 import { ProductService } from '@/lib/services/product.service'

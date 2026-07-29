@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger'
 import { useState, useEffect } from 'react'
 import {
   Bell, Plus, Edit2, Trash2, CheckCircle, AlertCircle,
-  Loader2, X, Mail, MessageSquare, ToggleLeft, ToggleRight, Send
+  Loader2, Mail, MessageSquare, ToggleLeft, ToggleRight, Send
 } from 'lucide-react'
 import TemplateFormModal from './_components/TemplateFormModal'
 import DeleteTemplateModal from './_components/DeleteTemplateModal'

@@ -6,9 +6,8 @@ import { validatePaymentProofUrl } from '@/lib/utils/validate-payment-proof'
 import { WithdrawalService } from '@/lib/services/withdrawal.service'
 import { logger } from '@/lib/logger'
 import { errorResponse, successResponse } from '@/lib/api-response'
-import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
-import { parseBody } from '@/lib/validations/helper'
-import { completeWithdrawalSchema } from '@/lib/validations/admin/withdrawals'
+
+
 
 // PATCH /api/admin/withdrawals/[id]/complete — 完成提现打款
 // 只允许 super_admin / finance_admin

@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { X, Mail, MessageSquare, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react'
+import { X, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react'
 
 // ---- duplicated constants (same as parent) ----
 

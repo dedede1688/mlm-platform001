@@ -1,22 +1,11 @@
 import { NextRequest } from 'next/server'
 import { AddressService } from '@/lib/services/address.service'
 import { verifyToken } from '@/lib/utils/auth'
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
-import { z } from 'zod'
-import { parseBody } from '@/lib/validations/helper'
 
-const addressPartialSchema = z.object({
-  recipientName: z.string().min(2, '?????????? 2-20 ?').max(20, '?????????? 2-20 ?').optional(),
-  phone: z.string().regex(/^1\d{10}$/, '???????').optional(),
-  province: z.string().min(1, '?????').optional(),
-  city: z.string().min(1, '?????').optional(),
-  district: z.string().min(1, '?????').optional(),
-  detailAddress: z.string().min(5, '????????? 5-100 ?').max(100, '????????? 5-100 ?').optional(),
-  isDefault: z.boolean().optional(),
-})
 
 
 // DELETE /api/user/addresses/[id] — 删除地址

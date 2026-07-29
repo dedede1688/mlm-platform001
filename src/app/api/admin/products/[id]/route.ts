@@ -4,7 +4,7 @@ import { logOperation } from "@/lib/utils/operation-log"
 import { logger } from "@/lib/logger"
 import { ProductService } from "@/lib/services/product.service"
 import { errorResponse, successResponse } from "@/lib/api-response"
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { parseBody } from "@/lib/validations/helper"
 import { productUpdateSchema } from "@/lib/validations/admin/products"
 

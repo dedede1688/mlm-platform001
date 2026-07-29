@@ -2,7 +2,7 @@
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { logger } from "@/lib/logger"
 import { UserService } from "@/lib/services/user.service"
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { errorResponse, successResponse } from "@/lib/api-response"
 
 export async function GET(request: NextRequest) {

@@ -4,7 +4,7 @@ import { errorResponse, successResponse } from "@/lib/api-response"
 import { AppErrorCode } from "@/lib/utils/error-codes"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
-import { parseBody } from "@/lib/validations/helper"
+
 import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
 import { handlePrismaError } from "@/lib/utils/prisma-errors"
 import { logger } from "@/lib/logger"

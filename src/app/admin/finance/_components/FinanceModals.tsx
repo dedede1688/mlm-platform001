@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import {
   Loader2, X, DollarSign, Gift,
-  ZoomIn, ZoomOut, Minimize2, ImageOff, AlertTriangle, CheckCircle, XCircle
+  ZoomIn, ZoomOut, Minimize2, ImageOff, AlertTriangle
 } from 'lucide-react'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
 import type { RechargeItem, RechargeAuditLog, WithdrawalItem } from '../page'

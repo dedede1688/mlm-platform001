@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
-import type { Prisma } from '@prisma/client'
 
 const VALID_TYPES = ['balance', 'frozenBalance', 'recharge', 'consume_void', 'earnings_add', 'earnings_void'] as const
 type AdjustType = typeof VALID_TYPES[number]

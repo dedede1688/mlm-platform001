@@ -2,16 +2,11 @@
 import { OrderService } from "@/lib/services/order.service"
 import { OrderLifecycleService } from "@/lib/services/order-lifecycle.service"
 import { verifyToken } from "@/lib/utils/auth"
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { AppErrorCode } from "@/lib/utils/error-codes"
 import { logger } from "@/lib/logger"
-import { z } from "zod"
-import { parseBody } from "@/lib/validations/helper"
 
-const paySchema = z.object({
-  password: z.string().min(1, "???????"),
-})
 
 // 获取订单详情
 export async function GET(

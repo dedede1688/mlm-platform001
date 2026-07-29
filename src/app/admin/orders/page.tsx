@@ -2,10 +2,9 @@
 import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
-import Image from 'next/image'
 import {
   ClipboardList, Search, Loader2, ChevronLeft, ChevronRight,
-  X, Eye, Truck, Package, CheckCircle, XCircle, CreditCard
+  Eye, Truck, CheckCircle, XCircle, CreditCard
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'

@@ -3,8 +3,7 @@ import { logger } from '@/lib/logger'
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Loader2, AlertCircle, Plus, Edit2, Trash2, FolderTree,
-  ChevronRight, ChevronDown, Folder, FolderOpen, Save
+  Loader2, AlertCircle, Plus, FolderTree
 } from 'lucide-react'
 import CategoryFormModal from './_components/CategoryFormModal'
 import CategoryDeleteModal from './_components/CategoryDeleteModal'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, ChevronLeft, ChevronRight, Loader2, ListChecks, X, CheckCircle, XCircle, AlertTriangle, DollarSign, Wallet, History } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Loader2, ListChecks, CheckCircle, XCircle, DollarSign, Wallet, History } from 'lucide-react'
 import { WithdrawalItem, Pagination } from '../page'
 
 const LARGE_WITHDRAWAL_THRESHOLD = 5000
@@ -57,7 +57,7 @@ export interface WithdrawalsTabProps {
 
 export default function WithdrawalsTab(props: WithdrawalsTabProps) {
   const {
-    token, withdrawals, withdrawalPagination, withdrawalLoading,
+    token: _token, withdrawals, withdrawalPagination, withdrawalLoading,
     withdrawalSearch, withdrawalStatus,
     selectedIds, batchAction, batchRejectReason, batchRemark,
     rejectTemplates, selectedTemplateId,

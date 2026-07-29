@@ -1,13 +1,11 @@
 ﻿'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import Link from 'next/link'
-import { formatMoney } from '@/lib/utils/format'
 
 import {
-  Users, Search, Loader2, ChevronLeft, ChevronRight,
-  X, Eye, Network, Wallet,
-  Lock, LockOpen, Download, AlertTriangle
+
+  Users, Loader2,
+  AlertTriangle
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
 import ConfirmDialog from '@/components/admin/ConfirmDialog'
@@ -18,7 +16,6 @@ import UserTable from './_components/UserTable'
 
 const ReferralTreePanel = dynamic(() => import('@/components/ReferralTreePanel'), { ssr: false })
 const UserDetailModal = dynamic(() => import('./_components/UserDetailModal'), { ssr: false })
-import Section from './_components/Section'
 
 // ---- 类型定义 ----
 
@@ -103,32 +100,6 @@ const LEVEL_NAMES: Record<number, string> = {
   0: '游客', 1: '会员', 2: '经销商', 3: '主任',
   4: '经理', 5: '总监', 6: '总裁', 7: '董事',
 }
-
-const LEVEL_COLORS: Record<number, string> = {
-  0: 'bg-gray-100 text-gray-500',
-  1: 'bg-blue-50 text-blue-700',
-  2: 'bg-green-50 text-green-700',
-  3: 'bg-yellow-50 text-yellow-700',
-  4: 'bg-orange-50 text-orange-700',
-  5: 'bg-purple-50 text-purple-700',
-  6: 'bg-red-50 text-red-700',
-  7: 'bg-amber-50 text-amber-800',
-}
-
-const LEVEL_OPTIONS = [
-  { value: '', label: '全部等级' },
-  ...Array.from({ length: 8 }, (_, i) => ({ value: String(i), label: `${i} - ${LEVEL_NAMES[i]}` })),
-]
-
-// ---- 标签页定义 ----
-
-const DETAIL_TABS = [
-  { key: 'basic', label: '基本资料' },
-  { key: 'finance', label: '资金账户' },
-  { key: 'stats', label: '经营统计' },
-  { key: 'relation', label: '推荐关系' },
-  { key: 'referrals', label: '直推列表' },
-] as const
 
 // ---- 主组件 ----
 

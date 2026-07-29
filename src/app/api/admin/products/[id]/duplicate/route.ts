@@ -1,7 +1,7 @@
 ﻿import { NextRequest } from 'next/server'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { verifyPermission } from '@/lib/utils/admin-auth'
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { logOperation } from '@/lib/utils/operation-log'
 import { logger } from '@/lib/logger'
 import { ProductService } from '@/lib/services/product.service'

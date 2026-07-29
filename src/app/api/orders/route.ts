@@ -1,23 +1,12 @@
 import { NextRequest } from 'next/server'
 import { OrderService } from '@/lib/services/order.service'
 import { verifyToken } from '@/lib/utils/auth'
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { invalidateCache } from '@/lib/utils/stats-cache'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
-import { parseBody, parseQuery } from '@/lib/validations/helper'
-
-const createOrderSchema = z.object({
-  items: z.array(z.object({
-    productId: z.string().min(1, '??ID????'),
-    quantity: z.number().int().min(1, '?????1'),
-  })).min(1, '??????'),
-  pointsUsed: z.number().int().min(0).optional().default(0),
-  recipientName: z.string().min(1, '?????????'),
-  recipientPhone: z.string().min(1, '?????????').regex(/^1[3-9]\d{9}$/, '????????'),
-  shippingAddress: z.string().min(1, '????????'),
-})
+import { parseQuery } from '@/lib/validations/helper'
 
 const listOrdersQuerySchema = z.object({
   status: z.string().optional(),

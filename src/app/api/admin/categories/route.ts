@@ -3,7 +3,7 @@ import { verifyPermission } from "@/lib/utils/admin-auth"
 import { CategoryService } from "@/lib/services/category.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { parseBody } from "@/lib/validations/helper"
 import { categoryCreateSchema } from "@/lib/validations/admin/categories"
 

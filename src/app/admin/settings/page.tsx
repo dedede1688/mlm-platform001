@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { useState, useEffect } from 'react'
 import {
   Settings, Save, CheckCircle, AlertCircle,
-  FileText, Shield, HelpCircle, Info, Image as ImageIcon, Search, CreditCard, Plus, Trash2
+  FileText, Shield, HelpCircle, Info, Search, CreditCard, Plus, Trash2
 } from 'lucide-react'
 import { getAuthToken } from '@/lib/utils/auth-token'
 import { LogoUploader } from './LogoUploader'

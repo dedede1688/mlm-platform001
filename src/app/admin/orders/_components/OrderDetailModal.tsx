@@ -1,7 +1,6 @@
 'use client'
 
 import { X, Package, Loader2 } from 'lucide-react'
-import { formatMoney } from '@/lib/utils/format'
 import Image from 'next/image'
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {

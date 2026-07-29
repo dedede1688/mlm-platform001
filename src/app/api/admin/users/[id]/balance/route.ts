@@ -10,8 +10,7 @@ import { errorResponse, successResponse } from "@/lib/api-response"
 import { parseBody } from "@/lib/validations/helper"
 import { balanceAdjustSchema } from "@/lib/validations/admin/balance"
 
-const VALID_TYPES = ["balance", "frozenBalance", "recharge", "consume_void", "earnings_add", "earnings_void"] as const
-type AdjustType = typeof VALID_TYPES[number]
+type AdjustType = "balance" | "frozenBalance" | "recharge" | "consume_void" | "earnings_add" | "earnings_void"
 
 const TYPE_LABEL_MAP: Record<AdjustType, string> = {
   balance: "余额",

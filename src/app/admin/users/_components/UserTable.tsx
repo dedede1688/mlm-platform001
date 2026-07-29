@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+
 import Link from "next/link";
 import { formatMoney } from "@/lib/utils/format";
 import {
@@ -12,11 +12,8 @@ import {
   Eye,
   Network,
   Wallet,
-  Lock,
-  LockOpen,
   Download,
 } from "lucide-react";
-import { getAuthToken } from "@/lib/utils/auth-token";
 
 // ---- 类型定义 ----
 

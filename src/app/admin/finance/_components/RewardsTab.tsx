@@ -41,7 +41,7 @@ export interface RewardsTabProps {
 }
 
 export default function RewardsTab(props: RewardsTabProps) {
-  const { token, rewards, rewardPagination, rewardLoading, rewardSearch, rewardType, rewardStartDate, rewardEndDate, stats, onSearchFieldChange, onSearch, onPageChange } = props
+  const { token: _token, rewards, rewardPagination, rewardLoading, rewardSearch, rewardType, rewardStartDate, rewardEndDate, stats, onSearchFieldChange, onSearch, onPageChange } = props
   return (
     <>
             {/* 汇总统计卡片 */}

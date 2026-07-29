@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Network, Lock, LockOpen, AlertTriangle, Wallet } from 'lucide-react'
+import { X, Network, AlertTriangle, Wallet } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'
 import Section from './Section'
 
@@ -47,7 +47,7 @@ export default function UserDetailModal({
   savingPayPwdReset, handleResetPaymentPassword,
   actualPhoneSuffix, normalizedSuffix, suffixMatches,
   userRole, canUpdate, canApprove,
-  LARGE_BALANCE_THRESHOLD, LARGE_POINTS_THRESHOLD,
+  _LARGE_BALANCE_THRESHOLD, _LARGE_POINTS_THRESHOLD,
   showMessage, formatTime, setTreeUserId, setTreeUserName,
 }: any) {
   return (

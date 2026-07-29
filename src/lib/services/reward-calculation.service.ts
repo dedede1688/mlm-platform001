@@ -1,9 +1,7 @@
 ﻿import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { UserService } from './user.service'
 import { MEMBER_LEVELS, BALANCE_SELECT } from '@/lib/constants'
 import { getBusinessConfig } from '@/lib/config/business'
-import { logger } from '@/lib/logger'
 import { format4FieldDelta } from '@/lib/utils/balance-record-desc'
 import { OrderRewardStateService } from './order-reward-state.service'
 

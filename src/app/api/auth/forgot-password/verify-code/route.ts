@@ -1,14 +1,8 @@
 import { NextRequest } from 'next/server'
 import { AuthService } from '@/lib/services/auth.service'
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
-import { errorResponse, successResponse } from '@/lib/api-response'
-import { z } from 'zod'
-import { parseBody } from '@/lib/validations/helper'
 
-const verifyCodeSchema = z.object({
-  phone: z.string().min(1, '???????').regex(/^1[3-9]\d{9}$/, '????????'),
-  code: z.string().min(1, '???????'),
-})
+import { errorResponse, successResponse } from '@/lib/api-response'
+
 
 // POST /api/auth/forgot-password/verify-code — 校验找回密码验证码
 export async function POST(request: NextRequest) {

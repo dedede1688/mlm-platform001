@@ -2,7 +2,6 @@ import { PointsService } from '@/lib/services/points.service'
 import { logger } from '@/lib/logger'
 import { DividendService } from '@/lib/services/dividend.service'
 import { OrderLifecycleService } from '@/lib/services/order-lifecycle.service'
-import { LevelSnapshotService } from '@/lib/services/level-snapshot.service'
 
 // 每日任务（含分红快照，不含入账）
 export async function runDailyTasks() {

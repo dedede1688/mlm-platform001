@@ -3,13 +3,7 @@ import { verifyToken } from '@/lib/utils/auth'
 import { AuthService } from '@/lib/services/auth.service'
 import { errorResponse, successResponse } from '@/lib/api-response'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/utils/rate-limit'
-import { z } from 'zod'
-import { parseBody } from '@/lib/validations/helper'
 
-const changePasswordSchema = z.object({
-  oldPassword: z.string().min(1, '???????'),
-  newPassword: z.string().min(8, '?????8?').regex(/[a-zA-Z]/, '????????').regex(/[0-9]/, '????????'),
-})
 
 // POST /api/auth/change-password — 用户改密（需登录 + 旧密码 + 新密码）
 export async function POST(request: NextRequest) {

@@ -3,25 +3,16 @@ import { WithdrawalService } from "@/lib/services/withdrawal.service"
 import { UserService } from "@/lib/services/user.service"
 import { verifyToken } from "@/lib/utils/auth"
 import { verifyPaymentPassword, checkPaymentPasswordLock, incrementFailedAttempt, resetPaymentPasswordLock, PAYMENT_LOCK_THRESHOLD } from "@/lib/auth/payment-password"
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { errorResponse, successResponse } from "@/lib/api-response"
 import { AppErrorCode } from "@/lib/utils/error-codes"
 import { logger } from "@/lib/logger"
 import { z } from "zod"
-import { parseBody, parseQuery } from "@/lib/validations/helper"
+import { parseQuery } from "@/lib/validations/helper"
 
 const withdrawalsQuerySchema = z.object({
   page: z.string().optional().default("1"),
   limit: z.string().optional().default("20"),
-})
-
-const createWithdrawalSchema = z.object({
-  amount: z.number().positive("????????0"),
-  paymentMethod: z.string().optional(),
-  accountNumber: z.string().optional(),
-  accountName: z.string().optional(),
-  bankName: z.string().optional(),
-  paymentPassword: z.string().min(1, "???????"),
 })
 
 

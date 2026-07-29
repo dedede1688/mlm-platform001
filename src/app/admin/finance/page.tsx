@@ -4,20 +4,16 @@ import { logger } from '@/lib/logger'
 import dynamic from 'next/dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Wallet, Search, Loader2, ChevronLeft, ChevronRight,
-  X, CheckCircle, XCircle, DollarSign, Gift,
-  ListChecks, History,
-  ArrowDownCircle, ZoomIn, ZoomOut, Maximize2, Minimize2, ImageOff, AlertTriangle
+  Wallet, CheckCircle, XCircle, Gift
 } from 'lucide-react'
 import { hasPermission } from '@/lib/admin-permissions'
-import ConfirmDialog from '@/components/admin/ConfirmDialog'
 const RechargeSettingsPanel = dynamic(() => import('@/components/admin/RechargeSettingsPanel'), { ssr: false })
 const RewardsTab = dynamic(() => import('./_components/RewardsTab'), { ssr: false })
 const WithdrawalsTab = dynamic(() => import('./_components/WithdrawalsTab'), { ssr: false })
 const RechargeTab = dynamic(() => import('./_components/RechargeTab'), { ssr: false })
 const FinanceModals = dynamic(() => import('./_components/FinanceModals'), { ssr: false })
 import { getAuthToken, getAuthUserRole } from '@/lib/utils/auth-token'
-import { LARGE_WITHDRAWAL_THRESHOLD, RECHARGE_PAYMENT_METHOD_MAP, RECHARGE_AUDIT_ACTION_MAP, RECHARGE_AUDIT_STATUS_MAP } from './_components/financeConstants'
+
 
 // v68:大额提现阈值
 
@@ -130,59 +126,7 @@ export interface Pagination {
   totalPages: number
 }
 
-// ---- 映射 ----
-
-const REWARD_TYPE_MAP: Record<string, { label: string; color: string }> = {
-  referral:     { label: '推荐奖', color: 'bg-blue-50 text-blue-700' },
-  brand_bonus:  { label: '品牌管理奖', color: 'bg-purple-50 text-purple-700' },
-  dividend:     { label: '分红奖', color: 'bg-amber-50 text-amber-700' },
-  manual:       { label: '手动发放', color: 'bg-green-50 text-green-700' },
-}
-
-const REWARD_TYPE_OPTIONS = [
-  { value: '', label: '全部类型' },
-  { value: 'referral', label: '推荐奖' },
-  { value: 'brand_bonus', label: '品牌管理奖' },
-  { value: 'dividend', label: '分红奖' },
-]
-
-const REWARD_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending: { label: '待发放', color: 'bg-yellow-50 text-yellow-700' },
-  paid:    { label: '已发放', color: 'bg-green-50 text-green-700' },
-}
-
-const WITHDRAWAL_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending:   { label: '待审核', color: 'bg-yellow-50 text-yellow-700' },
-  approved:  { label: '已通过', color: 'bg-blue-50 text-blue-700' },
-  completed: { label: '已完成', color: 'bg-green-50 text-green-700' },
-  rejected:  { label: '已拒绝', color: 'bg-red-50 text-red-700' },
-}
-
-const WITHDRAWAL_STATUS_OPTIONS = [
-  { value: '', label: '全部状态' },
-  { value: 'pending', label: '待审核' },
-  { value: 'approved', label: '已审核通过' },
-  { value: 'completed', label: '已打款完成' },
-  { value: 'rejected', label: '已拒绝' },
-]
-
-const RECHARGE_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending:  { label: '待审核', color: 'bg-yellow-50 text-yellow-700' },
-  approved: { label: '已通过', color: 'bg-green-50 text-green-700' },
-  rejected: { label: '已拒绝', color: 'bg-red-50 text-red-700' },
-}
-
-const RECHARGE_STATUS_OPTIONS = [
-  { value: '', label: '全部状态' },
-  { value: 'pending', label: '待审核' },
-  { value: 'approved', label: '已通过' },
-  { value: 'rejected', label: '已拒绝' },
-]
-
-
-
-
-
+// ---- 主组件 ----
 
 
 // ---- 主组件 ----
@@ -732,13 +676,6 @@ const [stats, setStats] = useState<{
 
   const closeProofViewer = () => {
     setProofViewerUrl(null)
-  }
-
-  // 格式化时间
-  const formatTime = (iso: string | null) => {
-    if (!iso) return '-'
-    const d = new Date(iso)
-    return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
   // 渲染

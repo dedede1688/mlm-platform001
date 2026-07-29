@@ -3,7 +3,7 @@ import { verifyPermission } from '@/lib/utils/admin-auth'
 import { SettingsService } from '@/lib/services/settings.service'
 import { BannerService } from '@/lib/services/banner.service'
 import { logger } from '@/lib/logger'
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { errorResponse, successResponse } from '@/lib/api-response'
 
 const DEFAULT_SITE = {

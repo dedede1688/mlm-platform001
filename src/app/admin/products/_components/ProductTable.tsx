@@ -8,8 +8,6 @@ import {
   AlertTriangle, CheckSquare, Square, CheckCheck, XCircle,
 } from 'lucide-react'
 
-import type { ProductFormData } from './ProductForm'
-
 // ---- 共有类型 ----
 
 export interface Product {
@@ -114,9 +112,6 @@ export default function ProductTable({
   stripHtmlTags,
   onAdd,
 }: ProductTableProps) {
-
-  // 当前页所有商品 ID
-  const currentPageIds = products.map(p => p.id)
 
   return (
     <>

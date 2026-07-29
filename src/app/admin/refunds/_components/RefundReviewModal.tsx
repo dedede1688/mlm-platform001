@@ -40,7 +40,7 @@ interface Props {
 export default function RefundReviewModal({
   item,
   token,
-  canApprove,
+  canApprove: _canApprove,
   onClose,
   onSuccess,
   formatTime,

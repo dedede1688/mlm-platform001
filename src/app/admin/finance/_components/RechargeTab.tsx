@@ -28,13 +28,6 @@ function formatTime(iso: string | null): string {
   return d.toLocaleString('zh-CN', { hour12: false })
 }
 
-const METHOD_LABEL_MAP: Record<string, string> = {
-  bank: '银行转账',
-  wechat: '微信支付',
-  alipay: '支付宝',
-  manual: '手动',
-}
-
 export interface RechargeTabProps {
   token: string | null
   recharges: RechargeItem[]
@@ -54,8 +47,8 @@ export interface RechargeTabProps {
 
 export default function RechargeTab(props: RechargeTabProps) {
   const {
-    token, recharges, rechargePagination, rechargeLoading,
-    rechargeSearch, rechargeStatus, canApprove,
+    token: _token, recharges, rechargePagination, rechargeLoading,
+    rechargeSearch, rechargeStatus, canApprove: _canApprove,
     setRechargeSearch, setRechargeStatus, setRechargeReviewModal,
     onSearch, onPageChange, onViewAuditLogs, openProofViewer,
   } = props

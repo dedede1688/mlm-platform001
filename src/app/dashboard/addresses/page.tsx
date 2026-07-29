@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Plus, Edit2, Trash2, MapPin, Star, Loader2, AlertCircle,
+  ArrowLeft, Plus, Edit2, Trash2, MapPin, Star, Loader2,
 } from 'lucide-react'
 import { toast } from '@/components/ToastProvider'
 import { AddressForm, AddressFormData } from '@/components/address/AddressForm'
@@ -26,7 +26,7 @@ interface Address {
 export default function AddressesPage() {
   const router = useRouter()
   const [addresses, setAddresses] = useState<Address[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [creatingNew, setCreatingNew] = useState(false)
   const [submitting, setSubmitting] = useState(false)

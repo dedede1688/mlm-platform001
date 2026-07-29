@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import {
   User, Copy, Check, ShoppingBag, Wallet, Users, Coins,
   TrendingUp, Award, Clock, MapPin, ShieldCheck,
-  CheckCircle2, Lock, Camera, BarChart3, PieChart,
+  CheckCircle2, Lock, Camera, BarChart3,
   PlusCircle, CheckCircle, Lightbulb
 } from 'lucide-react'
 import { formatMoney } from '@/lib/utils/format'

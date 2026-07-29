@@ -1,11 +1,11 @@
-﻿import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest } from "next/server"
 import { verifyPermission } from "@/lib/utils/admin-auth"
 import { RewardService } from "@/lib/services/reward.service"
 import { logOperation } from "@/lib/utils/operation-log"
 import { OrderNotificationService } from "@/lib/services/order-notification.service"
 import { logger } from "@/lib/logger"
 import { errorResponse, successResponse } from "@/lib/api-response"
-import { checkRateLimit, getClientIP, rateLimitResponse } from "@/lib/utils/rate-limit"
+
 import { parseBody } from "@/lib/validations/helper"
 import { manualRewardSchema } from "@/lib/validations/admin/manual-reward"
 

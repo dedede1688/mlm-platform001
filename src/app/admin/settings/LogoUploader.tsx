@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Upload, X, Image as ImageIcon } from 'lucide-react'
-import { getAuthToken } from '@/lib/utils/auth-token'
+
 
 // ---- Logo 上传组件 ----
 export function LogoUploader({ value, onChange }: { value: string; onChange: (v: string) => void }) {
